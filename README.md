@@ -9,7 +9,6 @@
 [![GitHub Stars](https://img.shields.io/github/stars/alisadeghiaghili/v2ray-finder?style=flat)](https://github.com/alisadeghiaghili/v2ray-finder/stargazers)
 
 [English](README.en.md) | [فارسی](README.fa.md) | [Deutsch](README.de.md) | [📋 CHANGELOG](CHANGELOG.md)
-  
 
 ---
 
@@ -22,32 +21,48 @@ A **high-performance** tool to **fetch, aggregate, validate and health-check pub
 
 ---
 
-## 🚀 What's New in v0.2.1
+## 🚀 What's New in v0.3.0
 
-### 🐛 Ctrl+C & Graceful Stop — Complete Overhaul
+### ⚡ Real-Time Health Checking — Servers Checked as They're Found
 
-⌨️ **Ctrl+C now works everywhere** — all fetch layers catch KeyboardInterrupt and save partial results  
-🔒 **Thread-safe StopController** — `threading.Event` replaces bare boolean flag  
-🏥 **Batch health checking** — `health_batch_size` param, stop checked between every batch  
-🧪 **Full test coverage** for stop mechanism across CLI, Rich CLI, and core  
-🔧 **Python 3.8 compat fixes** — `ExitStack` replaces parenthesized `with` syntax  
-📦 **Windows EXE builds** — `cli_entry.py` and `cli_rich_entry.py` added for PyInstaller  
+🔴 **Old behaviour:** collect all servers → then batch health-check  
+🟢 **New behaviour:** each server is health-checked **immediately** as it is discovered
+
+Three check methods run **concurrently** per server:
+
+| Method | What it checks |
+|--------|----------------|
+| 🔌 **TCP** | Raw socket connect to `host:port` — is the port open? |
+| 🌐 **HTTP** | Lightweight HTTP GET to `host:port` — is it responding? |
+| ✅ **Google 204** | `GET connectivitycheck.gstatic.com/generate_204` — does the host have working internet? |
+
+> The Google 204 check is the same mechanism Android uses to detect captive portals.
+
+```python
+from v2ray_finder import V2RayServerFinder
+
+# Enable real-time health checking
+finder = V2RayServerFinder(
+    realtime_health_check=True,        # check each server as it's found
+    health_enable_google_204=True,     # Google 204 check
+    health_enable_http_check=True,     # HTTP reachability check
+    health_timeout=5.0,
+)
+
+# Only healthy servers are returned — dead servers are dropped inline
+servers = finder.get_all_servers()
+print(f"Live servers: {len(servers)}")
+```
 
 > See full details in [📋 CHANGELOG.md](CHANGELOG.md)
 
 ---
 
-## 🚀 v0.2.0 — Major Performance & Reliability Release
+## 🚀 v0.2.1 — Ctrl+C & Graceful Stop
 
-⚡ **Async HTTP Fetching** — 10-50x faster concurrent downloads  
-💾 **Smart Caching** — 80-95% fewer GitHub API calls  
-🛡️ **Enhanced Error Handling** — Result type + custom exception hierarchy  
-🔒 **Secure Token Handling** — Environment variable support + `from_env()`  
-🧪 **78% Test Coverage** — Comprehensive test suite across Python 3.8–3.12  
-📈 **Rate Limit Tracking** — Monitor GitHub API usage  
-🏥 **Health Checking** — TCP connectivity, latency measurement, quality scoring  
-⌨️ **Interactive Token Prompt** — Secure masked input with `--prompt-token`  
-⛔ **Graceful Interruption** — Press Ctrl+C to save partial results  
+⌨️ **Ctrl+C now works everywhere** — all fetch layers catch KeyboardInterrupt and save partial results  
+🔒 **Thread-safe StopController** — `threading.Event` replaces bare boolean flag  
+🏥 **Batch health checking** — `health_batch_size` param, stop checked between every batch  
 
 ---
 
@@ -64,7 +79,8 @@ A **high-performance** tool to **fetch, aggregate, validate and health-check pub
 ### Performance & Reliability / کارایی و قابلیت اطمینان
 - ⚡ **Async HTTP fetching**: **10-50x faster** concurrent downloads
 - 💾 **Smart caching**: **80-95% fewer** API calls with memory/disk cache
-- ✅ **Health checking**: TCP connectivity, latency measurement, config validation
+- ⚡ **Real-time health checking**: every server checked immediately upon discovery
+- ✅ **Three health methods**: TCP + HTTP reachability + Google 204 connectivity
 - 🎯 **Quality scoring**: Rank servers by speed and reliability
 - 🔄 **Retry logic**: Automatic retry with exponential backoff
 - ⛔ **Graceful interruption**: Ctrl+C saves partial results before exit
@@ -74,7 +90,7 @@ A **high-performance** tool to **fetch, aggregate, validate and health-check pub
 - 📈 **Rate limit tracking**: Monitor GitHub API usage
 - 🔒 **Secure token handling**: Environment variable support with validation
 - ⌨️ **Interactive token prompt**: Masked input for secure token entry
-- 🧪 **78% test coverage**: Comprehensive test suite across Linux, macOS, and Windows
+- 🧪 **80% test coverage**: Comprehensive test suite across Linux, macOS, and Windows
 - ✅ **CI/CD**: Automated testing and deployment
 
 ---
@@ -83,7 +99,7 @@ A **high-performance** tool to **fetch, aggregate, validate and health-check pub
 
 - **Python** ≥ 3.8
 - **Internet connection**
-- **Optional**: aiohttp/httpx (async), diskcache (caching), PySide6 (GUI)
+- **Optional**: aiohttp/httpx (async + health checks), diskcache (caching), PySide6 (GUI)
 
 ---
 
@@ -93,7 +109,7 @@ A **high-performance** tool to **fetch, aggregate, validate and health-check pub
 # Core + lightweight CLI
 pip install v2ray-finder
 
-# With async support (10-50x faster!)
+# With async + health check support (recommended)
 pip install "v2ray-finder[async]"
 
 # With caching (80-95% fewer API calls!)
@@ -121,84 +137,59 @@ pip install -e ".[all,dev]"
 
 ## 🔒 Token Security / امنیت Token
 
-### Method 1: Environment Variable (Recommended)
-
 ```bash
-# پیشنهادی / Recommended
 export GITHUB_TOKEN="ghp_your_token_here"
 v2ray-finder -s
 ```
 
 ```python
-from v2ray_finder import V2RayServerFinder
-
 finder = V2RayServerFinder()          # reads GITHUB_TOKEN automatically
 finder = V2RayServerFinder.from_env() # explicit
 ```
 
-### Method 2: Interactive Prompt (New! ✨)
-
-```bash
-# Secure masked input
-v2ray-finder --prompt-token -s -o servers.txt
-v2ray-finder-rich --prompt-token
-
-# In interactive mode (no args), you'll be prompted automatically
-v2ray-finder-rich
-# → "Do you want to provide a GitHub token? (y/n)"
-```
-
 **Rate Limits:** without token: 60 req/h — with token: 5000 req/h
-
-Generate a token at **GitHub Settings → Developer settings → Personal access tokens** with **public_repo** scope.
-
-> ⚠️ **Security Note:** Never use `-t` flag for tokens (insecure). Use env var or `--prompt-token` instead.
-
----
-
-## ⛔ Graceful Interruption (New! ✨)
-
-**Press Ctrl+C at any time** during fetch operations to:
-- Stop immediately without data loss
-- Save all servers collected so far
-- Display statistics for partial results
-- Exit cleanly with code `130`
-
-```bash
-v2ray-finder -s -o servers.txt
-# ... fetching ...
-# Press Ctrl+C
-
-[!] Interrupted by user. Saving partial results...
-[✓] Saved 47 servers to v2ray_servers_partial.txt
-
-Total servers: 47
-By protocol:
-  vmess: 23
-  vless: 15
-  trojan: 9
-```
-
-**Rich CLI** version:
-
-```bash
-v2ray-finder-rich -s
-# Press Ctrl+C during fetch
-
-⚠ Interrupted by user
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 100% 0:00:00
-✓ Saved 47 servers to v2ray_servers_partial.txt
-```
-
-> 📖 **See detailed guide:** [docs/INTERRUPTION_GUIDE.md](docs/INTERRUPTION_GUIDE.md)
 
 ---
 
 ## 📚 Library Usage / استفاده به‌صورت کتابخانه
 
+### Real-Time Health Checking (New! ✨)
+
 ```python
 from v2ray_finder import V2RayServerFinder
 
+# Each server is checked as it's discovered — dead servers never enter the list
+finder = V2RayServerFinder(
+    realtime_health_check=True,
+    health_enable_google_204=True,   # Google generate_204 check
+    health_enable_http_check=True,   # HTTP reachability check
+    health_timeout=5.0,
+)
+servers = finder.get_all_servers()
+print(f"Live servers: {len(servers)}")
+```
+
+### Batch Health Checking (existing)
+
+```python
+servers = finder.get_servers_with_health(
+    check_health=True,
+    health_timeout=5.0,
+    min_quality_score=60.0,
+    filter_unhealthy=True,
+)
+for s in servers[:10]:
+    print(
+        f"{s['protocol']:8s} | "
+        f"Quality: {s['quality_score']:5.1f} | "
+        f"TCP: {s['tcp_ok']} | HTTP: {s['http_ok']} | G204: {s['google_204_ok']} | "
+        f"{s['latency_ms']:6.1f}ms"
+    )
+```
+
+### Basic Usage
+
+```python
 finder = V2RayServerFinder()
 
 # Fast: curated sources only
@@ -217,39 +208,16 @@ count, filename = finder.save_to_file(filename="v2ray_servers.txt", limit=200)
 ```python
 from v2ray_finder import V2RayServerFinder, RateLimitError, NetworkError
 
-# Method 1: Result type
 result = finder.search_repos(keywords=["v2ray"])
 if result.is_ok():
     repos = result.unwrap()
 else:
     print(result.error)
-
-# Method 2: Exception mode
-finder = V2RayServerFinder(raise_errors=True)
-try:
-    repos = finder.search_repos_or_empty()
-except RateLimitError as e:
-    print(f"Rate limit: {e}")
-```
-
-### Health Checking
-
-```python
-servers = finder.get_servers_with_health(
-    check_health=True,
-    health_timeout=5.0,
-    min_quality_score=60.0,
-    filter_unhealthy=True,
-)
-for s in servers[:10]:
-    print(f"{s['protocol']:8s} | Quality: {s['quality_score']:5.1f} | {s['latency_ms']:6.1f}ms")
 ```
 
 ---
 
 ## ⚡ CLI Usage / استفاده از CLI
-
-### Basic CLI
 
 ```bash
 export GITHUB_TOKEN="ghp_your_token_here"
@@ -258,72 +226,21 @@ v2ray-finder                          # Interactive TUI
 v2ray-finder -o servers.txt           # Quick save
 v2ray-finder -s -l 200 -o servers.txt # GitHub search + limit
 v2ray-finder --stats-only             # Stats only
-v2ray-finder --prompt-token -s        # Secure token input
+v2ray-finder -c --min-quality 60 -o healthy_servers.txt  # with health check
 ```
 
-**With health checking:**
-
-```bash
-v2ray-finder -c --min-quality 60 -o healthy_servers.txt
-```
-
-### Rich CLI (Recommended)
+### Rich CLI
 
 ```bash
 pip install "v2ray-finder[cli-rich]"
-v2ray-finder-rich                     # Beautiful Rich TUI
-v2ray-finder-rich --prompt-token      # With secure token prompt
-```
-
-**Interactive mode features:**
-- Token prompt on first run (if not in env)
-- Press Ctrl+C during fetch → saves partial results
-- Visual progress bars and spinners
-- Color-coded health status
-
----
-
-## 🖥️ GUI / رابط گرافیکی
-
-```bash
-pip install "v2ray-finder[gui]"
-v2ray-finder-gui
+v2ray-finder-rich
 ```
 
 ---
 
-## 🛠️ Advanced Usage
+## ⛔ Graceful Interruption
 
-### Interruption in Scripts
-
-```bash
-#!/bin/bash
-
-v2ray-finder -s -o servers.txt
-exit_code=$?
-
-if [ $exit_code -eq 0 ]; then
-    echo "Success!"
-    # Process servers.txt
-elif [ $exit_code -eq 130 ]; then
-    echo "Interrupted - using partial results"
-    mv v2ray_servers_partial.txt servers.txt
-else
-    echo "Error occurred"
-    exit 1
-fi
-```
-
-### CI/CD with Timeout
-
-```bash
-# Timeout after 2 minutes, use partial results
-timeout 120 v2ray-finder -s -o servers.txt || {
-    if [ $? -eq 124 ]; then
-        mv v2ray_servers_partial.txt servers.txt
-    fi
-}
-```
+**Press Ctrl+C at any time** during fetch operations to stop and save partial results.
 
 ---
 
@@ -348,7 +265,6 @@ MIT License © 2026 Ali Sadeghi Aghili
 - [PyPI](https://pypi.org/project/v2ray-finder)
 - [Issues](https://github.com/alisadeghiaghili/v2ray-finder/issues)
 - [CHANGELOG](CHANGELOG.md)
-- [Interruption Guide](docs/INTERRUPTION_GUIDE.md)
 
 ---
 

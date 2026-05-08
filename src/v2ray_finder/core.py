@@ -5,7 +5,7 @@ import os
 import re
 import threading
 from datetime import datetime
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Dict, Generator, List, Optional, Tuple, Union
 
 import requests
 
@@ -44,7 +44,6 @@ class V2RayServerFinder:
         "https://raw.githubusercontent.com/Epodonios/v2ray-configs/main/All_Configs_Sub.txt",
     ]
 
-    # Environment variable name for token
     TOKEN_ENV_VAR = "GITHUB_TOKEN"
 
     def __init__(
@@ -55,46 +54,46 @@ class V2RayServerFinder:
         cache_ttl_repos: int = 3600,
         cache_ttl_urls: int = 1800,
         cache_enabled: bool = True,
+        # Real-time health check settings
+        realtime_health_check: bool = False,
+        health_timeout: float = 5.0,
+        health_concurrent_limit: int = 50,
+        health_enable_google_204: bool = True,
+        health_enable_http_check: bool = True,
     ):
         """
         Initialize V2RayServerFinder.
 
         Args:
-            token: Optional GitHub personal access token for higher API rate limits.
-                   If not provided, will attempt to read from GITHUB_TOKEN environment variable.
+            token: Optional GitHub personal access token.
+            raise_errors: If True, raise exceptions instead of returning empty results.
+            cache_backend: 'memory' (default) or 'disk'.
+            cache_ttl_repos: TTL in seconds for GitHub search/repo-files cache.
+            cache_ttl_urls: TTL in seconds for URL content cache.
+            cache_enabled: Set False to disable caching.
 
-                   SECURITY WARNING: Passing tokens directly as strings can expose them in:
-                   - Process listings (ps, top)
-                   - Shell history
-                   - Application logs
-                   - Exception tracebacks
-
-                   RECOMMENDED: Use environment variables instead:
-                     export GITHUB_TOKEN="your_token_here"
-                     finder = V2RayServerFinder()  # Will read from env
-
-            raise_errors: If True, raise exceptions instead of logging and returning empty results.
-                         This is useful for applications that want explicit error handling.
-            cache_backend: Cache backend to use: 'memory' (default) or 'disk'.
-                           'disk' requires the optional [cache] extra: pip install v2ray-finder[cache]
-            cache_ttl_repos: TTL in seconds for cached GitHub search/repo-files results (default: 3600).
-            cache_ttl_urls: TTL in seconds for cached URL content results (default: 1800).
-            cache_enabled: Set to False to disable caching entirely (useful for testing).
+            realtime_health_check: When True, every server is health-checked
+                **immediately** as it is discovered. Only servers that pass
+                TCP connectivity are included in results. This is the
+                "streaming" health-check mode.
+                When False (default), health checks are done in a separate
+                batch step via get_servers_with_health().
+            health_timeout: Timeout in seconds for each health check method.
+            health_concurrent_limit: Max concurrent async health checks.
+            health_enable_google_204: Include Google 204 connectivity check.
+            health_enable_http_check: Include HTTP-level reachability check.
         """
         self.headers = {"Accept": "application/vnd.github.v3+json"}
         self.raise_errors = raise_errors
         self._last_rate_limit_info: Optional[Dict] = None
         self._token_source: str = "none"
 
-        # Stop mechanism for graceful interruption
         self._stop_requested = threading.Event()
         self._lock = threading.Lock()
 
-        # Cache TTLs kept as instance attributes so tests can inspect them
         self._cache_ttl_repos = cache_ttl_repos
         self._cache_ttl_urls = cache_ttl_urls
 
-        # Initialise cache — always succeeds; falls back to MemoryCache on error
         self._cache = CacheManager(
             backend=cache_backend,
             ttl=cache_ttl_repos,
@@ -106,7 +105,14 @@ class V2RayServerFinder:
             f"enabled={cache_enabled}"
         )
 
-        # Try to get token from environment if not provided
+        # Real-time health check config
+        self.realtime_health_check = realtime_health_check
+        self._health_timeout = health_timeout
+        self._health_concurrent_limit = health_concurrent_limit
+        self._health_enable_google_204 = health_enable_google_204
+        self._health_enable_http_check = health_enable_http_check
+        self._health_checker = None  # Lazy init
+
         if token is None:
             token = os.environ.get(self.TOKEN_ENV_VAR)
             if token:
@@ -116,16 +122,14 @@ class V2RayServerFinder:
                 )
         else:
             self._token_source = "parameter"
-            # Warn about security risk
             logger.warning(
                 "Security Warning: GitHub token passed as parameter. "
-                f"Consider using {self.TOKEN_ENV_VAR} environment variable instead to avoid token exposure."
+                f"Consider using {self.TOKEN_ENV_VAR} environment variable instead."
             )
 
-        # Validate and sanitize token
         if token:
             token = self._validate_and_sanitize_token(token)
-            if token:  # Only set if validation passed
+            if token:
                 self.headers["Authorization"] = f"token {token}"
                 logger.info(f"GitHub token configured from {self._token_source}")
             else:
@@ -138,26 +142,60 @@ class V2RayServerFinder:
             )
 
     # ------------------------------------------------------------------
+    # Health checker lazy init
+    # ------------------------------------------------------------------
+
+    def _get_health_checker(self):
+        """Lazy-initialise and return the HealthChecker instance."""
+        if self._health_checker is None:
+            try:
+                from .health_checker import HealthChecker
+                self._health_checker = HealthChecker(
+                    timeout=self._health_timeout,
+                    concurrent_limit=self._health_concurrent_limit,
+                    enable_google_204=self._health_enable_google_204,
+                    enable_http_check=self._health_enable_http_check,
+                )
+            except ImportError:
+                logger.warning("health_checker module not available; skipping health checks")
+        return self._health_checker
+
+    def _passes_realtime_check(self, config: str) -> bool:
+        """Return True if *config* passes the real-time health check.
+
+        Called for every server when realtime_health_check=True so that only
+        reachable servers are included in the final list.
+        """
+        checker = self._get_health_checker()
+        if checker is None:
+            return True  # Can't check — let it through
+        try:
+            health = checker.check_server_now(config)
+            ok = health.tcp_ok
+            methods = ", ".join(health.check_methods)
+            logger.debug(
+                f"Real-time health [{methods}]: "
+                f"tcp={health.tcp_ok} http={health.http_ok} "
+                f"g204={health.google_204_ok} "
+                f"latency={health.latency_ms:.1f}ms "
+                f"→ {'PASS' if ok else 'FAIL'} — {config[:60]}"
+            )
+            return ok
+        except Exception as e:
+            logger.debug(f"Real-time health check raised: {e} — letting server through")
+            return True  # Fail-open: don't discard on unexpected errors
+
+    # ------------------------------------------------------------------
     # Cache helpers
     # ------------------------------------------------------------------
 
     def clear_cache(self) -> bool:
-        """Clear all cached results.
-
-        Returns:
-            True if the cache was cleared successfully.
-        """
         success = self._cache.clear()
         if success:
             logger.info("Cache cleared")
         return success
 
     def get_cache_stats(self) -> Dict:
-        """Return cache hit/miss/set/error statistics.
-
-        Returns:
-            Dict with keys: hits, misses, sets, errors, hit_rate
-        """
         return self._cache.get_stats()
 
     # ------------------------------------------------------------------
@@ -165,20 +203,13 @@ class V2RayServerFinder:
     # ------------------------------------------------------------------
 
     def request_stop(self):
-        """Request graceful stop of ongoing operations."""
         self._stop_requested.set()
         logger.info("Stop requested - operations will terminate gracefully")
 
     def reset_stop(self):
-        """Reset stop flag for new operations."""
         self._stop_requested.clear()
 
     def should_stop(self) -> bool:
-        """Check if stop has been requested.
-
-        Returns:
-            True if stop was requested, False otherwise
-        """
         return self._stop_requested.is_set()
 
     # ------------------------------------------------------------------
@@ -186,58 +217,31 @@ class V2RayServerFinder:
     # ------------------------------------------------------------------
 
     def _validate_and_sanitize_token(self, token: str) -> Optional[str]:
-        """
-        Validate and sanitize GitHub token.
-
-        Args:
-            token: Raw token string
-
-        Returns:
-            Sanitized token if valid, None if invalid
-        """
-        # Strip whitespace
         token = token.strip()
-
-        # Check for empty token
         if not token:
             logger.error("Empty token provided")
             return None
-
-        # Validate token format
-        # GitHub personal access tokens typically start with ghp_ (classic) or github_pat_ (fine-grained)
-        # OAuth tokens start with gho_
-        # But we'll be lenient and accept any reasonable token format
-
-        # Check minimum length (GitHub tokens are typically 40+ characters)
         if len(token) < 20:
             logger.error(
                 f"Token too short ({len(token)} chars). GitHub tokens are typically 40+ characters."
             )
             return None
-
-        # Check for suspicious characters (tokens should be alphanumeric + underscore)
         if not re.match(r"^[a-zA-Z0-9_]+$", token):
             logger.error(
                 "Token contains invalid characters. GitHub tokens should be alphanumeric."
             )
             return None
-
-        # Validate known token prefixes (informational, not enforced)
         known_prefixes = ["ghp_", "gho_", "ghu_", "ghs_", "ghr_", "github_pat_"]
         has_known_prefix = any(token.startswith(prefix) for prefix in known_prefixes)
-
         if not has_known_prefix:
             logger.warning(
                 f"Token doesn't start with a known GitHub prefix ({', '.join(known_prefixes)}). "
                 "This might be an old token format or invalid token."
             )
-
-        # Log token info without exposing the token itself
         token_preview = f"{token[:4]}...{token[-4:]}" if len(token) > 8 else "****"
         logger.debug(
             f"Token validated: {token_preview} ({len(token)} chars, source: {self._token_source})"
         )
-
         return token
 
     # ------------------------------------------------------------------
@@ -252,26 +256,12 @@ class V2RayServerFinder:
         cache_ttl_repos: int = 3600,
         cache_ttl_urls: int = 1800,
         cache_enabled: bool = True,
+        realtime_health_check: bool = False,
+        health_timeout: float = 5.0,
+        health_enable_google_204: bool = True,
+        health_enable_http_check: bool = True,
     ) -> "V2RayServerFinder":
-        """
-        Create V2RayServerFinder instance using token from environment variable.
-
-        This is the recommended way to initialize the finder with authentication.
-
-        Args:
-            raise_errors: If True, raise exceptions instead of logging errors
-            cache_backend: Cache backend ('memory' or 'disk')
-            cache_ttl_repos: TTL in seconds for GitHub API responses (default: 3600)
-            cache_ttl_urls: TTL in seconds for URL content (default: 1800)
-            cache_enabled: Whether to enable caching (default: True)
-
-        Returns:
-            V2RayServerFinder instance
-
-        Example:
-            export GITHUB_TOKEN="your_token_here"
-            finder = V2RayServerFinder.from_env()
-        """
+        """Create V2RayServerFinder instance using token from environment variable."""
         return cls(
             token=None,
             raise_errors=raise_errors,
@@ -279,6 +269,10 @@ class V2RayServerFinder:
             cache_ttl_repos=cache_ttl_repos,
             cache_ttl_urls=cache_ttl_urls,
             cache_enabled=cache_enabled,
+            realtime_health_check=realtime_health_check,
+            health_timeout=health_timeout,
+            health_enable_google_204=health_enable_google_204,
+            health_enable_http_check=health_enable_http_check,
         )
 
     # ------------------------------------------------------------------
@@ -286,25 +280,15 @@ class V2RayServerFinder:
     # ------------------------------------------------------------------
 
     def _check_rate_limit(self, response: requests.Response) -> None:
-        """Check and store rate limit information from response headers.
-
-        Args:
-            response: HTTP response object
-
-        Raises:
-            RateLimitError: If rate limit is exceeded
-        """
         if response.status_code == 403 or response.status_code == 429:
             limit = response.headers.get("X-RateLimit-Limit")
             remaining = response.headers.get("X-RateLimit-Remaining")
             reset = response.headers.get("X-RateLimit-Reset")
-
             self._last_rate_limit_info = {
                 "limit": int(limit) if limit else None,
                 "remaining": int(remaining) if remaining else None,
                 "reset": int(reset) if reset else None,
             }
-
             if remaining == "0" or response.status_code == 429:
                 raise RateLimitError(
                     limit=self._last_rate_limit_info["limit"],
@@ -312,11 +296,9 @@ class V2RayServerFinder:
                     reset_time=self._last_rate_limit_info["reset"],
                 )
         else:
-            # Update rate limit info from successful requests
             limit = response.headers.get("X-RateLimit-Limit")
             remaining = response.headers.get("X-RateLimit-Remaining")
             reset = response.headers.get("X-RateLimit-Reset")
-
             if limit and remaining:
                 try:
                     self._last_rate_limit_info = {
@@ -324,12 +306,9 @@ class V2RayServerFinder:
                         "remaining": int(remaining),
                         "reset": int(reset) if reset else None,
                     }
-
-                    # Warn if getting close to limit
                     if int(remaining) < 10:
                         logger.warning(
-                            f"GitHub API rate limit low: {remaining}/{limit} remaining. "
-                            f"Consider using a GitHub token for higher limits."
+                            f"GitHub API rate limit low: {remaining}/{limit} remaining."
                         )
                 except (ValueError, TypeError):
                     logger.debug(
@@ -338,11 +317,6 @@ class V2RayServerFinder:
                     )
 
     def get_rate_limit_info(self) -> Optional[Dict]:
-        """Get the last known rate limit information.
-
-        Returns:
-            Dict with 'limit', 'remaining', and 'reset' keys, or None if no requests made yet.
-        """
         return self._last_rate_limit_info.copy() if self._last_rate_limit_info else None
 
     # ------------------------------------------------------------------
@@ -352,20 +326,6 @@ class V2RayServerFinder:
     def search_repos(
         self, keywords: Optional[List[str]] = None, max_results: int = 30
     ) -> Result[List[Dict], V2RayFinderError]:
-        """
-        Search GitHub repositories matching keywords.
-
-        Results are cached for cache_ttl_repos seconds to avoid hitting the
-        GitHub API rate limit on repeated calls with the same arguments.
-
-        Args:
-            keywords: List of search keywords (default: ["v2ray", "free", "config"])
-            max_results: Maximum number of results to return
-
-        Returns:
-            Result[List[Dict], V2RayFinderError]: Ok with list of repository metadata,
-                                                   or Err with error details
-        """
         if self.should_stop():
             logger.info("Search repos stopped by user request")
             return Ok([])
@@ -373,7 +333,6 @@ class V2RayServerFinder:
         if keywords is None:
             keywords = ["v2ray", "free", "config"]
 
-        # --- cache lookup ---
         cache_key = self._cache._make_key("search_repos", sorted(keywords), max_results)
         cached = self._cache.get(cache_key)
         if cached is not None:
@@ -390,20 +349,12 @@ class V2RayServerFinder:
         }
 
         try:
-            response = requests.get(
-                url, headers=self.headers, params=params, timeout=10
-            )
-
-            # Handle HTTP errors first (before _check_rate_limit to avoid
-            # TypeError when mock headers return non-string values)
+            response = requests.get(url, headers=self.headers, params=params, timeout=10)
             if response.status_code == 401:
                 raise AuthenticationError("Invalid or expired GitHub token")
             elif response.status_code == 404:
                 raise GitHubAPIError("GitHub API endpoint not found", status_code=404)
-
-            # Then check rate limits
             self._check_rate_limit(response)
-
             response.raise_for_status()
             data = response.json()
 
@@ -412,7 +363,6 @@ class V2RayServerFinder:
                 if self.should_stop():
                     logger.info(f"Search repos interrupted after {len(results)} repos")
                     break
-
                 results.append(
                     {
                         "name": repo["name"],
@@ -425,11 +375,8 @@ class V2RayServerFinder:
                 )
 
             logger.info(f"Found {len(results)} repositories matching '{query}'")
-
-            # Only cache complete (non-interrupted) results
             if not self.should_stop():
                 self._cache.set(cache_key, results, ttl=self._cache_ttl_repos)
-
             return Ok(results)
 
         except RateLimitError as e:
@@ -443,7 +390,7 @@ class V2RayServerFinder:
             return Err(e)
         except requests.exceptions.Timeout as e:
             error = TimeoutError(
-                f"Request timed out while searching repositories", url=url, timeout=10.0
+                "Request timed out while searching repositories", url=url, timeout=10.0
             )
             logger.error(str(error))
             return Err(error)
@@ -475,10 +422,6 @@ class V2RayServerFinder:
     def search_repos_or_empty(
         self, keywords: Optional[List[str]] = None, max_results: int = 30
     ) -> List[Dict]:
-        """Legacy wrapper for backward compatibility. Returns empty list on error.
-
-        Use search_repos() directly for explicit error handling.
-        """
         result = self.search_repos(keywords, max_results)
         if result.is_ok():
             return result.unwrap()
@@ -490,55 +433,29 @@ class V2RayServerFinder:
     def get_repo_files(
         self, repo_full_name: str, path: str = ""
     ) -> Result[List[Dict], V2RayFinderError]:
-        """
-        Get config files from a GitHub repository.
-
-        Results are cached for cache_ttl_repos seconds.
-
-        Args:
-            repo_full_name: Full repository name (e.g., "user/repo")
-            path: Optional subdirectory path
-
-        Returns:
-            Result[List[Dict], V2RayFinderError]: Ok with list of file metadata,
-                                                   or Err with error details
-        """
         if self.should_stop():
-            logger.info("Get repo files stopped by user request")
             return Ok([])
 
-        # --- cache lookup ---
         cache_key = self._cache._make_key("get_repo_files", repo_full_name, path)
         cached = self._cache.get(cache_key)
         if cached is not None:
-            logger.debug(f"get_repo_files cache hit for {repo_full_name}/{path}")
             return Ok(cached)
 
         url = f"{self.BASE_URL}/repos/{repo_full_name}/contents/{path}"
-
         try:
             response = requests.get(url, headers=self.headers, timeout=10)
-
-            # Handle HTTP errors first (before _check_rate_limit)
             if response.status_code == 404:
                 raise RepositoryNotFoundError(repo_full_name)
             elif response.status_code == 401:
                 raise AuthenticationError()
-
-            # Then check rate limits
             self._check_rate_limit(response)
-
             response.raise_for_status()
             files = response.json()
 
             config_files = []
             for file in files if isinstance(files, list) else [files]:
                 if self.should_stop():
-                    logger.info(
-                        f"Get repo files interrupted after {len(config_files)} files"
-                    )
                     break
-
                 if file.get("type") == "file":
                     name_lower = file["name"].lower()
                     if any(
@@ -554,11 +471,8 @@ class V2RayServerFinder:
                         )
 
             logger.info(f"Found {len(config_files)} config files in {repo_full_name}")
-
-            # Only cache complete (non-interrupted) results
             if not self.should_stop():
                 self._cache.set(cache_key, config_files, ttl=self._cache_ttl_repos)
-
             return Ok(config_files)
 
         except (RateLimitError, AuthenticationError, RepositoryNotFoundError) as e:
@@ -567,8 +481,7 @@ class V2RayServerFinder:
         except requests.exceptions.Timeout as e:
             error = TimeoutError(
                 f"Request timed out while fetching files from {repo_full_name}",
-                url=url,
-                timeout=10.0,
+                url=url, timeout=10.0,
             )
             logger.error(str(error))
             return Err(error)
@@ -590,10 +503,6 @@ class V2RayServerFinder:
     def get_repo_files_or_empty(
         self, repo_full_name: str, path: str = ""
     ) -> List[Dict]:
-        """Legacy wrapper for backward compatibility. Returns empty list on error.
-
-        Use get_repo_files() directly for explicit error handling.
-        """
         result = self.get_repo_files(repo_full_name, path)
         if result.is_ok():
             return result.unwrap()
@@ -603,51 +512,22 @@ class V2RayServerFinder:
             return []
 
     def _parse_servers(self, content: str) -> List[str]:
-        """
-        Parse V2Ray server configs from text content.
-
-        Args:
-            content: Raw text content containing server configs
-
-        Returns:
-            List of valid server configuration strings
-        """
         servers = []
         supported_protocols = ["vmess://", "vless://", "trojan://", "ss://", "ssr://"]
-
         for line in content.split("\n"):
             if self.should_stop():
-                logger.info(f"Parse servers interrupted after {len(servers)} servers")
                 break
-
             line = line.strip()
             if any(line.startswith(p) for p in supported_protocols):
                 servers.append(line)
-
         return servers
 
     def get_servers_from_url(
         self, url: str, timeout: float = 10.0
     ) -> Result[List[str], V2RayFinderError]:
-        """
-        Fetch and parse servers from a URL.
-
-        Results are cached for cache_ttl_urls seconds to avoid re-downloading
-        the same subscription files on repeated calls.
-
-        Args:
-            url: URL to fetch server configs from
-            timeout: Request timeout in seconds
-
-        Returns:
-            Result[List[str], V2RayFinderError]: Ok with parsed server configs,
-                                                  or Err with error details
-        """
         if self.should_stop():
-            logger.info("Get servers from URL stopped by user request")
             return Ok([])
 
-        # --- cache lookup ---
         cache_key = self._cache._make_key("get_servers_from_url", url)
         cached = self._cache.get(cache_key)
         if cached is not None:
@@ -657,16 +537,11 @@ class V2RayServerFinder:
         try:
             response = requests.get(url, timeout=timeout)
             response.raise_for_status()
-
             servers = self._parse_servers(response.text)
             logger.info(f"Fetched {len(servers)} servers from {url}")
-
-            # Only cache complete (non-interrupted) results
             if not self.should_stop():
                 self._cache.set(cache_key, servers, ttl=self._cache_ttl_urls)
-
             return Ok(servers)
-
         except requests.exceptions.Timeout as e:
             error = TimeoutError(
                 f"Request timed out while fetching from {url}", url=url, timeout=timeout
@@ -689,10 +564,6 @@ class V2RayServerFinder:
     def get_servers_from_url_or_empty(
         self, url: str, timeout: float = 10.0
     ) -> List[str]:
-        """Legacy wrapper for backward compatibility. Returns empty list on error.
-
-        Use get_servers_from_url() directly for explicit error handling.
-        """
         result = self.get_servers_from_url(url, timeout)
         if result.is_ok():
             return result.unwrap()
@@ -701,24 +572,129 @@ class V2RayServerFinder:
                 raise result.error
             return []
 
+    # ------------------------------------------------------------------
+    # Generator-based discovery pipeline
+    # ------------------------------------------------------------------
+
+    def _iter_raw_servers(self, use_github_search: bool = False) -> Generator[str, None, None]:
+        """Internal generator that yields raw server config strings as they are found.
+
+        Each server is yielded **immediately** when it is parsed from a source,
+        before the next source is fetched. This enables real-time health checking
+        downstream without waiting for all sources to be exhausted.
+
+        Args:
+            use_github_search: Whether to include GitHub repository search
+
+        Yields:
+            Raw server config strings (vmess://, vless://, etc.)
+        """
+        seen: set = set()
+
+        # --- Known curated sources ---
+        try:
+            for url in self.DIRECT_SOURCES:
+                if self.should_stop():
+                    logger.info("Discovery stopped by user request (known sources)")
+                    return
+                result = self.get_servers_from_url(url)
+                if result.is_ok():
+                    for server in result.unwrap():
+                        if self.should_stop():
+                            return
+                        if server not in seen:
+                            seen.add(server)
+                            yield server
+                else:
+                    if self.raise_errors:
+                        raise result.error
+        except KeyboardInterrupt:
+            logger.info("Discovery interrupted via Ctrl+C (known sources)")
+            self.request_stop()
+            return
+
+        if not use_github_search:
+            return
+
+        # --- GitHub search ---
+        try:
+            search_keywords = ["free-v2ray", "v2ray-config"]
+            for keyword in search_keywords:
+                if self.should_stop():
+                    return
+                repos_result = self.search_repos(keywords=[keyword, "v2ray"], max_results=10)
+                if repos_result.is_err():
+                    if self.raise_errors:
+                        raise repos_result.error
+                    continue
+                for repo in repos_result.unwrap():
+                    if self.should_stop():
+                        return
+                    files_result = self.get_repo_files(repo["full_name"])
+                    if files_result.is_err():
+                        if self.raise_errors:
+                            raise files_result.error
+                        continue
+                    for file in files_result.unwrap():
+                        if self.should_stop():
+                            return
+                        if file["download_url"]:
+                            servers_result = self.get_servers_from_url(file["download_url"])
+                            if servers_result.is_ok():
+                                for server in servers_result.unwrap():
+                                    if self.should_stop():
+                                        return
+                                    if server not in seen:
+                                        seen.add(server)
+                                        yield server
+                            else:
+                                if self.raise_errors:
+                                    raise servers_result.error
+        except KeyboardInterrupt:
+            logger.info("Discovery interrupted via Ctrl+C (GitHub search)")
+            self.request_stop()
+
+    def _iter_servers_with_realtime_health(
+        self, use_github_search: bool = False
+    ) -> Generator[str, None, None]:
+        """Generator that yields only servers that pass real-time health checks.
+
+        For each server emitted by _iter_raw_servers(), a multi-method
+        health check is performed immediately:
+          1. TCP connectivity to host:port
+          2. HTTP reachability (optional)
+          3. Google 204 connectivity check (optional)
+
+        Only servers where TCP connectivity succeeds are forwarded. This means
+        callers never receive dead servers when realtime_health_check=True.
+
+        Yields:
+            Server config strings that passed health checks
+        """
+        total = 0
+        passed = 0
+        for server in self._iter_raw_servers(use_github_search=use_github_search):
+            if self.should_stop():
+                break
+            total += 1
+            if self._passes_realtime_check(server):
+                passed += 1
+                yield server
+            else:
+                logger.debug(f"Real-time health FAIL — dropped: {server[:60]}")
+
+        logger.info(
+            f"Real-time health check complete: {passed}/{total} servers passed"
+        )
+
+    # ------------------------------------------------------------------
+    # High-level discovery methods
+    # ------------------------------------------------------------------
+
     def get_servers_from_github(
         self, search_keywords: Optional[List[str]] = None, max_repos: int = 10
     ) -> List[str]:
-        """
-        Search GitHub and extract servers from found repositories.
-
-        Args:
-            search_keywords: Keywords to search (default: ["free-v2ray", "v2ray-config"])
-            max_repos: Maximum repositories to check per keyword
-
-        Returns:
-            Deduplicated list of server configs. Returns partial results if the
-            operation is stopped via request_stop() or Ctrl+C.
-
-        Note:
-            This method uses legacy error handling (returns empty on error) for backward compatibility.
-            Check get_rate_limit_info() after calling to see if rate limits were hit.
-        """
+        """Search GitHub and extract servers from found repositories."""
         if search_keywords is None:
             search_keywords = ["free-v2ray", "v2ray-config"]
 
@@ -728,115 +704,62 @@ class V2RayServerFinder:
         try:
             for keyword in search_keywords:
                 if self.should_stop():
-                    logger.info(
-                        "GitHub search stopped by user request after "
-                        f"{len(all_servers)} servers"
-                    )
                     break
-
-                repos_result = self.search_repos(
-                    keywords=[keyword, "v2ray"], max_results=max_repos
-                )
-
+                repos_result = self.search_repos(keywords=[keyword, "v2ray"], max_results=max_repos)
                 if repos_result.is_err():
                     errors.append(repos_result.error)
                     if self.raise_errors:
                         raise repos_result.error
                     continue
-
-                repos = repos_result.unwrap()
-
-                for repo in repos[:max_repos]:
+                for repo in repos_result.unwrap()[:max_repos]:
                     if self.should_stop():
-                        logger.info(
-                            "GitHub search stopped by user request after "
-                            f"{len(all_servers)} servers"
-                        )
                         break
-
                     files_result = self.get_repo_files(repo["full_name"])
-
                     if files_result.is_err():
                         errors.append(files_result.error)
                         if self.raise_errors:
                             raise files_result.error
                         continue
-
-                    files = files_result.unwrap()
-
-                    for file in files:
+                    for file in files_result.unwrap():
                         if self.should_stop():
-                            logger.info(
-                                "GitHub search stopped by user request after "
-                                f"{len(all_servers)} servers"
-                            )
                             break
-
                         if file["download_url"]:
-                            servers_result = self.get_servers_from_url(
-                                file["download_url"]
-                            )
-
+                            servers_result = self.get_servers_from_url(file["download_url"])
                             if servers_result.is_ok():
                                 all_servers.extend(servers_result.unwrap())
                             else:
                                 errors.append(servers_result.error)
                                 if self.raise_errors:
                                     raise servers_result.error
-
         except KeyboardInterrupt:
-            # Ctrl+C pressed during a blocking requests.get() call.
-            # Partial all_servers list is captured here and returned.
             logger.info(
-                "GitHub search interrupted via Ctrl+C — "
-                f"returning {len(all_servers)} partial results"
+                f"GitHub search interrupted via Ctrl+C — returning {len(all_servers)} partial results"
             )
             self.request_stop()
 
         if errors:
             logger.warning(f"Encountered {len(errors)} errors during GitHub search")
-            for error in errors:
-                logger.debug(f"  - {error}")
 
         return list(dict.fromkeys(all_servers))
 
     def get_servers_from_known_sources(self) -> List[str]:
-        """
-        Fetch servers from curated known sources.
-
-        Returns:
-            Deduplicated list of server configs from known sources. Returns
-            partial results if the operation is stopped via request_stop() or Ctrl+C.
-
-        Note:
-            This method uses legacy error handling for backward compatibility.
-        """
+        """Fetch servers from curated known sources."""
         all_servers: List[str] = []
         errors = []
-
         try:
             for url in self.DIRECT_SOURCES:
                 if self.should_stop():
-                    logger.info(
-                        "Known sources fetch stopped by user request after "
-                        f"{len(all_servers)} servers"
-                    )
                     break
-
                 result = self.get_servers_from_url(url)
-
                 if result.is_ok():
                     all_servers.extend(result.unwrap())
                 else:
                     errors.append(result.error)
                     if self.raise_errors:
                         raise result.error
-
         except KeyboardInterrupt:
-            # Ctrl+C pressed during a blocking requests.get() call.
             logger.info(
-                "Known sources fetch interrupted via Ctrl+C — "
-                f"returning {len(all_servers)} partial results"
+                f"Known sources fetch interrupted via Ctrl+C — returning {len(all_servers)} partial results"
             )
             self.request_stop()
 
@@ -844,51 +767,47 @@ class V2RayServerFinder:
             logger.warning(
                 f"Failed to fetch from {len(errors)}/{len(self.DIRECT_SOURCES)} sources"
             )
-
         return list(dict.fromkeys(all_servers))
 
     def get_all_servers(self, use_github_search: bool = False) -> List[str]:
-        """
-        Get all servers from known sources and optionally GitHub search.
+        """Get all servers from known sources and optionally GitHub search.
+
+        When realtime_health_check=True (set in constructor), every server is
+        health-checked immediately as it is discovered. Only servers that pass
+        TCP connectivity are returned.
 
         Args:
             use_github_search: Whether to include GitHub repository search
 
         Returns:
-            Deduplicated list of all discovered server configs
+            Deduplicated list of discovered (and optionally health-checked) server configs
         """
-        servers = self.get_servers_from_known_sources()
+        if self.realtime_health_check:
+            logger.info(
+                "Real-time health check enabled — filtering servers during discovery"
+            )
+            return list(
+                self._iter_servers_with_realtime_health(
+                    use_github_search=use_github_search
+                )
+            )
 
+        # Legacy batch path (unchanged behaviour)
+        servers = self.get_servers_from_known_sources()
         if use_github_search and not self.should_stop():
             github_servers = self.get_servers_from_github()
             servers.extend(github_servers)
             servers = list(dict.fromkeys(servers))
-
         return servers
 
     def get_servers_sorted(
         self, limit: Optional[int] = None, use_github_search: bool = False
     ) -> List[Dict]:
-        """
-        Get structured server list with metadata.
-
-        Args:
-            limit: Optional limit on number of servers to return
-            use_github_search: Whether to include GitHub search results
-
-        Returns:
-            List of dictionaries with server metadata (index, protocol, config, timestamp)
-        """
         servers = self.get_all_servers(use_github_search=use_github_search)
         server_list = []
-
         for i, server in enumerate(servers, 1):
             if self.should_stop():
-                logger.info(
-                    f"Get servers sorted stopped by user request after {len(server_list)} servers"
-                )
                 break
-
             protocol = server.split("://")[0] if "://" in server else "unknown"
             server_list.append(
                 {
@@ -898,10 +817,8 @@ class V2RayServerFinder:
                     "fetched_at": datetime.now().isoformat(),
                 }
             )
-
         if limit:
             server_list = server_list[:limit]
-
         return server_list
 
     def get_servers_with_health(
@@ -914,8 +831,11 @@ class V2RayServerFinder:
         filter_unhealthy: bool = False,
         health_batch_size: int = 50,
     ) -> List[Dict]:
-        """
-        Get servers with optional health checking.
+        """Get servers with optional batch health checking.
+
+        Note: For real-time inline health checking (where each server is
+        checked immediately upon discovery), set realtime_health_check=True
+        in the constructor and call get_all_servers() instead.
 
         Args:
             use_github_search: Whether to include GitHub search
@@ -924,7 +844,7 @@ class V2RayServerFinder:
             concurrent_checks: Max concurrent health checks
             min_quality_score: Minimum quality score (0-100) to include
             filter_unhealthy: Whether to exclude unhealthy servers
-            health_batch_size: Servers per health-check batch (enables stop between batches)
+            health_batch_size: Servers per health-check batch
 
         Returns:
             List of server dictionaries with health information
@@ -932,32 +852,25 @@ class V2RayServerFinder:
         servers = self.get_all_servers(use_github_search=use_github_search)
 
         if self.should_stop():
-            logger.info("Health check stopped by user request before checking")
             return [
                 {
                     "config": server,
-                    "protocol": (
-                        server.split("://")[0] if "://" in server else "unknown"
-                    ),
+                    "protocol": server.split("://")[0] if "://" in server else "unknown",
                     "health_checked": False,
                 }
                 for server in servers
             ]
 
         if not check_health:
-            # Return without health info
             return [
                 {
                     "config": server,
-                    "protocol": (
-                        server.split("://")[0] if "://" in server else "unknown"
-                    ),
+                    "protocol": server.split("://")[0] if "://" in server else "unknown",
                     "health_checked": False,
                 }
                 for server in servers
             ]
 
-        # Import health checker only when needed
         try:
             from .health_checker import (
                 HealthChecker,
@@ -971,29 +884,26 @@ class V2RayServerFinder:
             return [
                 {
                     "config": server,
-                    "protocol": (
-                        server.split("://")[0] if "://" in server else "unknown"
-                    ),
+                    "protocol": server.split("://")[0] if "://" in server else "unknown",
                     "health_checked": False,
                 }
                 for server in servers
             ]
 
-        # Prepare server list for health checking
         server_tuples = [
             (server, server.split("://")[0] if "://" in server else "unknown")
             for server in servers
         ]
 
         checker = HealthChecker(
-            timeout=health_timeout, concurrent_limit=concurrent_checks
+            timeout=health_timeout,
+            concurrent_limit=concurrent_checks,
+            enable_google_204=self._health_enable_google_204,
+            enable_http_check=self._health_enable_http_check,
         )
 
-        # Batch health checking so stop requests are honoured between batches.
-        # A single checker.check_servers(all) call would block until all N servers
-        # are tested with no opportunity to cancel mid-way.
         logger.info(
-            f"Checking health of {len(server_tuples)} servers "
+            f"Batch health checking {len(server_tuples)} servers "
             f"(batch_size={health_batch_size})..."
         )
         health_results = []
@@ -1001,12 +911,10 @@ class V2RayServerFinder:
             for i in range(0, len(server_tuples), health_batch_size):
                 if self.should_stop():
                     logger.info(
-                        f"Health check stopped by user after {len(health_results)} servers "
-                        f"(batch {i // health_batch_size + 1}/"
-                        f"{(len(server_tuples) + health_batch_size - 1) // health_batch_size})"
+                        f"Health check stopped by user after {len(health_results)} servers"
                     )
                     break
-                batch = server_tuples[i : i + health_batch_size]
+                batch = server_tuples[i: i + health_batch_size]
                 batch_results = checker.check_servers(batch)
                 health_results.extend(batch_results)
         except KeyboardInterrupt:
@@ -1015,7 +923,6 @@ class V2RayServerFinder:
             )
             self.request_stop()
 
-        # Filter and sort on whatever results we have (full or partial)
         if filter_unhealthy or min_quality_score > 0:
             health_results = filter_healthy_servers(
                 health_results,
@@ -1025,13 +932,8 @@ class V2RayServerFinder:
 
         health_results = sort_by_quality(health_results, descending=True)
 
-        # Convert to dict format
         result_list = []
         for health in health_results:
-            if self.should_stop() and not result_list:
-                # Only skip conversion if we haven't started yet; once started
-                # finish converting so the caller always gets a usable list.
-                pass
             result_list.append(
                 {
                     "config": health.config,
@@ -1044,6 +946,10 @@ class V2RayServerFinder:
                     "port": health.port,
                     "error": health.error,
                     "validation_error": health.validation_error,
+                    "tcp_ok": health.tcp_ok,
+                    "http_ok": health.http_ok,
+                    "google_204_ok": health.google_204_ok,
+                    "check_methods": health.check_methods,
                 }
             )
 
@@ -1058,20 +964,6 @@ class V2RayServerFinder:
         filter_unhealthy: bool = False,
         min_quality_score: float = 0.0,
     ) -> Tuple[int, str]:
-        """
-        Save servers to a text file.
-
-        Args:
-            filename: Output filename
-            limit: Optional limit on number of servers
-            use_github_search: Whether to include GitHub search
-            check_health: Whether to perform health checks before saving
-            filter_unhealthy: Whether to exclude unhealthy servers
-            min_quality_score: Minimum quality score to include
-
-        Returns:
-            Tuple of (number of servers saved, filename)
-        """
         if check_health:
             servers_data = self.get_servers_with_health(
                 use_github_search=use_github_search,
