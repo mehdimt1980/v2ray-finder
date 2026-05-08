@@ -56,12 +56,18 @@ class V2RayServerFinder:
         cache_ttl_repos: int = 3600,
         cache_ttl_urls: int = 1800,
         cache_enabled: bool = True,
-        # Real-time health check settings
+        # ── Legacy health-check settings (TCP + HTTP) ──────────────────
         realtime_health_check: bool = False,
         health_timeout: float = 5.0,
         health_concurrent_limit: int = 50,
         health_enable_google_204: bool = True,
         health_enable_http_check: bool = True,
+        # ── xray real-connectivity settings ───────────────────────────
+        xray_realtime_check: bool = False,
+        xray_binary_path: Optional[str] = None,
+        xray_auto_download: bool = True,
+        xray_startup_timeout: float = 5.0,
+        xray_concurrent_limit: int = 10,
     ):
         """
         Initialize V2RayServerFinder.
@@ -73,13 +79,22 @@ class V2RayServerFinder:
             cache_ttl_repos: TTL in seconds for GitHub search/repo-files cache.
             cache_ttl_urls: TTL in seconds for URL content cache.
             cache_enabled: Set False to disable caching.
-            realtime_health_check: When True, every server is health-checked
-                immediately as it is discovered. Only servers that pass
-                TCP connectivity are included in results.
-            health_timeout: Timeout in seconds for each health check method.
-            health_concurrent_limit: Max concurrent async health checks.
-            health_enable_google_204: Include Google 204 connectivity check.
+
+            realtime_health_check: When True, every server is filtered immediately
+                via TCP/HTTP checks as it is discovered (legacy path).
+            health_timeout: Timeout in seconds for each TCP/HTTP health check.
+            health_concurrent_limit: Max concurrent async TCP/HTTP health checks.
+            health_enable_google_204: Include Google 204 check in TCP/HTTP path.
             health_enable_http_check: Include HTTP-level reachability check.
+
+            xray_realtime_check: When True, each discovered server is immediately
+                tested end-to-end through a real xray proxy instance.  Slower
+                than TCP/HTTP pre-filter but provides ground-truth connectivity.
+                Takes precedence over ``realtime_health_check`` when both are set.
+            xray_binary_path: Explicit path to the xray binary.  None = auto-discover.
+            xray_auto_download: Download xray automatically if not found on PATH.
+            xray_startup_timeout: Seconds to wait for xray to start per check.
+            xray_concurrent_limit: Max simultaneous xray processes during batch checks.
         """
         self.headers = {"Accept": "application/vnd.github.v3+json"}
         self.raise_errors = raise_errors
@@ -103,13 +118,21 @@ class V2RayServerFinder:
             f"enabled={cache_enabled}"
         )
 
-        # Real-time health check config
+        # Legacy TCP/HTTP health check config
         self.realtime_health_check = realtime_health_check
         self._health_timeout = health_timeout
         self._health_concurrent_limit = health_concurrent_limit
         self._health_enable_google_204 = health_enable_google_204
         self._health_enable_http_check = health_enable_http_check
         self._health_checker = None  # Lazy init
+
+        # xray real-connectivity config
+        self.xray_realtime_check = xray_realtime_check
+        self._xray_binary_path = xray_binary_path
+        self._xray_auto_download = xray_auto_download
+        self._xray_startup_timeout = xray_startup_timeout
+        self._xray_concurrent_limit = xray_concurrent_limit
+        self._real_checker = None  # Lazy init
 
         # Source registry — tracks per-source runtime stats
         self._source_registry = SourceRegistry()
@@ -145,7 +168,7 @@ class V2RayServerFinder:
             )
 
     # ------------------------------------------------------------------
-    # Health checker lazy init
+    # Health checker lazy init (legacy TCP/HTTP path)
     # ------------------------------------------------------------------
 
     def _get_health_checker(self):
@@ -166,23 +189,105 @@ class V2RayServerFinder:
                 )
         return self._health_checker
 
+    # ------------------------------------------------------------------
+    # RealConnectivityChecker lazy init (xray path)
+    # ------------------------------------------------------------------
+
+    def _get_real_checker(self):
+        """Lazy-initialise and return the RealConnectivityChecker.
+
+        Returns None (with a warning) when:
+        * xray_connectivity module is not importable
+        * aiohttp_socks is not installed
+        * xray binary is not found and auto_download is False
+        """
+        if self._real_checker is None:
+            try:
+                from .xray_connectivity import RealConnectivityChecker
+
+                checker = RealConnectivityChecker(
+                    binary_path=self._xray_binary_path,
+                    auto_download=self._xray_auto_download,
+                    timeout=self._health_timeout,
+                    startup_timeout=self._xray_startup_timeout,
+                    concurrent_limit=self._xray_concurrent_limit,
+                )
+                if not checker.is_xray_available():
+                    logger.warning(
+                        "xray binary not found and auto_download is disabled; "
+                        "falling back to TCP/HTTP health checks"
+                    )
+                    return None
+                ver = checker.get_xray_version()
+                logger.info(f"xray real-connectivity checker ready ({ver})")
+                self._real_checker = checker
+            except ImportError as exc:
+                logger.warning(
+                    f"RealConnectivityChecker unavailable ({exc}); "
+                    "falling back to TCP/HTTP health checks"
+                )
+        return self._real_checker
+
+    # ------------------------------------------------------------------
+    # Per-server realtime gate
+    # ------------------------------------------------------------------
+
     def _passes_realtime_check(self, config: str) -> bool:
-        """Return True if config passes the real-time health check (fail-open)."""
-        checker = self._get_health_checker()
-        if checker is None:
-            return True
-        try:
-            health = checker.check_server_now(config)
-            ok = health.tcp_ok
-            logger.debug(
-                f"Real-time health: tcp={health.tcp_ok} http={health.http_ok} "
-                f"g204={health.google_204_ok} latency={health.latency_ms:.1f}ms "
-                f"-> {'PASS' if ok else 'FAIL'} {config[:60]}"
-            )
-            return ok
-        except Exception as e:
-            logger.debug(f"Real-time health check raised: {e} — letting server through")
-            return True
+        """Return True if *config* passes the real-time connectivity gate.
+
+        Priority:
+        1. If ``xray_realtime_check=True`` and xray is available → use
+           RealConnectivityChecker (ground-truth: actual traffic through proxy).
+        2. If ``realtime_health_check=True`` → use legacy HealthChecker (TCP/HTTP).
+        3. Otherwise → always True (pass-through, no check).
+
+        Designed to be fail-open: any unexpected exception lets the
+        server through rather than silently dropping it.
+        """
+        # ── xray path ────────────────────────────────────────────────
+        if self.xray_realtime_check:
+            checker = self._get_real_checker()
+            if checker is not None:
+                try:
+                    import asyncio
+                    result = asyncio.run(checker.check_server_real(config))
+                    ok = result.reachable and result.google_204_ok
+                    logger.debug(
+                        f"[xray] realtime check: reachable={result.reachable} "
+                        f"g204={result.google_204_ok} "
+                        f"latency={result.latency_ms}ms "
+                        f"-> {'PASS' if ok else 'FAIL'} {config[:60]}"
+                    )
+                    return ok
+                except Exception as exc:
+                    logger.debug(
+                        f"[xray] realtime check raised: {exc} — letting server through"
+                    )
+                    return True
+            # xray not available — fall through to legacy TCP check
+
+        # ── legacy TCP/HTTP path ──────────────────────────────────────
+        if self.realtime_health_check or self.xray_realtime_check:
+            checker = self._get_health_checker()
+            if checker is None:
+                return True
+            try:
+                health = checker.check_server_now(config)
+                ok = health.tcp_ok
+                logger.debug(
+                    f"[tcp] realtime check: tcp={health.tcp_ok} "
+                    f"http={health.http_ok} g204={health.google_204_ok} "
+                    f"latency={health.latency_ms:.1f}ms "
+                    f"-> {'PASS' if ok else 'FAIL'} {config[:60]}"
+                )
+                return ok
+            except Exception as exc:
+                logger.debug(
+                    f"[tcp] realtime check raised: {exc} — letting server through"
+                )
+                return True
+
+        return True
 
     # ------------------------------------------------------------------
     # Cache helpers
@@ -263,8 +368,13 @@ class V2RayServerFinder:
         health_timeout: float = 5.0,
         health_enable_google_204: bool = True,
         health_enable_http_check: bool = True,
+        xray_realtime_check: bool = False,
+        xray_binary_path: Optional[str] = None,
+        xray_auto_download: bool = True,
+        xray_startup_timeout: float = 5.0,
+        xray_concurrent_limit: int = 10,
     ) -> "V2RayServerFinder":
-        """Create V2RayServerFinder instance using token from environment variable."""
+        """Create V2RayServerFinder using token from environment variable."""
         return cls(
             token=None,
             raise_errors=raise_errors,
@@ -276,6 +386,11 @@ class V2RayServerFinder:
             health_timeout=health_timeout,
             health_enable_google_204=health_enable_google_204,
             health_enable_http_check=health_enable_http_check,
+            xray_realtime_check=xray_realtime_check,
+            xray_binary_path=xray_binary_path,
+            xray_auto_download=xray_auto_download,
+            xray_startup_timeout=xray_startup_timeout,
+            xray_concurrent_limit=xray_concurrent_limit,
         )
 
     # ------------------------------------------------------------------
@@ -678,7 +793,12 @@ class V2RayServerFinder:
     def _iter_servers_with_realtime_health(
         self, use_github_search: bool = False
     ) -> Generator[str, None, None]:
-        """Generator — yields only servers that pass real-time health checks."""
+        """Generator: yields only servers that pass the realtime connectivity gate.
+
+        When ``xray_realtime_check=True`` and xray is available, each server is
+        tested end-to-end through a real proxy before being yielded.
+        Otherwise falls back to the legacy TCP/HTTP gate.
+        """
         total = 0
         passed = 0
         for server in self._iter_raw_servers(use_github_search=use_github_search):
@@ -689,9 +809,9 @@ class V2RayServerFinder:
                 passed += 1
                 yield server
             else:
-                logger.debug(f"Real-time health FAIL — dropped: {server[:60]}")
+                logger.debug(f"Realtime health FAIL — dropped: {server[:60]}")
         logger.info(
-            f"Real-time health check complete: {passed}/{total} servers passed"
+            f"Realtime health check complete: {passed}/{total} servers passed"
         )
 
     # ------------------------------------------------------------------
@@ -781,7 +901,6 @@ class V2RayServerFinder:
                 f"Failed to fetch from {len(errors)}/{len(self.DIRECT_SOURCES)} sources"
             )
 
-        # Cross-source structural dedup + feed overlap ratios back to registry
         deduped, overlap_map = deduplicate_across_sources({"_combined": all_servers})
         for u, ratio in overlap_map.items():
             self._source_registry.update_overlap(u, ratio)
@@ -790,12 +909,18 @@ class V2RayServerFinder:
     def get_all_servers(self, use_github_search: bool = False) -> List[str]:
         """Get all servers from known sources and optionally GitHub search.
 
-        When realtime_health_check=True (set in constructor), every server is
-        health-checked immediately as it is discovered.
+        Behaviour:
+        * ``xray_realtime_check=True`` — each server is tested end-to-end
+          through a real xray proxy immediately upon discovery (ground truth);
+          falls back to TCP/HTTP if xray is unavailable.
+        * ``realtime_health_check=True`` — legacy TCP/HTTP gate (no xray).
+        * Both ``False`` — returns all discovered servers unfiltered.
         """
-        if self.realtime_health_check:
+        if self.xray_realtime_check or self.realtime_health_check:
+            mode = "xray" if self.xray_realtime_check else "tcp/http"
             logger.info(
-                "Real-time health check enabled — filtering servers during discovery"
+                f"Realtime health check enabled ({mode}) — "
+                "filtering servers during discovery"
             )
             return list(
                 self._iter_servers_with_realtime_health(
@@ -841,7 +966,7 @@ class V2RayServerFinder:
         filter_unhealthy: bool = False,
         health_batch_size: int = 50,
     ) -> List[Dict]:
-        """Get servers with optional batch health checking."""
+        """Get servers with optional batch TCP/HTTP health checking."""
         servers = self.get_all_servers(use_github_search=use_github_search)
 
         if self.should_stop() or not check_health:
@@ -939,6 +1064,100 @@ class V2RayServerFinder:
             for health in health_results
         ]
 
+    def get_servers_with_real_health(
+        self,
+        use_github_search: bool = False,
+        min_quality_score: float = 0.0,
+        filter_unreachable: bool = True,
+    ) -> List[Dict]:
+        """Fetch servers and verify each one end-to-end via xray.
+
+        This method is the high-level counterpart to
+        :meth:`get_servers_with_health` but uses
+        :class:`~v2ray_finder.xray_connectivity.RealConnectivityChecker`
+        instead of the legacy TCP/HTTP checker.
+
+        Each server is routed through a real xray SOCKS5 proxy to
+        ``connectivitycheck.gstatic.com/generate_204``; only servers
+        that return HTTP 204 are reported as ``reachable=True``.
+
+        Parameters
+        ----------
+        use_github_search:
+            Also search GitHub repositories for additional configs.
+        min_quality_score:
+            Drop servers with ``quality_score`` below this threshold
+            (0–100).  0 = keep all.
+        filter_unreachable:
+            When True (default), unreachable servers are excluded from
+            the returned list.
+
+        Returns
+        -------
+        List of dicts (sorted by quality score, descending) with keys:
+        ``config``, ``protocol``, ``reachable``, ``latency_ms``,
+        ``google_204_ok``, ``quality_score``, ``error``, ``xray_version``.
+        """
+        checker = self._get_real_checker()
+        if checker is None:
+            logger.error(
+                "xray real-health checker is unavailable. "
+                "Install aiohttp-socks and ensure xray is on PATH, "
+                "or set xray_auto_download=True."
+            )
+            return []
+
+        servers = self.get_all_servers(use_github_search=use_github_search)
+        if not servers:
+            return []
+
+        server_tuples = [
+            (srv, srv.split("://")[0] if "://" in srv else "unknown")
+            for srv in servers
+        ]
+
+        logger.info(
+            f"[xray] Real connectivity batch check for {len(server_tuples)} servers "
+            f"(concurrent_limit={self._xray_concurrent_limit})..."
+        )
+
+        try:
+            results = checker.check_servers_real(server_tuples)
+        except KeyboardInterrupt:
+            logger.info("[xray] Real health batch interrupted via Ctrl+C")
+            self.request_stop()
+            return []
+        except Exception as exc:
+            logger.error(f"[xray] Batch check failed: {exc}", exc_info=True)
+            return []
+
+        output = []
+        for r in results:
+            if filter_unreachable and not r.reachable:
+                continue
+            if r.quality_score < min_quality_score:
+                continue
+            output.append(
+                {
+                    "config": r.config,
+                    "protocol": r.protocol,
+                    "reachable": r.reachable,
+                    "latency_ms": r.latency_ms,
+                    "google_204_ok": r.google_204_ok,
+                    "quality_score": r.quality_score,
+                    "error": r.error,
+                    "xray_version": r.xray_version,
+                    "socks_port": r.socks_port,
+                    "check_methods": r.check_methods,
+                }
+            )
+
+        output.sort(key=lambda x: x["quality_score"], reverse=True)
+        logger.info(
+            f"[xray] {len(output)}/{len(results)} servers passed real connectivity check"
+        )
+        return output
+
     # ------------------------------------------------------------------
     # Topic-based discovery (faz 1 dynamic path)
     # ------------------------------------------------------------------
@@ -948,15 +1167,7 @@ class V2RayServerFinder:
         topics: Optional[List[str]] = None,
         max_repos_per_topic: int = 5,
     ) -> List[str]:
-        """Discover servers via GitHub topic search.
-
-        Args:
-            topics: GitHub topics to search. Defaults to GITHUB_TOPICS from sources.py.
-            max_repos_per_topic: Max repos to inspect per topic.
-
-        Returns:
-            Structurally-deduplicated list of server config strings.
-        """
+        """Discover servers via GitHub topic search."""
         if topics is None:
             topics = GITHUB_TOPICS
         all_servers: List[str] = []
@@ -995,14 +1206,7 @@ class V2RayServerFinder:
     # ------------------------------------------------------------------
 
     def get_source_registry(self) -> SourceRegistry:
-        """Return the live SourceRegistry for this run.
-
-        Useful for inspecting per-source reliability stats after fetching::
-
-            finder = V2RayServerFinder.from_env()
-            finder.get_all_servers()
-            print(finder.get_source_registry().summary())
-        """
+        """Return the live SourceRegistry for this run."""
         return self._source_registry
 
     # ------------------------------------------------------------------
@@ -1016,21 +1220,36 @@ class V2RayServerFinder:
         health_timeout: float = 5.0,
         concurrent_checks: int = 50,
         min_score: float = 0.0,
+        use_real_health: bool = False,
     ) -> List[Dict]:
         """Fetch, health-check, and score all servers.
+
+        Parameters
+        ----------
+        use_real_health:
+            When True, use :meth:`get_servers_with_real_health` (xray
+            end-to-end check) instead of the legacy TCP/HTTP path.
+            Requires ``aiohttp-socks`` and a reachable xray binary.
 
         Returns servers ranked by composite quality score (highest first).
         Each dict includes standard health-check fields plus:
         - ``score``: ServerScore object
-        - ``total_score``: float 0.0-1.0
+        - ``total_score``: float 0.0–1.0
         - ``grade``: str (A/B/C/D/F)
         """
-        health_results = self.get_servers_with_health(
-            use_github_search=use_github_search,
-            check_health=check_health,
-            health_timeout=health_timeout,
-            concurrent_checks=concurrent_checks,
-        )
+        if use_real_health:
+            health_results = self.get_servers_with_real_health(
+                use_github_search=use_github_search,
+                filter_unreachable=True,
+            )
+        else:
+            health_results = self.get_servers_with_health(
+                use_github_search=use_github_search,
+                check_health=check_health,
+                health_timeout=health_timeout,
+                concurrent_checks=concurrent_checks,
+            )
+
         trust_map = {s.url: s.trust.value for s in STATIC_SOURCES}
         overlap_map = {
             s.url: s.overlap_ratio for s in self._source_registry.all_stats()
@@ -1067,8 +1286,23 @@ class V2RayServerFinder:
         check_health: bool = False,
         filter_unhealthy: bool = False,
         min_quality_score: float = 0.0,
+        use_real_health: bool = False,
     ) -> Tuple[int, str]:
-        if check_health:
+        """Save servers to a text file.
+
+        Parameters
+        ----------
+        use_real_health:
+            When True, use xray real-connectivity check instead of TCP/HTTP.
+        """
+        if use_real_health:
+            servers_data = self.get_servers_with_real_health(
+                use_github_search=use_github_search,
+                min_quality_score=min_quality_score,
+                filter_unreachable=filter_unhealthy,
+            )
+            servers = [s["config"] for s in servers_data]
+        elif check_health:
             servers_data = self.get_servers_with_health(
                 use_github_search=use_github_search,
                 check_health=True,
