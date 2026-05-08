@@ -64,9 +64,11 @@ def _safe_b64decode(data: str) -> str:
         return ""
 
 
-def _parse_vmess(config: str, source_url: str, source_type: str) -> Optional[NormalizedServer]:
+def _parse_vmess(
+    config: str, source_url: str, source_type: str
+) -> Optional[NormalizedServer]:
     try:
-        raw_b64 = config[len("vmess://"):]
+        raw_b64 = config[len("vmess://") :]
         decoded = _safe_b64decode(raw_b64)
         if not decoded:
             return None
@@ -78,20 +80,30 @@ def _parse_vmess(config: str, source_url: str, source_type: str) -> Optional[Nor
         tls = str(data.get("tls") or "").lower() in ("tls", "reality", "xtls")
         if not host or not port:
             return None
-        extra = {k: v for k, v in data.items() if k not in ("add", "port", "id", "tls")}
+        extra = {
+            k: v for k, v in data.items() if k not in ("add", "port", "id", "tls")
+        }
         return NormalizedServer(
-            raw_config=config, protocol="vmess", host=host, port=port,
-            uuid_or_password=uuid or None, source_url=source_url,
-            source_type=source_type, tls=tls, extra=extra,
+            raw_config=config,
+            protocol="vmess",
+            host=host,
+            port=port,
+            uuid_or_password=uuid or None,
+            source_url=source_url,
+            source_type=source_type,
+            tls=tls,
+            extra=extra,
         )
     except Exception as exc:
         logger.debug(f"vmess parse failed: {exc}")
         return None
 
 
-def _parse_vless(config: str, source_url: str, source_type: str) -> Optional[NormalizedServer]:
+def _parse_vless(
+    config: str, source_url: str, source_type: str
+) -> Optional[NormalizedServer]:
     try:
-        rest = config[len("vless://"):]
+        rest = config[len("vless://") :]
         parsed = urllib.parse.urlparse("vless://" + rest)
         host = parsed.hostname or ""
         port = parsed.port or 0
@@ -101,18 +113,26 @@ def _parse_vless(config: str, source_url: str, source_type: str) -> Optional[Nor
         if not host or not port:
             return None
         return NormalizedServer(
-            raw_config=config, protocol="vless", host=host, port=port,
-            uuid_or_password=uuid or None, source_url=source_url,
-            source_type=source_type, tls=tls, extra=params,
+            raw_config=config,
+            protocol="vless",
+            host=host,
+            port=port,
+            uuid_or_password=uuid or None,
+            source_url=source_url,
+            source_type=source_type,
+            tls=tls,
+            extra=params,
         )
     except Exception as exc:
         logger.debug(f"vless parse failed: {exc}")
         return None
 
 
-def _parse_trojan(config: str, source_url: str, source_type: str) -> Optional[NormalizedServer]:
+def _parse_trojan(
+    config: str, source_url: str, source_type: str
+) -> Optional[NormalizedServer]:
     try:
-        rest = config[len("trojan://"):]
+        rest = config[len("trojan://") :]
         parsed = urllib.parse.urlparse("trojan://" + rest)
         host = parsed.hostname or ""
         port = parsed.port or 0
@@ -122,18 +142,26 @@ def _parse_trojan(config: str, source_url: str, source_type: str) -> Optional[No
         if not host or not port:
             return None
         return NormalizedServer(
-            raw_config=config, protocol="trojan", host=host, port=port,
-            uuid_or_password=password or None, source_url=source_url,
-            source_type=source_type, tls=tls, extra=params,
+            raw_config=config,
+            protocol="trojan",
+            host=host,
+            port=port,
+            uuid_or_password=password or None,
+            source_url=source_url,
+            source_type=source_type,
+            tls=tls,
+            extra=params,
         )
     except Exception as exc:
         logger.debug(f"trojan parse failed: {exc}")
         return None
 
 
-def _parse_ss(config: str, source_url: str, source_type: str) -> Optional[NormalizedServer]:
+def _parse_ss(
+    config: str, source_url: str, source_type: str
+) -> Optional[NormalizedServer]:
     try:
-        rest = config[len("ss://"):]
+        rest = config[len("ss://") :]
         rest = rest.split("#")[0]
         sip002 = re.match(r"([A-Za-z0-9+/=]+)@(.+):(\d+)", rest)
         if sip002:
@@ -141,18 +169,28 @@ def _parse_ss(config: str, source_url: str, source_type: str) -> Optional[Normal
             cred = _safe_b64decode(cred_b64)
             password = cred.split(":", 1)[1] if ":" in cred else cred
             return NormalizedServer(
-                raw_config=config, protocol="ss", host=host, port=int(port_s),
+                raw_config=config,
+                protocol="ss",
+                host=host,
+                port=int(port_s),
                 uuid_or_password=password[:32] if password else None,
-                source_url=source_url, source_type=source_type, tls=False,
+                source_url=source_url,
+                source_type=source_type,
+                tls=False,
             )
         decoded = _safe_b64decode(rest)
         m = re.match(r"(.+):(.+)@(.+):(\d+)", decoded)
         if m:
             _, password, host, port_s = m.groups()
             return NormalizedServer(
-                raw_config=config, protocol="ss", host=host, port=int(port_s),
+                raw_config=config,
+                protocol="ss",
+                host=host,
+                port=int(port_s),
                 uuid_or_password=password[:32] if password else None,
-                source_url=source_url, source_type=source_type, tls=False,
+                source_url=source_url,
+                source_type=source_type,
+                tls=False,
             )
         return None
     except Exception as exc:

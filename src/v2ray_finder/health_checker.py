@@ -342,7 +342,9 @@ class HealthChecker:
             # Some servers respond with TLS errors or garbage; that still
             # means the port is open — count it as reachable.
             err_str = str(e).lower()
-            if any(kw in err_str for kw in ("ssl", "tls", "certificate", "decode", "parse")):
+            if any(
+                kw in err_str for kw in ("ssl", "tls", "certificate", "decode", "parse")
+            ):
                 return True, None
             return False, f"HTTP check failed: {str(e)}"
 
@@ -440,7 +442,8 @@ class HealthChecker:
             # UNREACHABLE — TCP failed
             if tcp_ok:
                 status = (
-                    HealthStatus.HEALTHY if (latency_ms is not None and latency_ms < 500)
+                    HealthStatus.HEALTHY
+                    if (latency_ms is not None and latency_ms < 500)
                     else HealthStatus.DEGRADED
                 )
             else:
@@ -483,9 +486,13 @@ class HealthChecker:
         connector = aiohttp.TCPConnector(ssl=False, limit=self.concurrent_limit)
         async with aiohttp.ClientSession(connector=connector) as session:
 
-            async def check_with_semaphore(config: str, protocol: str) -> ServerHealth:
+            async def check_with_semaphore(
+                config: str, protocol: str
+            ) -> ServerHealth:
                 async with semaphore:
-                    return await self.check_server_health(config, protocol, session=session)
+                    return await self.check_server_health(
+                        config, protocol, session=session
+                    )
 
             tasks = [
                 check_with_semaphore(config, protocol)
