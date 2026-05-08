@@ -1,6 +1,6 @@
 """V2Ray server finder - Search and collect V2Ray configs from GitHub"""
 
-__version__ = "0.4.0"
+__version__ = "0.5.0"
 __author__ = "Ali Sadeghi Aghili"
 __email__ = "alisadeghiaghili@gmail.com"
 
@@ -43,29 +43,51 @@ from .sources import (
     get_enabled_sources,
 )
 
+# xray real-connectivity layer (optional — gracefully absent if aiohttp-socks
+# or the xray binary is not installed)
+try:
+    from .xray_connectivity import RealConnectivityChecker, RealHealthResult, find_free_port
+    from .xray_runner import XrayBinaryManager
+    from .xray_config_adapter import ConfigAdapter
+except ImportError:
+    pass
+
 __all__ = [
+    # Core
     "V2RayServerFinder",
+    # Health checker (TCP/HTTP)
     "HealthChecker",
     "ServerHealth",
     "HealthStatus",
     "ServerValidator",
     "filter_healthy_servers",
     "sort_by_quality",
+    # xray real-connectivity
+    "RealConnectivityChecker",
+    "RealHealthResult",
+    "XrayBinaryManager",
+    "ConfigAdapter",
+    "find_free_port",
+    # Normalizer
     "NormalizedServer",
     "normalize_server",
     "deduplicate_servers",
     "deduplicate_across_sources",
+    # Scorer
     "ServerScore",
     "score_server",
     "score_servers",
+    # Source registry
     "SourceRegistry",
     "SourceStats",
+    # Sources
     "STATIC_SOURCES",
     "GITHUB_TOPICS",
     "SourceEntry",
     "SourceType",
     "SourceTrust",
     "get_enabled_sources",
+    # Exceptions
     "V2RayFinderError",
     "ErrorType",
     "NetworkError",
@@ -76,6 +98,7 @@ __all__ = [
     "RepositoryNotFoundError",
     "ParseError",
     "ValidationError",
+    # Result
     "Result",
     "Ok",
     "Err",
