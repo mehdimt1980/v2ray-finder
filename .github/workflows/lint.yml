@@ -17,7 +17,7 @@ jobs:
     - name: Set up Python
       uses: actions/setup-python@v5
       with:
-        python-version: '3.11'
+        python-version: '3.12'
 
     - name: Install dependencies
       run: |
@@ -37,10 +37,7 @@ jobs:
     - name: Check formatting with black (hard failure)
       run: |
         echo "Checking black formatting..."
-        # --target-version py38 matches [tool.black] in pyproject.toml.
-        # This ensures the safety-check AST parse runs against 3.8 syntax,
-        # which Python 3.11 (the runner) can always handle.
-        black --check --diff --target-version py38 src/ tests/
+        black --check --diff --target-version py312 src/ tests/
 
     - name: Check import sorting with isort (hard failure)
       run: |

@@ -80,9 +80,9 @@ namespaces = false
 
 [tool.black]
 line-length = 88
-# Target the oldest supported version so formatting is compatible with 3.8–3.14.
-# Black will never emit syntax that requires a newer version than py38.
-target-version = ["py38", "py39", "py310", "py311", "py312", "py313"]
+# py312 is the highest version all current CI runners (3.8-3.12) can parse.
+# When GitHub Actions adds a 3.13 runner as standard, bump to py313.
+target-version = ["py312"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

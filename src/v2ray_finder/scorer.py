@@ -15,22 +15,22 @@ from typing import Dict, List, Optional
 logger = logging.getLogger(__name__)
 
 _WEIGHTS: Dict[str, float] = {
-    "latency":       0.30,
-    "reachability":  0.30,
-    "protocol":      0.15,
-    "source_trust":  0.15,
-    "freshness":     0.05,
-    "uniqueness":    0.05,
+    "latency": 0.30,
+    "reachability": 0.30,
+    "protocol": 0.15,
+    "source_trust": 0.15,
+    "freshness": 0.05,
+    "uniqueness": 0.05,
 }
 
 assert abs(sum(_WEIGHTS.values()) - 1.0) < 1e-9, "Weights must sum to 1.0"
 
 _PROTOCOL_SCORES: Dict[str, float] = {
-    "vless":  1.00,
+    "vless": 1.00,
     "trojan": 0.90,
-    "ss":     0.80,
-    "vmess":  0.70,
-    "ssr":    0.50,
+    "ss": 0.80,
+    "vmess": 0.70,
+    "ssr": 0.50,
 }
 
 
@@ -54,12 +54,12 @@ class ServerScore:
     def total(self) -> float:
         """Weighted total score in [0.0, 1.0]."""
         raw = (
-            self.latency_score      * _WEIGHTS["latency"]      +
-            self.reachability_score * _WEIGHTS["reachability"]  +
-            self.protocol_score     * _WEIGHTS["protocol"]      +
-            self.source_trust_score * _WEIGHTS["source_trust"]  +
-            self.freshness_score    * _WEIGHTS["freshness"]     +
-            self.uniqueness_score   * _WEIGHTS["uniqueness"]
+            self.latency_score * _WEIGHTS["latency"]
+            + self.reachability_score * _WEIGHTS["reachability"]
+            + self.protocol_score * _WEIGHTS["protocol"]
+            + self.source_trust_score * _WEIGHTS["source_trust"]
+            + self.freshness_score * _WEIGHTS["freshness"]
+            + self.uniqueness_score * _WEIGHTS["uniqueness"]
         )
         return round(min(max(raw, 0.0), 1.0), 4)
 
