@@ -37,7 +37,7 @@ jobs:
     - name: Check formatting with black (hard failure)
       run: |
         echo "Checking black formatting..."
-        black --check --diff src/ tests/
+        black --check --diff --target-version py311 src/ tests/
 
     - name: Check import sorting with isort (hard failure)
       run: |
