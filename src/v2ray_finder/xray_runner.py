@@ -291,10 +291,6 @@ class XrayRunner:
 
 # ---------------------------------------------------------------------------
 # XrayBinaryManager: the primary class expected by tests.
-# Extends XrayRunner with:
-#   download_dir    — custom directory for caching the downloaded binary
-#   startup_timeout — override _STARTUP_TIMEOUT for port-readiness check
-#   socks_port      — alias for local_port
 # ---------------------------------------------------------------------------
 
 class XrayBinaryManager(XrayRunner):
@@ -326,18 +322,27 @@ class XrayBinaryManager(XrayRunner):
         if download_dir is not None:
             self._download_dir = Path(download_dir)
             self._download_dir.mkdir(parents=True, exist_ok=True)
-        # Cache for find_binary result to avoid repeated shutil.which calls
         self._resolved_binary: Optional[str] = None
 
     def find_binary(self) -> Optional[str]:
-        """Return path to xray binary (cached after first successful lookup)."""
+        """Return path to xray binary (cached after first successful lookup).
+
+        Raises:
+            XrayBinaryNotFoundError: If an explicit binary_path was given but
+                the file does not exist at that path.
+        """
         if self._resolved_binary is not None:
             return self._resolved_binary
 
-        # 1. explicit path
-        if self._binary_path and Path(self._binary_path).is_file():
-            self._resolved_binary = self._binary_path
-            return self._resolved_binary
+        # 1. explicit path — fail loudly if given but missing
+        if self._binary_path:
+            p = Path(self._binary_path)
+            if p.is_file():
+                self._resolved_binary = self._binary_path
+                return self._resolved_binary
+            raise XrayBinaryNotFoundError(
+                f"Explicit binary path does not exist: {self._binary_path!r}"
+            )
 
         # 2. PATH
         found = shutil.which("xray")
@@ -496,7 +501,6 @@ class XrayBinaryManager(XrayRunner):
                     stderr=asyncio.subprocess.PIPE,
                 )
 
-                # Wait for a startup marker or timeout
                 async def _read_startup():
                     async for line in ctx_self._proc.stdout:
                         if b"started" in line.lower() or b"listening" in line.lower():
