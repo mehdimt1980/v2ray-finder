@@ -6,6 +6,7 @@ from .exceptions import (
     ConfigParseError,
     ErrorType,
     GitHubAPIError,
+    ParseError,
     RateLimitError,
     V2RayFinderError,
 )
@@ -28,6 +29,7 @@ __all__ = [
     "RateLimitError",
     "AuthenticationError",
     "ConfigParseError",
+    "ParseError",
     "ErrorType",
     "NormalizedServer",
     "normalize_server",
@@ -43,15 +45,20 @@ __all__ = [
     "KnownSource",
 ]
 
-# xray real-connectivity layer (optional — gracefully absent if aiohttp-socks
-# or the xray binary is not installed)
+# xray real-connectivity layer (optional — gracefully absent if the xray
+# binary is not installed or dependencies are missing)
 try:
     from .xray_connectivity import (
         RealConnectivityChecker,
         RealHealthResult,
-        find_free_port,
+        _ResultCache,
     )
-    from .xray_runner import XrayBinaryManager
-    from .xray_config_adapter import ConfigAdapter
+    from .xray_runner import (
+        XrayBinaryManager,
+        XrayBinaryNotFoundError,
+        XrayRunner,
+        _COMMON_INSTALL_DIRS,
+    )
+    from .xray_config_adapter import ConfigAdapter, UnsupportedProtocolError
 except ImportError:
     pass
