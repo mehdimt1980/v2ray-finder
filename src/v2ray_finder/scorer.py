@@ -91,15 +91,28 @@ class ServerScore:
 
 
 def _latency_to_score(latency_ms: Optional[float]) -> float:
+    """Map latency to a score in [0.0, 1.0] using a continuous piecewise linear curve.
+
+    Segments (all boundary values are continuous):
+        ≤ 100ms           -> 1.0              (excellent)
+        100ms – 300ms     -> 1.0 → 0.6        (good, -0.002 per ms)
+        300ms – 1000ms    -> 0.6 → 0.1        (degraded, -0.000714 per ms)
+        > 1000ms          -> 0.1 → 0.0 (clamped at 0)
+
+    The previous implementation had a discontinuity at 100ms
+    (jumped from 1.0 to 0.9 in a single step) which was a logic bug.
+    """
     if latency_ms is None or latency_ms <= 0:
         return 0.0
     if latency_ms <= 100:
         return 1.0
     if latency_ms <= 300:
-        return 0.9 - (latency_ms - 100) / 200 * 0.3
+        # 1.0 at 100ms, 0.6 at 300ms — slope = -0.4 / 200 = -0.002/ms
+        return 1.0 - (latency_ms - 100) / 200.0 * 0.4
     if latency_ms <= 1000:
-        return 0.6 - (latency_ms - 300) / 700 * 0.5
-    return max(0.0, 0.1 - (latency_ms - 1000) / 5000 * 0.1)
+        # 0.6 at 300ms, 0.1 at 1000ms — slope = -0.5 / 700
+        return 0.6 - (latency_ms - 300) / 700.0 * 0.5
+    return max(0.0, 0.1 - (latency_ms - 1000) / 5000.0 * 0.1)
 
 
 def _reachability_to_score(tcp_ok: bool, http_ok: bool, google_204_ok: bool) -> float:
