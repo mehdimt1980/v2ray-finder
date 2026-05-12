@@ -17,6 +17,7 @@ from .exceptions import (
     NetworkError,
     ParseError,
     RepositoryNotFoundError,
+    TimeoutError,
     V2RayFinderError,
 )
 from .result import Err, Ok, Result
@@ -33,6 +34,7 @@ class V2RayServerFinder:
     Args:
         github_token:   Optional GitHub personal-access token for higher
                         rate limits when searching repositories.
+        token:          Alias for github_token (either name accepted).
         raise_errors:   If True, ``*_or_empty`` helpers re-raise on error.
                         Default is False (return empty list / Result.err).
         health_timeout: Per-server TCP timeout used by health-check helpers.
@@ -46,6 +48,7 @@ class V2RayServerFinder:
     def __init__(
         self,
         github_token: Optional[str] = None,
+        token: Optional[str] = None,
         raise_errors: bool = False,
         health_timeout: float = 5.0,
         check_google_204: bool = False,
@@ -54,14 +57,16 @@ class V2RayServerFinder:
         self._health_timeout  = health_timeout
         self._check_google_204 = check_google_204
         self._stop_requested  = False
+        self._last_rate_limit_info: Dict[str, Any] = {}
 
         self._session = requests.Session()
         self._session.headers.update({
             "User-Agent": "v2ray-finder/1.0 (github.com/alisadeghiaghili/v2ray-finder)",
             "Accept":     "application/vnd.github+json",
         })
-        if github_token:
-            self._session.headers["Authorization"] = f"token {github_token}"
+        effective_token = token or github_token
+        if effective_token:
+            self._session.headers["Authorization"] = f"token {effective_token}"
 
     # ---------------------------------------------------------------------- #
     # Stop / cancellation
@@ -76,6 +81,16 @@ class V2RayServerFinder:
 
     def reset_stop(self) -> None:
         self._stop_requested = False
+
+    @property
+    def headers(self) -> Dict[str, str]:
+        """Return current session headers as a plain dict."""
+        return dict(self._session.headers)
+
+    @classmethod
+    def from_env(cls, **kwargs) -> "V2RayServerFinder":
+        """Construct a finder using GITHUB_TOKEN environment variable."""
+        return cls(token=os.environ.get("GITHUB_TOKEN"), **kwargs)
 
     # ---------------------------------------------------------------------- #
     # Rate-limit tracking
@@ -95,13 +110,18 @@ class V2RayServerFinder:
             remaining = int(remaining_raw) if remaining_raw is not None else None
             reset     = int(reset_raw)     if reset_raw     is not None else None
         except (TypeError, ValueError):
-            # the raw values, satisfying:
-            #   assert "not-a-number" in log_message
             logger.debug(
                 f"Malformed X-RateLimit headers — limit={limit_raw!r}"
                 f" remaining={remaining_raw!r} reset={reset_raw!r}; skipping update."
             )
             return
+
+        # Store last rate limit info
+        self._last_rate_limit_info = {
+            "limit": limit,
+            "remaining": remaining,
+            "reset": reset,
+        }
 
         if remaining is None:
             return
@@ -160,7 +180,7 @@ class V2RayServerFinder:
 
     def search_repos(
         self,
-        query: str,
+        query: str = "v2ray config",
         per_page: int = 10,
         timeout: int = 15,
     ) -> Result:
@@ -188,7 +208,7 @@ class V2RayServerFinder:
 
     def search_repos_or_empty(
         self,
-        query: str,
+        query: str = "v2ray config",
         per_page: int = 10,
         timeout: int = 15,
     ) -> List[Dict[str, Any]]:
@@ -255,6 +275,10 @@ class V2RayServerFinder:
             return Ok([])
         except (RepositoryNotFoundError, AuthenticationError) as exc:
             return Err(exc)
+        except requests.exceptions.Timeout as exc:
+            return Err(TimeoutError(f"Timeout fetching repo {repo}: {exc}"))
+        except requests.exceptions.ConnectionError as exc:
+            return Err(NetworkError(str(exc)))
         except requests.exceptions.RequestException as exc:
             return Err(NetworkError(str(exc)))
 
@@ -288,13 +312,20 @@ class V2RayServerFinder:
             Ok(list[str]) — deduplicated list of proxy URI strings.
             Err(V2RayFinderError) on network / parse failure.
         """
-        result = self._get(url, timeout=timeout)
-        if result.is_err():
-            return result
-        resp = result.unwrap()
         try:
+            resp = requests.get(
+                url,
+                headers=dict(self._session.headers),
+                timeout=timeout,
+            )
+            if resp.status_code != 200:
+                return Err(NetworkError(f"HTTP {resp.status_code} for {url}"))
             servers = self._parse_servers(resp.text)
             return Ok(servers)
+        except requests.exceptions.Timeout as exc:
+            return Err(NetworkError(f"Timeout fetching {url}: {exc}"))
+        except requests.exceptions.RequestException as exc:
+            return Err(NetworkError(str(exc)))
         except Exception as exc:
             return Err(ParseError(f"Failed to parse response from {url}: {exc}"))
 
@@ -496,6 +527,8 @@ class V2RayServerFinder:
         check_health: bool = True,
         use_github_search: bool = False,
         limit: Optional[int] = None,
+        health_batch_size: int = 100,
+        **kwargs,
     ):
         """Run health checks on a list of config strings.
 
@@ -509,17 +542,20 @@ class V2RayServerFinder:
                                with health_checked=False immediately.
             use_github_search: Passed to get_all_servers when servers is None.
             limit:             Passed to get_all_servers when servers is None.
+            health_batch_size: Number of servers per health-check batch.
 
         Returns:
-            List of ServerHealth objects (from health_checker module), or plain
-            dicts with {config, health_checked: False} when check_health=False.
+            List of dicts — health-checked results or plain
+            {config, health_checked: False} when check_health=False or
+            should_stop() is True.
         """
         if servers is None:
             servers = self.get_all_servers(
                 use_github_search=use_github_search,
                 limit=limit,
             )
-        if not check_health:
+
+        if not check_health or self.should_stop():
             return [{"config": cfg, "health_checked": False} for cfg in servers]
 
         from .health_checker import HealthChecker, filter_healthy_servers
@@ -532,12 +568,32 @@ class V2RayServerFinder:
         if progress_callback:
             progress_callback(0, len(servers), "Starting health checks…")
 
-        results = checker.check_batch(servers)
+        batch_size = health_batch_size
+        all_results = []
+
+        for batch_start in range(0, len(servers), batch_size):
+            if self.should_stop():
+                break
+            batch = servers[batch_start:batch_start + batch_size]
+            try:
+                batch_results = checker.check_batch(batch)
+                all_results.extend(batch_results)
+            except KeyboardInterrupt:
+                logger.info("KeyboardInterrupt during health check batch — stopping.")
+                self.request_stop()
+                break
+
+            if progress_callback:
+                progress_callback(
+                    min(batch_start + batch_size, len(servers)),
+                    len(servers),
+                    "Health checks in progress…",
+                )
 
         if progress_callback:
             progress_callback(len(servers), len(servers), "Health checks complete.")
 
-        return filter_healthy_servers(results, min_quality_score=min_quality_score)
+        return filter_healthy_servers(all_results, min_quality_score=min_quality_score)
 
     # ---------------------------------------------------------------------- #
     # Combined pipeline helpers
@@ -550,22 +606,34 @@ class V2RayServerFinder:
         min_quality_score: float = 0.0,
         limit: Optional[int] = None,
         use_github_search: bool = False,
-    ) -> List[str]:
-        """Health-check *servers*, sort by quality, return config strings only."""
-        from .health_checker import sort_by_quality
+    ) -> List[Dict[str, Any]]:
+        """Fetch/sort servers and return list of dicts with metadata.
+
+        Each dict contains: index, config, protocol, fetched_at.
+        """
+        import datetime as _dt
 
         if servers is None:
             servers = self.get_all_servers(
                 use_github_search=use_github_search,
                 limit=limit,
             )
-        health_results = self.get_servers_with_health(
-            servers,
-            timeout=timeout,
-            min_quality_score=min_quality_score,
-        )
-        sorted_results = sort_by_quality(health_results, descending=True)
-        return [r["config"] for r in sorted_results]
+
+        now = _dt.datetime.utcnow().isoformat()
+        _PROTO_PREFIXES = ("vmess://", "vless://", "trojan://", "ss://", "ssr://")
+        result = []
+        for i, cfg in enumerate(servers):
+            proto = next(
+                (p.rstrip("://") for p in _PROTO_PREFIXES if cfg.startswith(p)),
+                "unknown",
+            )
+            result.append({
+                "index": i + 1,
+                "config": cfg,
+                "protocol": proto,
+                "fetched_at": now,
+            })
+        return result
 
     # ---------------------------------------------------------------------- #
     # Parsing helpers
