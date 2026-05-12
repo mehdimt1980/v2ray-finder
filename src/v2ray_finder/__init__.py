@@ -20,6 +20,18 @@ from .result import Err, Ok, Result
 from .source_registry import SourceRegistry, SourceStats
 from .sources import SourceEntry, SourceType, SourceTrust
 
+try:
+    from .health_checker import (
+        HealthChecker,
+        ServerHealth,
+        HealthStatus,
+        ServerValidator,
+        filter_healthy_servers,
+        sort_by_quality,
+    )
+except ImportError:
+    pass
+
 __version__ = "0.5.1"
 
 __all__ = [
@@ -43,6 +55,13 @@ __all__ = [
     "SourceEntry",
     "SourceType",
     "SourceTrust",
+    # health_checker exports (optional, available when health_checker is installed)
+    "HealthChecker",
+    "ServerHealth",
+    "HealthStatus",
+    "ServerValidator",
+    "filter_healthy_servers",
+    "sort_by_quality",
 ]
 
 # xray real-connectivity layer (optional — gracefully absent if the xray
