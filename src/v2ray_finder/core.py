@@ -27,6 +27,17 @@ logger = logging.getLogger(__name__)
 
 _CONFIG_EXTENSIONS = {".txt", ".json", ".yaml", ".yml", ".conf", ".sub", ".base64"}
 
+_TOKEN_RE = re.compile(r"^[A-Za-z0-9_\-]+$")
+
+
+def _validate_token(token: str) -> bool:
+    """Return True only if token is at least 20 chars and alphanumeric/dash/underscore."""
+    if len(token) < 20:
+        return False
+    if not _TOKEN_RE.match(token):
+        return False
+    return True
+
 
 class V2RayServerFinder:
     """Main entry point for discovering v2ray / clash proxy configs.
@@ -57,15 +68,19 @@ class V2RayServerFinder:
         self._health_timeout  = health_timeout
         self._check_google_204 = check_google_204
         self._stop_requested  = False
-        self._last_rate_limit_info: Dict[str, Any] = {}
+        # Initialized as None; only populated after a successful header parse
+        self._last_rate_limit_info: Optional[Dict[str, Any]] = None
 
         self._session = requests.Session()
         self._session.headers.update({
             "User-Agent": "v2ray-finder/1.0 (github.com/alisadeghiaghili/v2ray-finder)",
-            "Accept":     "application/vnd.github+json",
+            # Tests expect the v3+json media type
+            "Accept":     "application/vnd.github.v3+json",
         })
-        effective_token = token or github_token
-        if effective_token:
+
+        # Resolve token: explicit param wins, then env var
+        effective_token = token or github_token or os.environ.get("GITHUB_TOKEN")
+        if effective_token and _validate_token(effective_token):
             self._session.headers["Authorization"] = f"token {effective_token}"
 
     # ---------------------------------------------------------------------- #
@@ -92,6 +107,10 @@ class V2RayServerFinder:
         """Construct a finder using GITHUB_TOKEN environment variable."""
         return cls(token=os.environ.get("GITHUB_TOKEN"), **kwargs)
 
+    def get_rate_limit_info(self) -> Optional[Dict[str, Any]]:
+        """Return the last observed rate-limit headers, or None if not yet seen."""
+        return self._last_rate_limit_info
+
     # ---------------------------------------------------------------------- #
     # Rate-limit tracking
     # ---------------------------------------------------------------------- #
@@ -111,12 +130,14 @@ class V2RayServerFinder:
             reset     = int(reset_raw)     if reset_raw     is not None else None
         except (TypeError, ValueError):
             logger.debug(
-                f"Malformed X-RateLimit headers — limit={limit_raw!r}"
-                f" remaining={remaining_raw!r} reset={reset_raw!r}; skipping update."
+                "Malformed X-RateLimit headers — limit=%r"
+                " remaining=%r reset=%r; skipping update.",
+                limit_raw, remaining_raw, reset_raw,
             )
+            # Do NOT update state when parsing fails
             return
 
-        # Store last rate limit info
+        # Only update state on a successful parse
         self._last_rate_limit_info = {
             "limit": limit,
             "remaining": remaining,
@@ -193,9 +214,14 @@ class V2RayServerFinder:
         params = {"q": query, "per_page": per_page, "sort": "updated"}
         try:
             resp = self._session.get(url, params=params, timeout=timeout)
-            self._check_rate_limit(resp)
+
+            # Check authentication failures BEFORE calling _check_rate_limit,
+            # so a missing/wrong token is not misreported as a rate-limit error.
             if resp.status_code in (401, 403):
                 return Err(AuthenticationError("GitHub authentication failed."))
+
+            self._check_rate_limit(resp)
+
             if resp.status_code == 422:
                 return Err(GitHubAPIError(f"Invalid search query: {query!r}"))
             resp.raise_for_status()
@@ -203,6 +229,10 @@ class V2RayServerFinder:
             return Ok(data.get("items", []))
         except (GitHubRateLimitError, AuthenticationError, GitHubAPIError) as exc:
             return Err(exc)
+        except requests.exceptions.Timeout as exc:
+            return Err(TimeoutError(str(exc)))
+        except requests.exceptions.ConnectionError as exc:
+            return Err(NetworkError(str(exc)))
         except requests.exceptions.RequestException as exc:
             return Err(GitHubAPIError(str(exc)))
 
@@ -273,14 +303,16 @@ class V2RayServerFinder:
                     return Ok([items])
                 return Ok([])
             return Ok([])
-        except (RepositoryNotFoundError, AuthenticationError) as exc:
+        except (RepositoryNotFoundError, AuthenticationError, GitHubRateLimitError) as exc:
             return Err(exc)
         except requests.exceptions.Timeout as exc:
             return Err(TimeoutError(f"Timeout fetching repo {repo}: {exc}"))
         except requests.exceptions.ConnectionError as exc:
             return Err(NetworkError(str(exc)))
         except requests.exceptions.RequestException as exc:
-            return Err(NetworkError(str(exc)))
+            return Err(GitHubAPIError(str(exc)))
+        except Exception as exc:
+            return Err(V2RayFinderError(str(exc)))
 
     def get_repo_files_or_empty(
         self,
@@ -323,7 +355,7 @@ class V2RayServerFinder:
             servers = self._parse_servers(resp.text)
             return Ok(servers)
         except requests.exceptions.Timeout as exc:
-            return Err(NetworkError(f"Timeout fetching {url}: {exc}"))
+            return Err(TimeoutError(f"Timeout fetching {url}: {exc}"))
         except requests.exceptions.RequestException as exc:
             return Err(NetworkError(str(exc)))
         except Exception as exc:
@@ -450,7 +482,9 @@ class V2RayServerFinder:
             if result.is_ok():
                 all_servers.extend(result.unwrap())
             else:
-                logger.debug("Failed to fetch source %r: %s", source.label, result.error)
+                if self._raise_errors:
+                    raise result.error
+                logger.warning("Failed to fetch source %r: %s", source.label, result.error)
 
         return all_servers
 
@@ -558,7 +592,11 @@ class V2RayServerFinder:
         if not check_health or self.should_stop():
             return [{"config": cfg, "health_checked": False} for cfg in servers]
 
-        from .health_checker import HealthChecker, filter_healthy_servers
+        try:
+            from .health_checker import HealthChecker, filter_healthy_servers
+        except (ImportError, ModuleNotFoundError):
+            logger.warning("health_checker module unavailable — returning unchecked servers.")
+            return [{"config": cfg, "health_checked": False} for cfg in servers]
 
         checker = HealthChecker(
             timeout=timeout,
