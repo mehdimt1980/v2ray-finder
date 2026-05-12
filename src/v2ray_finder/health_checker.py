@@ -1,18 +1,35 @@
 """Multi-method health checker for v2ray server configs.
 
-Checks:
-  1. TCP connectivity  — raw socket connect to host:port
-  2. HTTP probe        — HEAD/GET request through the socket (where applicable)
-  3. Google 204        — connectivity probe to clients3.google.com/generate_204
-                         (confirms real internet access, not just reachability)
+Tiered probe pipeline
+---------------------
+Every server goes through layers in order.  Each layer *enriches* the
+ServerHealth object.  A layer is skipped only when the previous layer
+already marks the server as unreachable or when the layer is explicitly
+disabled.
 
-Designed to be called *inline* during server discovery so that dead servers
-never reach the output list.
+  Layer 1 — TCP connect   (always)
+      Raw asyncio socket connect to host:port.
+      Measures TCP handshake latency.
+      → UNREACHABLE if fails.
+
+  Layer 2 — HTTP direct probe   (when tcp_ok=True, skippable)
+      Opens a raw TCP socket to clients3.google.com:80 and sends an
+      HTTP/1.1 HEAD request directly (no proxy).
+      A 204 response confirms that the *runner machine* has internet.
+      This is a pre-flight gate: if the machine itself is offline,
+      there is no point launching xray for a full probe.
+      → sets ServerHealth.http_probe_ok / http_probe_latency_ms
+
+  Layer 3 — xray SOCKS5 / Google 204   (when xray available, opt-in)
+      Spins up xray with the server's config, then sends an HTTP GET
+      through the SOCKS5 proxy to clients3.google.com/generate_204.
+      A 204 confirms the *proxy server* has real internet access.
+      This is the most accurate check; requires the xray binary.
+      → sets ServerHealth.google_204_ok / google_204_latency_ms
 
 Quality scoring
 ---------------
-Both :class:`ServerHealth` and :class:`RealHealthResult` (xray_connectivity)
-use the same piecewise-linear latency curve:
+All layers use the same piecewise-linear latency curve:
 
     ≤100 ms   → 100
     ≤300 ms   → 100 → 70
@@ -21,8 +38,9 @@ use the same piecewise-linear latency curve:
     >3000 ms  → 0
     unreachable / INVALID → 0
 
-Note: UNREACHABLE now maps to 0 (was 10 previously).  This ensures that any
-live server — even with 3 000 ms latency — sorts above a dead one.
+When Layer 3 ran successfully its latency governs the score; otherwise
+Layer 1 (TCP) latency is used.  This means a server whose proxy latency
+is high scores low even if its TCP handshake was fast.
 """
 
 from __future__ import annotations
@@ -32,18 +50,18 @@ import base64
 import json
 import logging
 import socket
+import struct
 import time
-from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Dict, List, Optional, Tuple
-from urllib.request import urlopen
-from urllib.error import URLError
 
 logger = logging.getLogger(__name__)
 
-_GOOGLE_204_URL = "http://clients3.google.com/generate_204"
-_GOOGLE_204_ALT = "http://connectivitycheck.gstatic.com/generate_204"
+_GOOGLE_204_HOST = "clients3.google.com"
+_GOOGLE_204_PATH = "/generate_204"
+_GOOGLE_204_PORT = 80
+_GOOGLE_204_ALT_HOST = "connectivitycheck.gstatic.com"
 
 
 # ---------------------------------------------------------------------------
@@ -81,17 +99,43 @@ class HealthStatus(Enum):
 
 @dataclass
 class ServerHealth:
-    """Health information for a single server config."""
+    """Health information for a single server config.
+
+    Fields populated per probe layer:
+
+    Layer 1 (TCP):
+        tcp_ok, latency_ms, error
+
+    Layer 2 (HTTP direct):
+        http_probe_ok, http_probe_latency_ms, http_probe_error
+
+    Layer 3 (xray SOCKS5 / Google 204):
+        google_204_ok, google_204_latency_ms
+
+    probe_level records how far the pipeline ran (1, 2, or 3).
+    """
 
     config: str
     protocol: str
     status: HealthStatus = HealthStatus.UNREACHABLE
     host: str = ""
     port: int = 0
-    latency_ms: Optional[float] = None
+    latency_ms: Optional[float] = None       # TCP latency
     tcp_ok: bool = False
     error: Optional[str] = None
     validation_error: Optional[str] = None
+
+    # Layer 2 — HTTP direct probe
+    http_probe_ok: bool = False
+    http_probe_latency_ms: Optional[float] = None
+    http_probe_error: Optional[str] = None
+
+    # Layer 3 — xray SOCKS5 / Google 204
+    google_204_ok: bool = False
+    google_204_latency_ms: Optional[float] = None
+
+    # How many layers completed (1 = TCP only, 2 = + HTTP, 3 = + xray/204)
+    probe_level: int = 0
 
     @property
     def is_healthy(self) -> bool:
@@ -105,19 +149,147 @@ class ServerHealth:
 
     @property
     def quality_score(self) -> float:
-        """Compute quality score (0-100) from status and latency.
+        """Compute quality score (0-100).
 
-        INVALID / UNREACHABLE → 0   (dead server must rank below any live one)
-        HEALTHY/DEGRADED, no latency → 50
-        HEALTHY/DEGRADED, latency present → piecewise-linear curve
+        Priority:
+          1. google_204_latency_ms  (most accurate — real proxy latency)
+          2. latency_ms             (TCP latency fallback)
+          3. INVALID / UNREACHABLE  → 0
+          4. live but no latency    → 50
         """
         if self.status in (HealthStatus.INVALID, HealthStatus.UNREACHABLE):
             return 0.0
-        # HEALTHY or DEGRADED
-        if self.latency_ms is None:
+        # Prefer Layer 3 latency (real proxy round-trip)
+        effective_latency = self.google_204_latency_ms or self.latency_ms
+        if effective_latency is None:
             return 50.0
-        return round(max(0.0, _latency_to_score(self.latency_ms)), 1)
+        return round(max(0.0, _latency_to_score(effective_latency)), 1)
 
+
+# ---------------------------------------------------------------------------
+# Layer 2 helper — direct HTTP probe (no proxy)
+# ---------------------------------------------------------------------------
+
+def _http_direct_probe(
+    host: str = _GOOGLE_204_HOST,
+    port: int = _GOOGLE_204_PORT,
+    path: str = _GOOGLE_204_PATH,
+    timeout: float = 5.0,
+) -> Tuple[bool, Optional[int], Optional[float], Optional[str]]:
+    """Send a direct HTTP HEAD to *host* and return (ok, status, latency_ms, error).
+
+    Uses a raw socket so there are zero external dependencies and it works
+    even when urllib / requests is monkey-patched in tests.
+    """
+    t0 = time.monotonic()
+    try:
+        sock = socket.create_connection((host, port), timeout=timeout)
+        sock.settimeout(timeout)
+        request = (
+            f"HEAD {path} HTTP/1.1\r\n"
+            f"Host: {host}\r\n"
+            "Connection: close\r\n"
+            "User-Agent: v2ray-finder-probe/1.0\r\n"
+            "\r\n"
+        ).encode()
+        sock.sendall(request)
+        raw = b""
+        while True:
+            chunk = sock.recv(256)
+            if not chunk:
+                break
+            raw += chunk
+            if b"\r\n" in raw:
+                break
+        sock.close()
+        latency = (time.monotonic() - t0) * 1000.0
+        first_line = raw.split(b"\r\n")[0].decode(errors="replace")
+        parts = first_line.split()
+        if len(parts) >= 2:
+            return True, int(parts[1]), latency, None
+        return False, None, latency, "Malformed HTTP response"
+    except socket.timeout:
+        return False, None, (time.monotonic() - t0) * 1000.0, "HTTP probe timeout"
+    except Exception as exc:
+        return False, None, (time.monotonic() - t0) * 1000.0, str(exc)
+
+
+# ---------------------------------------------------------------------------
+# Layer 3 helper — SOCKS5 HTTP probe (through xray proxy)
+# ---------------------------------------------------------------------------
+
+def _socks5_http_get(
+    socks_host: str,
+    socks_port: int,
+    target_host: str,
+    target_port: int,
+    path: str,
+    timeout: float = 8.0,
+) -> Tuple[bool, int, float]:
+    """Send an HTTP GET through a SOCKS5 proxy (no auth).
+
+    Returns (success, http_status_code, latency_ms).
+    Mirrors the implementation in xray_connectivity so both modules
+    share identical probe behaviour.
+    """
+    t0 = time.monotonic()
+    try:
+        sock = socket.create_connection((socks_host, socks_port), timeout=timeout)
+        sock.settimeout(timeout)
+
+        # SOCKS5 handshake — no auth
+        sock.sendall(b"\x05\x01\x00")
+        resp = sock.recv(2)
+        if len(resp) < 2 or resp[1] != 0x00:
+            sock.close()
+            return False, 0, (time.monotonic() - t0) * 1000.0
+
+        host_bytes = target_host.encode()
+        req = (
+            b"\x05\x01\x00\x03"
+            + bytes([len(host_bytes)])
+            + host_bytes
+            + struct.pack(">H", target_port)
+        )
+        sock.sendall(req)
+        conn_resp = sock.recv(10)
+        if len(conn_resp) < 2 or conn_resp[1] != 0x00:
+            sock.close()
+            return False, 0, (time.monotonic() - t0) * 1000.0
+
+        http_req = (
+            f"GET {path} HTTP/1.1\r\n"
+            f"Host: {target_host}\r\n"
+            "Connection: close\r\n"
+            "User-Agent: v2ray-finder-probe/1.0\r\n"
+            "\r\n"
+        ).encode()
+        sock.sendall(http_req)
+
+        raw = b""
+        while True:
+            chunk = sock.recv(256)
+            if not chunk:
+                break
+            raw += chunk
+            if b"\r\n" in raw:
+                break
+        sock.close()
+
+        latency = (time.monotonic() - t0) * 1000.0
+        first_line = raw.split(b"\r\n")[0].decode(errors="replace")
+        parts = first_line.split()
+        if len(parts) >= 2:
+            return True, int(parts[1]), latency
+        return False, 0, latency
+    except Exception as exc:
+        logger.debug("SOCKS5 probe failed: %s", exc)
+        return False, 0, (time.monotonic() - t0) * 1000.0
+
+
+# ---------------------------------------------------------------------------
+# ServerValidator
+# ---------------------------------------------------------------------------
 
 class ServerValidator:
     """Validate and parse server configs."""
@@ -169,8 +341,7 @@ class ServerValidator:
             if ":" not in addr_part:
                 return None
             host, port_str = addr_part.rsplit(":", 1)
-            port = int(port_str)
-            return {"host": host.strip("[]"), "port": port}
+            return {"host": host.strip("[]"), "port": int(port_str)}
         except (ValueError, IndexError):
             return None
 
@@ -186,8 +357,7 @@ class ServerValidator:
             if ":" not in addr_part:
                 return None
             host, port_str = addr_part.rsplit(":", 1)
-            port = int(port_str)
-            return {"host": host.strip("[]"), "port": port}
+            return {"host": host.strip("[]"), "port": int(port_str)}
         except (ValueError, IndexError):
             return None
 
@@ -275,20 +445,52 @@ class ServerValidator:
         return True, None, host, port
 
 
+# ---------------------------------------------------------------------------
+# HealthChecker
+# ---------------------------------------------------------------------------
+
 class HealthChecker:
-    """High-level async health checker for v2ray server configs."""
+    """High-level async health checker for v2ray server configs.
+
+    Tiered probe pipeline:
+      Layer 1 (always)         — async TCP connect
+      Layer 2 (opt-in)         — direct HTTP probe to Google 204
+      Layer 3 (opt-in, heavy)  — xray SOCKS5 proxy + Google 204
+
+    Parameters
+    ----------
+    timeout:
+        Seconds for TCP connect and HTTP probes.
+    max_workers:
+        Concurrency limit for check_servers_batch.
+    check_http_probe:
+        Enable Layer 2 (direct HTTP probe to Google 204).
+        Default: False.  Adds ~200-500 ms per server but confirms the
+        *runner machine* has internet access before deeper checks.
+    check_google_204:
+        Enable Layer 3 (xray SOCKS5 proxy probe).
+        Requires xray binary.  Default: False.
+    min_quality_score:
+        Servers scoring below this threshold are excluded from batch results.
+    """
 
     def __init__(
         self,
         timeout: float = 5.0,
         max_workers: int = 50,
+        check_http_probe: bool = False,
         check_google_204: bool = False,
         min_quality_score: float = 0.0,
     ) -> None:
         self.timeout = timeout
         self.max_workers = max_workers
+        self.check_http_probe = check_http_probe
         self.check_google_204 = check_google_204
         self.min_quality_score = min_quality_score
+
+    # ------------------------------------------------------------------
+    # Layer 1 — TCP
+    # ------------------------------------------------------------------
 
     async def check_tcp_connectivity(
         self, host: str, port: int
@@ -319,8 +521,56 @@ class HealthChecker:
         except Exception as exc:
             return False, None, str(exc)
 
+    # ------------------------------------------------------------------
+    # Layer 2 — direct HTTP probe (run in executor to stay async)
+    # ------------------------------------------------------------------
+
+    async def _run_http_probe(
+        self,
+        host: str = _GOOGLE_204_HOST,
+        port: int = _GOOGLE_204_PORT,
+        path: str = _GOOGLE_204_PATH,
+    ) -> Tuple[bool, Optional[int], Optional[float], Optional[str]]:
+        """Async wrapper around _http_direct_probe."""
+        loop = asyncio.get_event_loop()
+        return await loop.run_in_executor(
+            None,
+            lambda: _http_direct_probe(host, port, path, self.timeout),
+        )
+
+    # ------------------------------------------------------------------
+    # Layer 3 — xray SOCKS5 (run in executor)
+    # ------------------------------------------------------------------
+
+    async def _run_socks5_probe(
+        self,
+        socks_port: int,
+    ) -> Tuple[bool, int, float]:
+        """Async wrapper around _socks5_http_get."""
+        loop = asyncio.get_event_loop()
+        return await loop.run_in_executor(
+            None,
+            lambda: _socks5_http_get(
+                socks_host="127.0.0.1",
+                socks_port=socks_port,
+                target_host=_GOOGLE_204_HOST,
+                target_port=_GOOGLE_204_PORT,
+                path=_GOOGLE_204_PATH,
+                timeout=self.timeout,
+            ),
+        )
+
+    # ------------------------------------------------------------------
+    # Full pipeline
+    # ------------------------------------------------------------------
+
     async def check_server_health(self, config: str, protocol: str) -> ServerHealth:
-        """Run health check on a single (config, protocol) pair."""
+        """Run the tiered health probe on a single (config, protocol) pair.
+
+        Always runs Layer 1 (TCP).
+        Runs Layer 2 when check_http_probe=True and TCP succeeded.
+        Runs Layer 3 when check_google_204=True and xray is available.
+        """
         extractors = {
             "vmess": ServerValidator.extract_vmess_info,
             "vless": ServerValidator.extract_vless_info,
@@ -356,6 +606,7 @@ class HealthChecker:
         host = info["host"]
         port = info["port"]
 
+        # --- Layer 1: TCP ---
         ok, latency, err = await self.check_tcp_connectivity(host, port)
         if not ok:
             return ServerHealth(
@@ -365,28 +616,69 @@ class HealthChecker:
                 host=host,
                 port=port,
                 error=err,
+                probe_level=1,
             )
 
-        status = HealthStatus.DEGRADED if (latency or 0) > 500 else HealthStatus.HEALTHY
-        return ServerHealth(
+        result = ServerHealth(
             config=config,
             protocol=protocol,
-            status=status,
             host=host,
             port=port,
             latency_ms=latency,
             tcp_ok=True,
+            probe_level=1,
         )
+
+        # --- Layer 2: direct HTTP probe ---
+        if self.check_http_probe:
+            http_ok, http_status, http_latency, http_err = await self._run_http_probe()
+            result.http_probe_ok = http_ok and http_status in (200, 204)
+            result.http_probe_latency_ms = http_latency
+            result.http_probe_error = http_err
+            result.probe_level = 2
+
+        # --- Layer 3: xray SOCKS5 / Google 204 ---
+        if self.check_google_204:
+            try:
+                from .xray_connectivity import RealConnectivityChecker
+                checker = RealConnectivityChecker(
+                    timeout=self.timeout,
+                    auto_download=False,
+                )
+                if checker.is_xray_available():
+                    real = checker.check_server_real_sync(config)
+                    result.google_204_ok = real.google_204_ok
+                    result.google_204_latency_ms = real.latency_ms
+                    result.probe_level = 3
+            except Exception as exc:
+                logger.debug("Layer 3 xray probe failed: %s", exc)
+
+        # Determine final status using best available latency
+        effective_latency = result.google_204_latency_ms or latency or 0.0
+        result.status = (
+            HealthStatus.DEGRADED if effective_latency > 500 else HealthStatus.HEALTHY
+        )
+        return result
+
+    # ------------------------------------------------------------------
+    # Batch helpers
+    # ------------------------------------------------------------------
 
     async def check_servers_batch(
         self, servers: List[Tuple[str, str]]
     ) -> List[ServerHealth]:
-        """Check a list of (config, protocol) pairs concurrently.
+        """Check a list of (config, protocol) pairs concurrently."""
+        semaphore = asyncio.Semaphore(self.max_workers)
 
-        Exceptions from individual checks are caught and filtered out.
-        """
-        tasks = [self.check_server_health(config, protocol) for config, protocol in servers]
-        results = await asyncio.gather(*tasks, return_exceptions=True)
+        async def _guarded(config: str, protocol: str) -> Optional[ServerHealth]:
+            async with semaphore:
+                try:
+                    return await self.check_server_health(config, protocol)
+                except Exception:
+                    return None
+
+        tasks = [_guarded(c, p) for c, p in servers]
+        results = await asyncio.gather(*tasks)
         return [r for r in results if isinstance(r, ServerHealth)]
 
     def check_servers(
@@ -394,22 +686,20 @@ class HealthChecker:
     ) -> List[ServerHealth]:
         """Synchronous wrapper around check_servers_batch."""
         try:
-            loop = asyncio.get_event_loop()
-            if loop.is_running():
-                import concurrent.futures
-                with concurrent.futures.ThreadPoolExecutor(max_workers=1) as ex:
-                    future = ex.submit(asyncio.run, self.check_servers_batch(servers))
-                    return future.result()
+            loop = asyncio.get_running_loop()
         except RuntimeError:
-            pass
+            loop = None
+
+        if loop is not None and loop.is_running():
+            import concurrent.futures
+            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as ex:
+                future = ex.submit(asyncio.run, self.check_servers_batch(servers))
+                return future.result()
         return asyncio.run(self.check_servers_batch(servers))
 
     def check_one(self, config: str) -> ServerHealth:
         """Run health check on a single config string (sync)."""
-        if "://" not in config:
-            protocol = "unknown"
-        else:
-            protocol = config.split("://")[0].lower()
+        protocol = config.split("://")[0].lower() if "://" in config else "unknown"
         results = self.check_servers([(config, protocol)])
         if results:
             return results[0]
@@ -417,12 +707,16 @@ class HealthChecker:
 
     def check_batch(self, configs: List[str]) -> List[ServerHealth]:
         """Run health checks on a batch of config strings (sync)."""
-        pairs = []
-        for c in configs:
-            proto = c.split("://")[0].lower() if "://" in c else "unknown"
-            pairs.append((c, proto))
+        pairs = [
+            (c, c.split("://")[0].lower() if "://" in c else "unknown")
+            for c in configs
+        ]
         return self.check_servers(pairs)
 
+
+# ---------------------------------------------------------------------------
+# Public helpers
+# ---------------------------------------------------------------------------
 
 def filter_healthy_servers(
     results: List[ServerHealth],
@@ -448,48 +742,3 @@ def sort_by_quality(
 ) -> List[ServerHealth]:
     """Sort results by quality_score."""
     return sorted(results, key=lambda s: s.quality_score, reverse=descending)
-
-
-# ---------------------------------------------------------------------------
-# Legacy synchronous helpers (kept for backwards compat)
-# ---------------------------------------------------------------------------
-
-@dataclass
-class HealthResult:
-    """Outcome of a single server health check (legacy internal type)."""
-
-    config: str
-    host: str
-    port: int
-    protocol: str
-    tcp_ok: bool = False
-    tcp_latency_ms: float = 0.0
-    google_204_ok: bool = False
-    google_204_latency_ms: float = 0.0
-    health_status: str = "unreachable"
-    quality_score: float = 0.0
-    latency_ms: float = 0.0
-    error: Optional[str] = None
-
-
-def _parse_host_port(config: str) -> Optional[Tuple[str, int, str]]:
-    """Extract (host, port, protocol) from a config URI string."""
-    try:
-        if "://" not in config:
-            return None
-        scheme, rest = config.split("://", 1)
-        protocol = scheme.lower()
-        if protocol == "vmess":
-            info = ServerValidator.extract_vmess_info(config)
-            if info is None:
-                return None
-            return info["host"], info["port"], protocol
-        addr_part = rest.split("#")[0].split("?")[0].split("/")[0]
-        if "@" in addr_part:
-            addr_part = addr_part.split("@")[-1]
-        if ":" in addr_part:
-            host, port_str = addr_part.rsplit(":", 1)
-            return host.strip("[]"), int(port_str), protocol
-        return None
-    except Exception:
-        return None
