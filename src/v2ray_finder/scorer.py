@@ -5,205 +5,264 @@ so callers can rank servers by overall quality.
 
 Dimensions
 ----------
-latency_score       TCP round-trip time, normalised and inverted.
-reliability_score   Fraction of successful checks.
-uniqueness_score    Inverse of overlap with other subscription sources.
-protocol_score      Fixed weight per proxy protocol.
+latency_score        TCP round-trip time, normalised and inverted.
+reachability_score   Combination of tcp_ok, http_ok, google_204_ok.
+protocol_score       Fixed weight per proxy protocol.
+source_trust_score   Trustworthiness of the subscription source (1/2/3).
+freshness_score      How recently the config was seen.
+uniqueness_score     Inverse of overlap with other subscription sources.
 """
 
 from __future__ import annotations
 
-import math
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
-# Per-protocol quality weight (higher = more desirable)
-_PROTOCOL_WEIGHTS: Dict[str, float] = {
-    "vless":   1.0,
-    "vmess":   0.9,
-    "trojan":  0.95,
-    "ss":      0.8,
-    "ssr":     0.6,
-    "unknown": 0.5,
+# ---------------------------------------------------------------------------
+# Constants
+# ---------------------------------------------------------------------------
+
+_PROTOCOL_SCORES: Dict[str, float] = {
+    "vless":  1.0,
+    "trojan": 0.95,
+    "vmess":  0.85,
+    "ss":     0.70,
+    "ssr":    0.50,
+}
+
+_WEIGHTS: Dict[str, float] = {
+    "latency":       0.35,
+    "reachability":  0.30,
+    "protocol":      0.15,
+    "source_trust":  0.10,
+    "freshness":     0.05,
+    "uniqueness":    0.05,
 }
 
 # Latency thresholds (ms)
 _LATENCY_EXCELLENT = 100.0
 _LATENCY_GOOD      = 300.0
 _LATENCY_FAIR      = 800.0
-_LATENCY_MAX       = 3000.0
+_LATENCY_MAX       = 5000.0
+
+# Reachability component weights (must sum to 1.0; google_204 = 0 until xray)
+_REACH_W_TCP  = 0.70
+_REACH_W_HTTP = 0.30
+_REACH_W_G204 = 0.00
 
 
-def _latency_score(latency_ms: Optional[float]) -> float:
-    """Map latency → [0, 1]; None / negative → 0."""
-    if latency_ms is None or latency_ms < 0:
+# ---------------------------------------------------------------------------
+# Internal scoring helpers
+# ---------------------------------------------------------------------------
+
+def _latency_to_score(latency_ms: Optional[float]) -> float:
+    """Map latency (ms) -> [0, 1].  None / <= 0 -> 0.0."""
+    if latency_ms is None or latency_ms <= 0:
         return 0.0
     if latency_ms <= _LATENCY_EXCELLENT:
         return 1.0
     if latency_ms >= _LATENCY_MAX:
         return 0.0
-    # Piecewise linear decay
     if latency_ms <= _LATENCY_GOOD:
         t = (latency_ms - _LATENCY_EXCELLENT) / (_LATENCY_GOOD - _LATENCY_EXCELLENT)
-        return 1.0 - 0.3 * t
+        return round(1.0 - 0.3 * t, 6)
     if latency_ms <= _LATENCY_FAIR:
         t = (latency_ms - _LATENCY_GOOD) / (_LATENCY_FAIR - _LATENCY_GOOD)
-        return 0.7 - 0.3 * t
+        return round(0.7 - 0.3 * t, 6)
     t = (latency_ms - _LATENCY_FAIR) / (_LATENCY_MAX - _LATENCY_FAIR)
-    return 0.4 - 0.4 * t
+    return round(0.4 - 0.4 * t, 6)
 
 
-# Alias expected by tests
-_latency_to_score = _latency_score
+# Keep old name as alias
+_latency_score = _latency_to_score
+
+
+def _reachability_to_score(
+    tcp_ok: bool,
+    http_ok: bool,
+    google_204_ok: bool,
+) -> float:
+    """Combine connectivity signals into a [0, 1] reachability score."""
+    score = (
+        _REACH_W_TCP  * float(tcp_ok)
+        + _REACH_W_HTTP * float(http_ok)
+        + _REACH_W_G204 * float(google_204_ok)
+    )
+    return round(min(max(score, 0.0), 1.0), 6)
+
+
+def _trust_to_score(trust_level: int) -> float:
+    """Map integer trust level (1=low, 2=medium, 3=high) to [0, 1]."""
+    mapping = {1: 0.0, 2: 0.5, 3: 1.0}
+    return mapping.get(trust_level, 0.0)
 
 
 def _protocol_score(protocol: str) -> float:
-    return _PROTOCOL_WEIGHTS.get(protocol.lower(), 0.5)
+    return _PROTOCOL_SCORES.get(protocol.lower(), 0.5)
 
+
+# ---------------------------------------------------------------------------
+# ServerScore dataclass
+# ---------------------------------------------------------------------------
 
 @dataclass
 class ServerScore:
     """Scoring result for a single server."""
 
-    config:           str
-    protocol:         str
-    latency_ms:       Optional[float]
-    latency_score:    float
-    reliability_score: float
-    uniqueness_score: float
-    protocol_score:   float
-    total:            float
-    grade:            str
+    config:             str
+    protocol:           str
+    latency_score:      float = 0.0
+    reachability_score: float = 0.0
+    protocol_score:     float = 0.0
+    source_trust_score: float = 0.0
+    freshness_score:    float = 0.0
+    uniqueness_score:   float = 0.0
+    latency_ms:         Optional[float] = None
+    health_details:     Dict[str, Any] = field(default_factory=dict)
+
+    @property
+    def total(self) -> float:
+        raw = (
+            _WEIGHTS["latency"]      * self.latency_score
+            + _WEIGHTS["reachability"] * self.reachability_score
+            + _WEIGHTS["protocol"]     * self.protocol_score
+            + _WEIGHTS["source_trust"] * self.source_trust_score
+            + _WEIGHTS["freshness"]    * self.freshness_score
+            + _WEIGHTS["uniqueness"]   * self.uniqueness_score
+        )
+        return round(min(max(raw, 0.0), 1.0), 4)
+
+    @property
+    def grade(self) -> str:
+        t = self.total
+        if t >= 0.80:
+            return "A"
+        if t >= 0.60:
+            return "B"
+        if t >= 0.40:
+            return "C"
+        if t >= 0.20:
+            return "D"
+        return "F"
 
     def __repr__(self) -> str:  # pragma: no cover
         lat = f"{self.latency_ms:.0f}ms" if self.latency_ms is not None else "n/a"
         return (
-            f"<ServerScore {self.protocol} total={self.total:.3f}"
+            f"<ServerScore protocol={self.protocol} total={self.total:.4f}"
             f" grade={self.grade} latency={lat}>"
         )
 
 
-def _grade(total: float) -> str:
-    if total >= 0.90:
-        return "A+"
-    if total >= 0.80:
-        return "A"
-    if total >= 0.70:
-        return "B"
-    if total >= 0.60:
-        return "C"
-    if total >= 0.50:
-        return "D"
-    return "F"
-
-
-def _compute_total(
-    latency_score:    float,
-    reliability_score: float,
-    uniqueness_score: float,
-    protocol_score:   float,
-    *,
-    w_latency:     float = 0.40,
-    w_reliability: float = 0.30,
-    w_uniqueness:  float = 0.20,
-    w_protocol:    float = 0.10,
-) -> float:
-    raw = (
-        w_latency     * latency_score
-        + w_reliability * reliability_score
-        + w_uniqueness  * uniqueness_score
-        + w_protocol    * protocol_score
-    )
-    return round(min(max(raw, 0.0), 1.0), 4)
-
+# ---------------------------------------------------------------------------
+# Public API
+# ---------------------------------------------------------------------------
 
 def score_server(
-    config:           str,
-    protocol:         str,
-    latency_ms:       Optional[float],
-    is_healthy:       bool,
-    overlap_ratio:    float = 0.0,
+    config: str,
+    protocol: str,
+    latency_ms: Optional[float] = None,
+    tcp_ok: bool = False,
+    http_ok: bool = False,
+    google_204_ok: bool = False,
+    source_trust: int = 1,
+    freshness_score: float = 0.0,
+    overlap_ratio: float = 0.0,
 ) -> ServerScore:
     """Score a single server.
 
     Args:
-        config:        Raw config string (vmess://, vless://, …).
-        protocol:      Protocol name (vless, vmess, trojan, ss, ssr).
-        latency_ms:    TCP round-trip in milliseconds, or None if unavailable.
-        is_healthy:    Whether the server passed health checks.
-        overlap_ratio: Fraction of other sources that also contain this server.
-                       0.0 = unique, 1.0 = present in every source.
+        config:          Raw config string (vmess://, vless://, ...).
+        protocol:        Protocol name. Trailing '://' or '//' stripped automatically.
+        latency_ms:      TCP round-trip in milliseconds, or None.
+        tcp_ok:          Whether TCP connection succeeded.
+        http_ok:         Whether HTTP probe succeeded.
+        google_204_ok:   Whether Google 204 check succeeded (weight=0 for now).
+        source_trust:    Integer 1/2/3 trust level of the subscription source.
+        freshness_score: Pre-computed freshness score in [0, 1].
+        overlap_ratio:   Fraction of other sources that also contain this config.
 
     Returns:
-        :class:`ServerScore` instance.
+        ServerScore instance.
     """
-    ls = _latency_score(latency_ms)
-    rs = 1.0 if is_healthy else 0.0
-    us = round(1.0 - overlap_ratio * 0.8, 4)
-    ps = _protocol_score(protocol)
-    total = _compute_total(ls, rs, us, ps)
+    # Normalise protocol string
+    proto = protocol.lower().rstrip("/").rstrip(":")
+
+    ls = _latency_to_score(latency_ms)
+    rs = _reachability_to_score(tcp_ok, http_ok, google_204_ok)
+    ps = _protocol_score(proto)
+    ts = _trust_to_score(source_trust)
+    us = round(max(0.0, 1.0 - overlap_ratio), 6)
+
     return ServerScore(
         config=config,
-        protocol=protocol,
+        protocol=proto,
         latency_ms=latency_ms,
         latency_score=ls,
-        reliability_score=rs,
-        uniqueness_score=us,
+        reachability_score=rs,
         protocol_score=ps,
-        total=total,
-        grade=_grade(total),
+        source_trust_score=ts,
+        freshness_score=freshness_score,
+        uniqueness_score=us,
+        health_details={
+            "tcp_ok": tcp_ok,
+            "http_ok": http_ok,
+            "google_204_ok": google_204_ok,
+        },
     )
 
 
 def score_servers(
     health_results: List[Dict[str, Any]],
     overlap_map: Optional[Dict[str, float]] = None,
+    descending: bool = True,
 ) -> List[ServerScore]:
-    """Score a batch of health-check result dicts.
+    """Score a batch of health-check result dicts and return sorted scores.
 
-    Each dict in *health_results* must contain at minimum:
-        ``config``      — raw config string
-        ``protocol``    — protocol name
-        ``latency_ms``  — latency in ms or None
-        ``is_healthy``  — bool
+    Each dict must contain at minimum:
+        ``config``     -- raw config string
+        ``protocol``   -- protocol name
 
-    Optional per-dict key:
-        ``overlap_ratio`` — overrides the value from *overlap_map*.
+    Optional keys:
+        ``latency_ms``, ``tcp_ok``, ``http_ok``, ``google_204_ok``,
+        ``source_trust``, ``freshness_score``, ``overlap_ratio``,
+        ``source_url`` (used with *overlap_map*).
 
     Args:
         health_results: List of dicts from the health checker.
-        overlap_map:    Optional ``{source_url: ratio}`` mapping.
+        overlap_map:    Optional {source_url: overlap_ratio} mapping.
+        descending:     True -> best servers first (default).
 
     Returns:
-        List of :class:`ServerScore` objects (same order as input).
+        List of ServerScore objects sorted by total score.
     """
     if overlap_map is None:
         overlap_map = {}
 
     scores: List[ServerScore] = []
     for h in health_results:
-        config     = h.get("config", "")
-        protocol   = h.get("protocol", "unknown")
-        latency_ms = h.get("latency_ms")
-        is_healthy = bool(h.get("is_healthy", False))
-        source_url = h.get("source_url", "")
+        source_url    = h.get("source_url", "")
+        overlap_ratio = h.get("overlap_ratio", overlap_map.get(source_url, 0.0))
         scores.append(
             score_server(
-                config=config,
-                protocol=protocol,
-                latency_ms=latency_ms,
-                is_healthy=is_healthy,
-                overlap_ratio=h.get("overlap_ratio", overlap_map.get(source_url, 0.0)),
+                config=h.get("config", ""),
+                protocol=h.get("protocol", "unknown"),
+                latency_ms=h.get("latency_ms"),
+                tcp_ok=bool(h.get("tcp_ok", False)),
+                http_ok=bool(h.get("http_ok", False)),
+                google_204_ok=bool(h.get("google_204_ok", False)),
+                source_trust=int(h.get("source_trust", 1)),
+                freshness_score=float(h.get("freshness_score", 0.0)),
+                overlap_ratio=float(overlap_ratio),
             )
         )
-    return scores
+    return sorted(scores, key=lambda s: s.total, reverse=descending)
 
 
 def sort_by_score(
     scores: List[ServerScore],
     descending: bool = True,
 ) -> List[ServerScore]:
-    """Sort :class:`ServerScore` objects by their total score."""
+    """Sort ServerScore objects by their total score."""
     return sorted(scores, key=lambda s: s.total, reverse=descending)
 
 
@@ -212,28 +271,18 @@ def sort_by_quality(
     descending: bool = True,
     overlap_map: Optional[Dict[str, float]] = None,
 ) -> List[Dict[str, Any]]:
-    """Score *health_results*, sort by total score, return original dicts.
+    """Score health_results, sort by total score, return enriched original dicts.
 
     The original dict is enriched with a ``_score`` key containing the
-    :class:`ServerScore` object.
-
-    Args:
-        health_results: List of health-check result dicts.
-        descending:     True → best servers first.
-        overlap_map:    Optional source-overlap mapping.
-
-    Returns:
-        Sorted list of the original dicts (with added ``_score`` field).
+    ServerScore object.
     """
-    scored = score_servers(health_results, overlap_map=overlap_map)
-    paired = sorted(
-        zip(health_results, scored),
-        key=lambda pair: pair[1].total,
+    scored = score_servers(health_results, overlap_map=overlap_map, descending=descending)
+    score_by_config = {s.config: s for s in scored}
+    result = sorted(
+        health_results,
+        key=lambda h: score_by_config.get(h.get("config", ""), ServerScore("", "")).total,
         reverse=descending,
     )
-    result = []
-    for h, s in paired:
-        enriched = dict(h)
-        enriched["_score"] = s
-        result.append(enriched)
+    for item in result:
+        item["_score"] = score_by_config.get(item.get("config", ""))
     return result
