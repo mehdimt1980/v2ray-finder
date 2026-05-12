@@ -193,9 +193,8 @@ class ServerValidator:
                 decoded = base64.b64decode(padded).decode("utf-8", errors="replace")
             except Exception:
                 decoded = base64.urlsafe_b64decode(padded).decode("utf-8", errors="replace")
-            if "/?obfsparam" in decoded or "/\?" in decoded:
-                decoded = decoded.split("/\?")[0]
-            elif "/?" in decoded:
+            # Fix: use raw string or explicit string instead of invalid escape \?
+            if "/?obfsparam" in decoded or "/?" in decoded:
                 decoded = decoded.split("/?" )[0]
             parts = decoded.split(":", 5)
             if len(parts) < 2:
@@ -218,7 +217,6 @@ class ServerValidator:
             return False, "Missing URI scheme", None, None
         scheme = config.split("://")[0].lower()
         if scheme not in cls.SUPPORTED_PROTOCOLS:
-            # Use 'Unknown protocol' so tests checking for 'Unknown' pass
             return False, f"Unknown protocol: {scheme}", None, None
 
         extractors = {
@@ -262,7 +260,6 @@ class HealthChecker:
 
         Returns (success, latency_ms_or_None, error_str_or_None).
         """
-        # Guard against empty host/port — avoids confusing OS errors
         if not host:
             return False, None, "Missing host"
         if not port:

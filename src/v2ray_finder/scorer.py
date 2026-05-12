@@ -53,6 +53,10 @@ def _latency_score(latency_ms: Optional[float]) -> float:
     return 0.4 - 0.4 * t
 
 
+# Alias expected by tests
+_latency_to_score = _latency_score
+
+
 def _protocol_score(protocol: str) -> float:
     return _PROTOCOL_WEIGHTS.get(protocol.lower(), 0.5)
 
