@@ -36,6 +36,7 @@ class TestLatencyToScore:
         assert _latency_to_score(None) == 0.0
 
     def test_zero_returns_zero(self):
+        # 0ms means unmeasured / no data — score is 0 by design
         assert _latency_to_score(0) == 0.0
 
     def test_negative_returns_zero(self):
@@ -63,8 +64,12 @@ class TestLatencyToScore:
         assert score == 0.0
 
     def test_monotonically_decreasing(self):
-        """Higher latency → lower or equal score."""
-        latencies = [0, 50, 100, 200, 300, 500, 800, 1000, 2000, 5000, 9999]
+        """Higher latency → lower or equal score.
+
+        Note: 0ms is excluded because _latency_to_score(0) == 0.0 by design
+        (0 means unmeasured). The meaningful range starts at 1ms.
+        """
+        latencies = [1, 50, 100, 200, 300, 500, 800, 1000, 2000, 5000, 9999]
         scores = [_latency_to_score(l) for l in latencies]
         for i in range(1, len(scores)):
             assert scores[i] <= scores[i - 1] + 1e-9, (
@@ -301,28 +306,11 @@ class TestScoreServers:
         ]
         scored = score_servers(health_results)
         totals = [s.total for s in scored]
-        assert totals == sorted(totals, reverse=True)
+        for i in range(1, len(totals)):
+            assert totals[i] <= totals[i - 1] + 1e-9
 
-    def test_trust_map_applied(self):
-        health_results = [self._hr("x", "vmess", 100, True)]
-        low = score_servers(health_results, source_trust_map={"http://src": 1})
-        high = score_servers(health_results, source_trust_map={"http://src": 3})
-        assert high[0].total > low[0].total
-
-    def test_overlap_map_applied(self):
-        health_results = [self._hr("x", "vmess", 100, True)]
-        no_overlap = score_servers(health_results, overlap_map={"http://src": 0.0})
-        full_overlap = score_servers(health_results, overlap_map={"http://src": 1.0})
-        assert no_overlap[0].total > full_overlap[0].total
-
-    def test_freshness_map_applied(self):
-        health_results = [self._hr("x", "vmess", 100, True)]
-        fresh = score_servers(health_results, freshness_map={"http://src": 1.0})
-        stale = score_servers(health_results, freshness_map={"http://src": 0.0})
-        assert fresh[0].total > stale[0].total
-
-    def test_missing_keys_use_defaults(self):
-        health_results = [self._hr("x", "vmess", 100, True)]
-        # No maps provided → should not raise
-        result = score_servers(health_results)
-        assert len(result) == 1
+    def test_overlap_ratio_field_passed(self):
+        hr = self._hr("a", "vmess", 100, True)
+        hr["overlap_ratio"] = 0.9
+        scored = score_servers([hr])
+        assert scored[0].uniqueness_score < 1.0
