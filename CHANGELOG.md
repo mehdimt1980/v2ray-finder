@@ -5,15 +5,48 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
-### Planned
-- V1-D2: unified error model across fetcher / pipeline / core
-- V1-D4: xray Layer-3 retry on port contention
-- V1-Q2: README quickstart (public API + CLI examples)
-- GUI Pipeline migration (V1-A2 remainder)
+*(nothing pending)*
 
 ---
 
 ## [0.7.0] — 2026-06-18
+
+### Added (V1 Sprint — quality & stability)
+
+- **V1-D2** `FetchResult.structured_error: Optional[dict]` — machine-readable
+  error payload with `category` / `kind` / `message` / `retryable` fields.
+  All three fetch backends (aiohttp, httpx, requests sync) populate it.
+  `PipelineResult.failed_source_messages` provides a backward-compatible
+  `{url: message_str}` view; `failed_sources` returns the full dict payload.
+- **V1-D4** xray Layer-3 port-contention retry — `check_one()` retries once with
+  a fresh OS-assigned port (`find_free_port()`) when xray fails to bind.
+  `RealHealthResult.retried` flag is set when the retry path was taken.
+  `_try_start_xray()` helper guarantees resource cleanup on both success and
+  failure paths. TOCTOU window documented in module docstring.
+- **V1-A2** GUI fully migrated to `Pipeline` + `StopController`:
+  - ⏹ Stop button — calls `StopController.stop()` and joins the worker thread.
+  - Real `QProgressBar` driven by `Pipeline.run(progress_callback=…)`.
+  - Result table extended to 7 columns: #, Protocol, Score, Grade,
+    Latency (ms), Source, Config.
+  - Stats bar: Fetched / Deduped / Healthy / Scored / Cache hits.
+  - Collapsible **Failed Sources** panel (`QGroupBox`) below the table.
+  - `PipelineOptionsWidget` groups Health / HTTP probe / Google-204 /
+    Timeout / Limit controls.
+  - All widget updates are signal-only (thread-safe).
+- **V1-Q2** Documentation updated across all three language variants
+  (README.md, README.en.md, README.fa.md):
+  - "What's New in v0.7.0" section.
+  - GUI features table.
+  - `structured_error` code snippet in Error Handling.
+  - xray retry mentioned in Layer-3 health description.
+
+### Tests
+- `tests/test_pipeline_error_model.py` — 21 tests covering structured error
+  propagation for timeout / network / rate-limit / HTTP-5xx / success paths.
+- `tests/test_xray_retry.py` — 28 tests across 9 classes covering
+  `find_free_port`, `_try_start_xray`, `check_one` (first-attempt success,
+  retry success, both-fail, invalid config, non-URI), `RealConnectivityChecker`
+  retried flag propagation, and `check_real_connectivity_batch`.
 
 ### Added (V3 Sprint)
 - **V3-A1** `ServerScore.to_dict()` / `to_json()` — stable, round-trip-safe JSON
