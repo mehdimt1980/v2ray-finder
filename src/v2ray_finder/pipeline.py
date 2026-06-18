@@ -3,9 +3,6 @@
 Provides a single :class:`Pipeline` entry point that owns the full
 discovery → fetch → dedup → health → score → output chain.
 
-CLI, Rich TUI, and GUI callers should instantiate ``Pipeline`` and call
-``Pipeline.run()`` instead of re-implementing the sequence themselves.
-
 Progress callback protocol
 --------------------------
 All progress callbacks follow the signature::
@@ -20,13 +17,27 @@ Pass a :class:`StopController` (or any ``threading.Event``) as
 ``stop_event`` to ``Pipeline.run()``.  The pipeline checks the event
 before every source fetch and every health-check batch.
 
-Async fetch
------------
-All HTTP fetching is delegated to :class:`~async_fetcher.AsyncFetcher`
-which automatically uses aiohttp (preferred), httpx, or falls back to
-sync ``requests`` if neither async library is available.
-Connection pooling and retry/backoff are handled entirely by
-``AsyncFetcher``.
+Source caching (V2-C1)
+----------------------
+The pipeline has built-in TTL source caching via :class:`~cache.CacheManager`.
+Each source URL's raw response text is cached under a key derived from the URL.
+On cache hit the network fetch is skipped entirely.  Caching is opt-in::
+
+    # memory cache, 1-hour TTL (default)
+    pipeline = Pipeline(cache_enabled=True)
+
+    # disk cache, custom TTL
+    pipeline = Pipeline(
+        cache_enabled=True,
+        cache_backend="disk",
+        cache_ttl=1800,          # 30 minutes
+        cache_dir="~/.v2rf",
+    )
+
+    # inject your own CacheManager
+    from v2ray_finder.cache import CacheManager
+    cm = CacheManager(backend="memory", ttl=600)
+    pipeline = Pipeline(cache_manager=cm)
 
 Stub-ability
 ------------
@@ -70,7 +81,7 @@ Example
     from v2ray_finder.pipeline import Pipeline, StopController
 
     stop = StopController()
-    pipeline = Pipeline(check_health=True, check_google_204=True)
+    pipeline = Pipeline(check_health=True, check_google_204=True, cache_enabled=True)
     result = pipeline.run(stop_event=stop.event)
     for score in result.scores[:10]:
         print(score.grade, score.config[:80])
@@ -82,41 +93,36 @@ import logging
 import re
 import threading
 from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, List, Optional, Set
+from typing import Any, Callable, Dict, List, Optional
 from urllib.parse import urlparse
 
 from .async_fetcher import AsyncFetcher, FetchResult
+from .cache import CacheManager
 from .normalizer import deduplicate_across_sources
-from .scorer import ServerScore, score_servers, sort_by_quality
-from .sources import SourceEntry, SourceTrust, get_enabled_sources
+from .scorer import ServerScore, score_servers
+from .sources import SourceEntry, get_enabled_sources
 
 logger = logging.getLogger(__name__)
 
-# Regex shared across fetch paths
 _PROTO_RE = re.compile(
     r"(?:vmess|vless|trojan|ss|ssr)://[A-Za-z0-9+/=_\-@:.?&#%]+",
     re.IGNORECASE,
 )
 
-# GitHub hosts that require rate-limit awareness
 _GITHUB_HOSTS: frozenset = frozenset({
     "api.github.com",
     "raw.githubusercontent.com",
 })
 
-# Default concurrency cap for async source fetches
-_DEFAULT_FETCH_CONCURRENCY = 10
+_DEFAULT_FETCH_CONCURRENCY       = 10
+_DEFAULT_MAX_CONFIGS_PER_SOURCE  = 5_000
+_DEFAULT_MAX_TOTAL_CONFIGS       = 50_000
+_DEFAULT_CACHE_TTL               = 3_600   # 1 hour
 
-# Default memory caps
-_DEFAULT_MAX_CONFIGS_PER_SOURCE: int = 5_000
-_DEFAULT_MAX_TOTAL_CONFIGS: int      = 50_000
-
-# Type alias for the progress callback.
 ProgressCallback = Optional[Callable[[str, int, int, str], None]]
 
 
 def _is_github_url(url: str) -> bool:
-    """Return True if *url* is hosted on a known GitHub API/raw domain."""
     try:
         return urlparse(url).hostname in _GITHUB_HOSTS
     except Exception:
@@ -124,7 +130,6 @@ def _is_github_url(url: str) -> bool:
 
 
 def _parse_configs(text: str) -> List[str]:
-    """Extract deduplicated proxy URIs from raw subscription text."""
     return list(dict.fromkeys(_PROTO_RE.findall(text)))
 
 
@@ -156,11 +161,11 @@ class StopController:
 class PipelineResult:
     """Container for the output of a completed pipeline run."""
 
-    configs:      List[str]                  = field(default_factory=list)
-    health_dicts: List[Dict[str, Any]]        = field(default_factory=list)
-    scores:       List[ServerScore]           = field(default_factory=list)
-    overlap_map:  Dict[str, float]            = field(default_factory=dict)
-    stats:        Dict[str, Any]              = field(default_factory=dict)
+    configs:      List[str]             = field(default_factory=list)
+    health_dicts: List[Dict[str, Any]]  = field(default_factory=list)
+    scores:       List[ServerScore]     = field(default_factory=list)
+    overlap_map:  Dict[str, float]      = field(default_factory=dict)
+    stats:        Dict[str, Any]        = field(default_factory=dict)
 
     @property
     def top_configs(self) -> List[str]:
@@ -178,39 +183,46 @@ class Pipeline:
     ----------
     sources:
         List of :class:`~sources.SourceEntry` objects to fetch.
-        Defaults to all enabled sources from :func:`~sources.get_enabled_sources`.
+        Defaults to all enabled sources.
     check_health:
-        Run TCP health checks (Layer 1).  Default: ``True``.
+        Run TCP health checks.  Default: ``True``.
     check_http_probe:
-        Run direct HTTP probe (Layer 2).  Default: ``False``.
+        Run direct HTTP probe.  Default: ``False``.
     check_google_204:
-        Run xray SOCKS5 / Google 204 probe (Layer 3).  Default: ``False``.
+        Run xray SOCKS5 / Google 204 probe.  Default: ``False``.
     timeout:
         Per-server probe timeout in seconds.  Default: ``5.0``.
     min_quality_score:
         Exclude servers scoring below this threshold.  Default: ``0.0``.
     health_batch_size:
-        Number of servers per async health-check batch.  Default: ``100``.
+        Number of servers per health-check batch.  Default: ``100``.
     fetch_timeout:
         HTTP timeout for source fetches in seconds.  Default: ``15``.
     fetch_concurrency:
-        Maximum number of concurrent async source fetches.  Default: ``10``.
+        Maximum concurrent source fetches.  Default: ``10``.
     limit:
-        Cap the number of configs returned after dedup.  Default: ``None``.
+        Cap configs returned after dedup.  Default: ``None``.
     binary_path:
         Explicit path to the xray binary (Layer 3 only).
     github_token:
-        Optional GitHub personal-access token.  When provided, an
-        ``Authorization: token <tok>`` header is added **only** to
-        requests targeting ``api.github.com`` or
-        ``raw.githubusercontent.com``.
+        Optional GitHub PAT — added only to GitHub-host requests.
     max_configs_per_source:
-        Maximum configs to keep from a single source after parsing.
-        Excess entries are dropped and logged.  Default: ``5_000``.
+        Maximum configs per source after parsing.  Default: ``5_000``.
     max_total_configs:
-        Maximum configs to keep across all sources after structural
-        dedup, before health checks.  Default: ``50_000``.
-        Pass ``None`` to disable the global cap.
+        Maximum configs after dedup before health checks.
+        Default: ``50_000``.  Pass ``None`` to disable.
+    cache_enabled:
+        Enable TTL caching of raw source responses.  Default: ``False``.
+    cache_backend:
+        ``"memory"`` (default) or ``"disk"``.
+    cache_ttl:
+        Cache TTL in seconds.  Default: ``3600`` (1 hour).
+    cache_dir:
+        Directory for disk cache.  Default: ``~/.v2ray_finder_cache``.
+    cache_manager:
+        Inject a pre-configured :class:`~cache.CacheManager` instance.
+        When provided, *cache_enabled*, *cache_backend*, *cache_ttl*, and
+        *cache_dir* are ignored.
     """
 
     def __init__(
@@ -229,6 +241,12 @@ class Pipeline:
         github_token: Optional[str] = None,
         max_configs_per_source: int = _DEFAULT_MAX_CONFIGS_PER_SOURCE,
         max_total_configs: Optional[int] = _DEFAULT_MAX_TOTAL_CONFIGS,
+        # V2-C1 cache params
+        cache_enabled: bool = False,
+        cache_backend: str = "memory",
+        cache_ttl: int = _DEFAULT_CACHE_TTL,
+        cache_dir: Optional[str] = None,
+        cache_manager: Optional[CacheManager] = None,
     ) -> None:
         self.sources                = sources or get_enabled_sources()
         self.check_health           = check_health
@@ -244,6 +262,19 @@ class Pipeline:
         self.github_token           = github_token
         self.max_configs_per_source = max_configs_per_source
         self.max_total_configs      = max_total_configs
+
+        # V2-C1: cache setup
+        if cache_manager is not None:
+            self._cache: Optional[CacheManager] = cache_manager
+        elif cache_enabled:
+            self._cache = CacheManager(
+                backend=cache_backend,
+                ttl=cache_ttl,
+                cache_dir=cache_dir,
+                enabled=True,
+            )
+        else:
+            self._cache = None
 
         self._source_trust_map: Dict[str, int] = {
             s.url: s.trust.value for s in self.sources
@@ -264,12 +295,19 @@ class Pipeline:
         stats: Dict[str, Any] = {
             "fetched": 0, "deduped": 0, "healthy": 0, "scored": 0,
             "dropped_per_source": 0, "dropped_global": 0,
+            "cache_hits": 0, "cache_misses": 0,
         }
 
         # ── Stage 1: Fetch ──────────────────────────────────────────────
         servers_by_source = self._fetch_all(_stop, progress_callback)
 
-        # Apply per-source cap
+        # Propagate cache stats
+        if self._cache is not None:
+            cs = self._cache.get_stats()
+            stats["cache_hits"]   = cs.get("hits",   0)
+            stats["cache_misses"] = cs.get("misses", 0)
+
+        # Per-source cap
         for url in list(servers_by_source.keys()):
             full = servers_by_source[url]
             if len(full) > self.max_configs_per_source:
@@ -289,7 +327,6 @@ class Pipeline:
         # ── Stage 2: Structural dedup ────────────────────────────────────
         configs, overlap_map = deduplicate_across_sources(servers_by_source)
 
-        # Apply global post-dedup cap
         if self.max_total_configs is not None and len(configs) > self.max_total_configs:
             dropped_global = len(configs) - self.max_total_configs
             configs = configs[: self.max_total_configs]
@@ -305,10 +342,6 @@ class Pipeline:
         stats["deduped"]   = len(configs)
         result.configs     = configs
         result.overlap_map = overlap_map
-        logger.info(
-            "[pipeline] Fetch complete: %d raw → %d unique configs.",
-            stats["fetched"], stats["deduped"],
-        )
         if _stop.is_set():
             result.stats = stats
             return result
@@ -331,7 +364,7 @@ class Pipeline:
             return result
 
         # ── Stage 4: Score ─────────────────────────────────────────────
-        self._emit(progress_callback, "score", 0, 1, "Scoring servers\u2026")
+        self._emit(progress_callback, "score", 0, 1, "Scoring servers…")
         result.scores = score_servers(
             result.health_dicts,
             overlap_map=overlap_map,
@@ -339,30 +372,23 @@ class Pipeline:
         )
         stats["scored"] = len(result.scores)
         self._emit(progress_callback, "score", 1, 1, "Scoring complete.")
-        logger.info(
-            "[pipeline] Pipeline complete: %d servers scored.",
-            stats["scored"],
-        )
 
         result.stats = stats
         return result
 
     # ------------------------------------------------------------------
-    # Source attribution helpers
+    # Source attribution
     # ------------------------------------------------------------------
 
     def _build_config_source_map(
         self,
         servers_by_source: Dict[str, List[str]],
     ) -> Dict[str, str]:
-        """Return config string → source URL mapping (highest-trust wins)."""
         config_source: Dict[str, str] = {}
-        sorted_sources = sorted(
+        for url in sorted(
             servers_by_source.keys(),
-            key=lambda url: self._source_trust_map.get(url, 1),
-            reverse=False,
-        )
-        for url in sorted_sources:
+            key=lambda u: self._source_trust_map.get(u, 1),
+        ):
             for cfg in servers_by_source[url]:
                 config_source[cfg] = url
         return config_source
@@ -392,16 +418,7 @@ class Pipeline:
         stop_event: threading.Event,
         progress_callback: ProgressCallback,
     ) -> Dict[str, List[str]]:
-        """Delegate to :meth:`_fetch_all_sync`.
-
-        Exists as a separate method so tests can stub either layer::
-
-            # Stub the high-level entry (skips AsyncFetcher entirely)
-            p._fetch_all_sync = lambda stop, cb: {src.url: configs}
-
-            # Or stub the lower level if testing _fetch_all logic
-            p._fetch_all = lambda stop, cb: {src.url: configs}
-        """
+        """Thin delegate to :meth:`_fetch_all_sync` (stub point for tests)."""
         return self._fetch_all_sync(stop_event, progress_callback)
 
     def _fetch_all_sync(
@@ -409,20 +426,20 @@ class Pipeline:
         stop_event: threading.Event,
         progress_callback: ProgressCallback,
     ) -> Dict[str, List[str]]:
-        """Fetch all sources using :class:`~async_fetcher.AsyncFetcher`.
+        """Fetch all sources, with TTL cache support (V2-C1) and GitHub
+        rate-limit handling.
 
-        Separates GitHub (rate-limit aware) from non-GitHub sources and
-        runs each group through its own :class:`AsyncFetcher` instance
-        with the appropriate auth headers.
-
-        This method is the primary stub point for unit tests — replace it
-        on the instance to inject pre-canned results without network I/O.
+        Cache flow per URL
+        ------------------
+        1. If ``self._cache`` is set, attempt a cache GET keyed on the URL.
+        2. On hit  → parse cached text, skip network.
+        3. On miss → fetch via AsyncFetcher, store raw text on 200 OK.
         """
         github_urls     = [s.url for s in self.sources if _is_github_url(s.url)]
         non_github_urls = [s.url for s in self.sources if not _is_github_url(s.url)]
         total           = len(self.sources)
 
-        self._emit(progress_callback, "fetch", 0, total, "Starting fetch\u2026")
+        self._emit(progress_callback, "fetch", 0, total, "Starting fetch…")
 
         base_headers   = {"User-Agent": "v2ray-finder/1.0"}
         github_headers = dict(base_headers)
@@ -432,51 +449,87 @@ class Pipeline:
         servers_by_source: Dict[str, List[str]] = {}
         completed = 0
 
-        if non_github_urls and not stop_event.is_set():
+        # ── helper: try cache, return (hit, parsed_configs) ──
+        def _try_cache(url: str):
+            if self._cache is None:
+                return False, None
+            key   = self._cache._make_key("source", url)
+            cached = self._cache.get(key)
+            if cached is not None:
+                return True, _parse_configs(cached)
+            return False, None
+
+        def _store_cache(url: str, text: str) -> None:
+            if self._cache is not None:
+                key = self._cache._make_key("source", url)
+                self._cache.set(key, text)
+
+        # ── non-GitHub sources ────────────────────────────────────────
+        urls_to_fetch_ng: List[str] = []
+        for url in non_github_urls:
+            hit, configs = _try_cache(url)
+            if hit:
+                servers_by_source[url] = configs  # type: ignore[assignment]
+                completed += 1
+                self._emit(progress_callback, "fetch", completed, total,
+                           f"Cache hit {completed}/{total}…")
+            else:
+                urls_to_fetch_ng.append(url)
+
+        if urls_to_fetch_ng and not stop_event.is_set():
             fetcher = AsyncFetcher(
                 max_concurrent=self.fetch_concurrency,
                 timeout=float(self.fetch_timeout),
                 headers=base_headers,
             )
-            for fr in fetcher.fetch_many(non_github_urls):
+            for fr in fetcher.fetch_many(urls_to_fetch_ng):
                 if stop_event.is_set():
                     break
+                if fr.success and fr.content:
+                    _store_cache(fr.url, fr.content)
                 self._process_fetch_result(fr, servers_by_source)
                 completed += 1
-                self._emit(
-                    progress_callback, "fetch", completed, total,
-                    f"Fetched {completed}/{total} sources\u2026",
-                )
+                self._emit(progress_callback, "fetch", completed, total,
+                           f"Fetched {completed}/{total} sources…")
 
-        if github_urls and not stop_event.is_set():
+        # ── GitHub sources ────────────────────────────────────────────
+        urls_to_fetch_gh: List[str] = []
+        for url in github_urls:
+            hit, configs = _try_cache(url)
+            if hit:
+                servers_by_source[url] = configs  # type: ignore[assignment]
+                completed += 1
+                self._emit(progress_callback, "fetch", completed, total,
+                           f"Cache hit {completed}/{total}…")
+            else:
+                urls_to_fetch_gh.append(url)
+
+        if urls_to_fetch_gh and not stop_event.is_set():
             github_fetcher = AsyncFetcher(
                 max_concurrent=min(self.fetch_concurrency, 5),
                 timeout=float(self.fetch_timeout),
                 headers=github_headers,
             )
             github_rate_limited = False
-            for fr in github_fetcher.fetch_many(github_urls):
+            for fr in github_fetcher.fetch_many(urls_to_fetch_gh):
                 if stop_event.is_set():
                     break
                 if github_rate_limited:
-                    logger.debug(
-                        "[pipeline] Skipping %s (GitHub rate-limited).", fr.url
-                    )
+                    logger.debug("[pipeline] Skipping %s (GitHub rate-limited).", fr.url)
                 elif fr.status_code in (403, 429):
                     logger.warning(
-                        "[pipeline] GitHub rate limit hit on %s (HTTP %d). "
-                        "Skipping remaining GitHub sources. "
-                        "Pass github_token= to Pipeline to raise the limit.",
+                        "[pipeline] GitHub rate limit on %s (HTTP %d). "
+                        "Pass github_token= to raise the limit.",
                         fr.url, fr.status_code,
                     )
                     github_rate_limited = True
                 else:
+                    if fr.success and fr.content:
+                        _store_cache(fr.url, fr.content)
                     self._process_fetch_result(fr, servers_by_source)
                 completed += 1
-                self._emit(
-                    progress_callback, "fetch", completed, total,
-                    f"Fetched {completed}/{total} sources\u2026",
-                )
+                self._emit(progress_callback, "fetch", completed, total,
+                           f"Fetched {completed}/{total} sources…")
 
         self._emit(progress_callback, "fetch", total, total, "Fetch complete.")
         return servers_by_source
@@ -492,7 +545,7 @@ class Pipeline:
                 servers_by_source[fr.url] = parsed
                 logger.debug("[pipeline] %s: %d configs.", fr.url, len(parsed))
         else:
-            logger.warning("[pipeline] %s: fetch failed \u2014 %s.", fr.url, fr.error)
+            logger.warning("[pipeline] %s: fetch failed — %s.", fr.url, fr.error)
 
     # ------------------------------------------------------------------
     # Stage 3: Health
@@ -524,10 +577,9 @@ class Pipeline:
                 break
             batch = configs[batch_start: batch_start + self.health_batch_size]
             self._emit(
-                progress_callback, "health",
-                batch_start, total,
+                progress_callback, "health", batch_start, total,
                 f"Health checking "
-                f"{batch_start + 1}\u2013{min(batch_start + self.health_batch_size, total)}\u2026",
+                f"{batch_start + 1}–{min(batch_start + self.health_batch_size, total)}…",
             )
             try:
                 all_health.extend(checker.check_batch(batch))

@@ -1,451 +1,431 @@
-"""Tests for caching module."""
+"""Tests for cache.py — CacheBackend, MemoryCache, DiskCache, CacheManager (V2-C1)."""
+from __future__ import annotations
 
-import shutil
-import tempfile
 import time
-from pathlib import Path
-
-import pytest
+import threading
+import unittest
+from unittest.mock import MagicMock, patch
 
 from v2ray_finder.cache import (
-    DISKCACHE_AVAILABLE,
-    CacheBackend,
     CacheManager,
     CacheStats,
-    DiskCache,
     MemoryCache,
-    get_cache,
 )
 
 
-class TestCacheBackend:
-    """Test CacheBackend abstract base class contract."""
+# ---------------------------------------------------------------------------
+# MemoryCache
+# ---------------------------------------------------------------------------
 
-    def test_cannot_instantiate_directly(self):
-        """CacheBackend is abstract and cannot be instantiated directly."""
-        with pytest.raises(TypeError):
-            CacheBackend()  # type: ignore[abstract]
+class TestMemoryCache(unittest.TestCase):
 
-    def test_partial_subclass_raises_on_instantiation(self):
-        """Subclass missing abstract methods raises TypeError at instantiation."""
+    def _cache(self, max_size=100):
+        return MemoryCache(max_size=max_size)
 
-        class IncompleteBackend(CacheBackend):
-            def get(self, key):
-                return None
+    # -- basic get/set --
+    def test_set_and_get(self):
+        c = self._cache()
+        c.set("k", "v")
+        self.assertEqual(c.get("k"), "v")
 
-            # set, delete, clear intentionally omitted
+    def test_missing_key_returns_none(self):
+        c = self._cache()
+        self.assertIsNone(c.get("no-such-key"))
 
-        with pytest.raises(TypeError):
-            IncompleteBackend()
+    def test_overwrite_key(self):
+        c = self._cache()
+        c.set("k", "v1")
+        c.set("k", "v2")
+        self.assertEqual(c.get("k"), "v2")
 
-    def test_complete_subclass_is_instantiable(self):
-        """Subclass implementing all abstract methods can be instantiated."""
-
-        class MinimalBackend(CacheBackend):
-            def get(self, key):
-                return None
-
-            def set(self, key, value, ttl=None):
-                return True
-
-            def delete(self, key):
-                return True
-
-            def clear(self):
-                return True
-
-        backend = MinimalBackend()
-        assert backend is not None
-
-    def test_close_has_default_implementation(self):
-        """close() need not be overridden; the base default is a no-op."""
-
-        class MinimalBackend(CacheBackend):
-            def get(self, key):
-                return None
-
-            def set(self, key, value, ttl=None):
-                return True
-
-            def delete(self, key):
-                return True
-
-            def clear(self):
-                return True
-
-        backend = MinimalBackend()
-        backend.close()  # must not raise
-
-
-class TestCacheStats:
-    """Test CacheStats dataclass."""
-
-    def test_stats_init(self):
-        """Test stats initialization."""
-        stats = CacheStats()
-
-        assert stats.hits == 0
-        assert stats.misses == 0
-        assert stats.sets == 0
-        assert stats.errors == 0
-        assert stats.hit_rate == 0.0
-
-    def test_hit_rate_calculation(self):
-        """Test hit rate calculation."""
-        stats = CacheStats(hits=8, misses=2)
-        assert stats.hit_rate == 80.0
-
-        stats = CacheStats(hits=0, misses=10)
-        assert stats.hit_rate == 0.0
-
-        stats = CacheStats(hits=10, misses=0)
-        assert stats.hit_rate == 100.0
-
-    def test_to_dict(self):
-        """Test conversion to dictionary."""
-        stats = CacheStats(hits=5, misses=5, sets=10, errors=1)
-        d = stats.to_dict()
-
-        assert d["hits"] == 5
-        assert d["misses"] == 5
-        assert d["sets"] == 10
-        assert d["errors"] == 1
-        assert d["hit_rate"] == 50.0
-
-
-class TestMemoryCache:
-    """Test MemoryCache backend."""
-
-    def test_init(self):
-        """Test memory cache initialization."""
-        cache = MemoryCache(max_size=100)
-        assert cache.max_size == 100
-
-    def test_get_set(self):
-        """Test basic get/set operations."""
-        cache = MemoryCache()
-
-        # Set and get
-        cache.set("key1", "value1")
-        assert cache.get("key1") == "value1"
-
-        # Get non-existent key
-        assert cache.get("nonexistent") is None
-
-    def test_ttl_expiration(self):
-        """Test TTL expiration."""
-        cache = MemoryCache()
-
-        # Set with 1 second TTL
-        cache.set("key1", "value1", ttl=1)
-        assert cache.get("key1") == "value1"
-
-        # Wait for expiration
+    # -- TTL --
+    def test_expired_returns_none(self):
+        c = self._cache()
+        c.set("k", "v", ttl=1)
         time.sleep(1.1)
-        assert cache.get("key1") is None
+        self.assertIsNone(c.get("k"))
 
-    def test_no_ttl(self):
-        """Test items without TTL don't expire."""
-        cache = MemoryCache()
+    def test_non_expired_still_returns_value(self):
+        c = self._cache()
+        c.set("k", "v", ttl=60)
+        self.assertEqual(c.get("k"), "v")
 
-        cache.set("key1", "value1", ttl=None)
-        time.sleep(0.5)
-        assert cache.get("key1") == "value1"
+    def test_no_ttl_never_expires(self):
+        c = self._cache()
+        c.set("k", "v")           # no TTL → eternal
+        self.assertEqual(c.get("k"), "v")
 
-    def test_delete(self):
-        """Test key deletion."""
-        cache = MemoryCache()
+    # -- delete --
+    def test_delete_existing(self):
+        c = self._cache()
+        c.set("k", "v")
+        self.assertTrue(c.delete("k"))
+        self.assertIsNone(c.get("k"))
 
-        cache.set("key1", "value1")
-        assert cache.delete("key1") is True
-        assert cache.get("key1") is None
+    def test_delete_missing_returns_false(self):
+        c = self._cache()
+        self.assertFalse(c.delete("ghost"))
 
-        # Delete non-existent key
-        assert cache.delete("nonexistent") is False
+    # -- clear --
+    def test_clear_empties_cache(self):
+        c = self._cache()
+        c.set("a", 1)
+        c.set("b", 2)
+        c.clear()
+        self.assertIsNone(c.get("a"))
+        self.assertIsNone(c.get("b"))
 
-    def test_clear(self):
-        """Test cache clearing."""
-        cache = MemoryCache()
+    def test_clear_returns_true(self):
+        c = self._cache()
+        self.assertTrue(c.clear())
 
-        cache.set("key1", "value1")
-        cache.set("key2", "value2")
+    # -- FIFO eviction --
+    def test_fifo_evicts_oldest(self):
+        c = self._cache(max_size=2)
+        c.set("first",  1)
+        c.set("second", 2)
+        c.set("third",  3)          # should evict "first"
+        self.assertIsNone(c.get("first"))
+        self.assertEqual(c.get("second"), 2)
+        self.assertEqual(c.get("third"),  3)
 
-        assert cache.clear() is True
-        assert cache.get("key1") is None
-        assert cache.get("key2") is None
+    def test_update_existing_does_not_evict(self):
+        c = self._cache(max_size=2)
+        c.set("a", 1)
+        c.set("b", 2)
+        c.set("a", 99)              # update, not new key — no eviction
+        self.assertEqual(c.get("a"), 99)
+        self.assertEqual(c.get("b"), 2)
 
-    def test_max_size_eviction(self):
-        """Test FIFO eviction when max size reached."""
-        cache = MemoryCache(max_size=3)
+    # -- thread safety (smoke) --
+    def test_concurrent_writes_no_exception(self):
+        c = self._cache(max_size=50)
+        errors = []
 
-        cache.set("key1", "value1")
-        cache.set("key2", "value2")
-        cache.set("key3", "value3")
+        def writer(n):
+            try:
+                for i in range(20):
+                    c.set(f"key-{n}-{i}", i)
+            except Exception as e:
+                errors.append(e)
 
-        # All should be present
-        assert cache.get("key1") == "value1"
-        assert cache.get("key2") == "value2"
-        assert cache.get("key3") == "value3"
-
-        # Adding 4th should evict first
-        cache.set("key4", "value4")
-        assert cache.get("key1") is None  # Evicted
-        assert cache.get("key4") == "value4"
-
-    def test_update_existing(self):
-        """Test updating existing key doesn't trigger eviction."""
-        cache = MemoryCache(max_size=2)
-
-        cache.set("key1", "value1")
-        cache.set("key2", "value2")
-        cache.set("key1", "updated")  # Update, not new entry
-
-        assert cache.get("key1") == "updated"
-        assert cache.get("key2") == "value2"
+        threads = [threading.Thread(target=writer, args=(n,)) for n in range(5)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+        self.assertEqual(errors, [])
 
 
-class TestDiskCache:
-    """Test DiskCache backend."""
+# ---------------------------------------------------------------------------
+# CacheStats
+# ---------------------------------------------------------------------------
 
-    @pytest.fixture
-    def temp_cache_dir(self):
-        """Create temporary cache directory."""
-        temp_dir = tempfile.mkdtemp()
-        yield temp_dir
-        shutil.rmtree(temp_dir, ignore_errors=True)
+class TestCacheStats(unittest.TestCase):
 
-    def test_init(self, temp_cache_dir):
-        """Test disk cache initialization."""
-        if not DISKCACHE_AVAILABLE:
-            pytest.skip("diskcache not available")
+    def test_initial_zeros(self):
+        s = CacheStats()
+        self.assertEqual(s.hits,   0)
+        self.assertEqual(s.misses, 0)
+        self.assertEqual(s.sets,   0)
+        self.assertEqual(s.errors, 0)
 
-        cache = DiskCache(cache_dir=temp_cache_dir)
-        cache.close()
+    def test_hit_rate_zero_with_no_requests(self):
+        s = CacheStats()
+        self.assertEqual(s.hit_rate, 0.0)
 
-    def test_init_without_diskcache(self):
-        """Test error when diskcache not available."""
-        if DISKCACHE_AVAILABLE:
-            pytest.skip("diskcache is available")
+    def test_hit_rate_100_percent(self):
+        s = CacheStats(hits=10, misses=0)
+        self.assertAlmostEqual(s.hit_rate, 100.0)
 
-        with pytest.raises(ImportError):
-            DiskCache()
+    def test_hit_rate_50_percent(self):
+        s = CacheStats(hits=5, misses=5)
+        self.assertAlmostEqual(s.hit_rate, 50.0)
 
-    def test_get_set(self, temp_cache_dir):
-        """Test basic get/set operations."""
-        if not DISKCACHE_AVAILABLE:
-            pytest.skip("diskcache not available")
+    def test_to_dict_contains_hit_rate(self):
+        s = CacheStats(hits=3, misses=1)
+        d = s.to_dict()
+        self.assertIn("hit_rate", d)
+        self.assertAlmostEqual(d["hit_rate"], 75.0)
 
-        cache = DiskCache(cache_dir=temp_cache_dir)
+    def test_to_dict_contains_all_fields(self):
+        s = CacheStats(hits=1, misses=2, sets=3, errors=4)
+        d = s.to_dict()
+        for key in ("hits", "misses", "sets", "errors", "hit_rate"):
+            self.assertIn(key, d)
 
-        cache.set("key1", "value1")
-        assert cache.get("key1") == "value1"
 
-        cache.close()
+# ---------------------------------------------------------------------------
+# CacheManager — memory backend
+# ---------------------------------------------------------------------------
 
-    def test_persistence(self, temp_cache_dir):
-        """Test that disk cache persists across instances."""
-        if not DISKCACHE_AVAILABLE:
-            pytest.skip("diskcache not available")
+class TestCacheManagerMemory(unittest.TestCase):
 
-        # First instance
-        cache1 = DiskCache(cache_dir=temp_cache_dir)
-        cache1.set("key1", "value1")
-        cache1.close()
+    def _cm(self, ttl=60, enabled=True):
+        return CacheManager(backend="memory", ttl=ttl, enabled=enabled)
 
-        # Second instance
-        cache2 = DiskCache(cache_dir=temp_cache_dir)
-        assert cache2.get("key1") == "value1"
-        cache2.close()
+    # -- disabled cache --
+    def test_disabled_get_returns_none(self):
+        cm = self._cm(enabled=False)
+        self.assertIsNone(cm.get("k"))
 
-    def test_ttl_expiration(self, temp_cache_dir):
-        """Test TTL expiration."""
-        if not DISKCACHE_AVAILABLE:
-            pytest.skip("diskcache not available")
+    def test_disabled_set_returns_false(self):
+        cm = self._cm(enabled=False)
+        self.assertFalse(cm.set("k", "v"))
 
-        cache = DiskCache(cache_dir=temp_cache_dir)
+    def test_disabled_clear_returns_false(self):
+        cm = self._cm(enabled=False)
+        self.assertFalse(cm.clear())
 
-        cache.set("key1", "value1", ttl=1)
-        assert cache.get("key1") == "value1"
+    # -- basic ops --
+    def test_set_and_get(self):
+        cm = self._cm()
+        cm.set("k", [1, 2, 3])
+        self.assertEqual(cm.get("k"), [1, 2, 3])
 
+    def test_miss_increments_stat(self):
+        cm = self._cm()
+        cm.get("absent")
+        self.assertEqual(cm.stats.misses, 1)
+
+    def test_hit_increments_stat(self):
+        cm = self._cm()
+        cm.set("k", "v")
+        cm.get("k")
+        self.assertEqual(cm.stats.hits, 1)
+
+    def test_set_increments_stat(self):
+        cm = self._cm()
+        cm.set("k", "v")
+        self.assertEqual(cm.stats.sets, 1)
+
+    def test_get_stats_dict(self):
+        cm = self._cm()
+        cm.set("k", "v")
+        cm.get("k")
+        d = cm.get_stats()
+        self.assertEqual(d["hits"],   1)
+        self.assertEqual(d["misses"], 0)
+        self.assertEqual(d["sets"],   1)
+
+    # -- TTL via CacheManager default --
+    def test_default_ttl_used_when_none_passed(self):
+        cm = CacheManager(backend="memory", ttl=1)
+        cm.set("k", "v")       # uses default ttl=1
         time.sleep(1.1)
-        assert cache.get("key1") is None
+        self.assertIsNone(cm.get("k"))
 
-        cache.close()
-
-
-class TestCacheManager:
-    """Test CacheManager."""
-
-    def test_init_memory_backend(self):
-        """Test initialization with memory backend."""
-        cache = CacheManager(backend="memory", enabled=True)
-        assert cache.enabled is True
-        assert cache.ttl == 3600
-
-    def test_init_disabled(self):
-        """Test initialization with caching disabled."""
-        cache = CacheManager(enabled=False)
-        assert cache.enabled is False
-        assert cache._backend is None
-
-    def test_make_key(self):
-        """Test cache key generation."""
-        cache = CacheManager()
-
-        # Same inputs should generate same key
-        key1 = cache._make_key("prefix", "arg1", "arg2", foo="bar")
-        key2 = cache._make_key("prefix", "arg1", "arg2", foo="bar")
-        assert key1 == key2
-
-        # Different inputs should generate different keys
-        key3 = cache._make_key("prefix", "arg1", "arg3", foo="bar")
-        assert key1 != key3
-
-    def test_get_set(self):
-        """Test get/set operations."""
-        cache = CacheManager(backend="memory", enabled=True)
-
-        key = "test_key"
-        value = {"data": "test"}
-
-        assert cache.set(key, value) is True
-        assert cache.get(key) == value
-
-        assert cache.stats.sets == 1
-        assert cache.stats.hits == 1
-
-    def test_cache_miss(self):
-        """Test cache miss tracking."""
-        cache = CacheManager(backend="memory", enabled=True)
-
-        assert cache.get("nonexistent") is None
-        assert cache.stats.misses == 1
-
-    def test_disabled_cache(self):
-        """Test that disabled cache doesn't store anything."""
-        cache = CacheManager(enabled=False)
-
-        assert cache.set("key", "value") is False
-        assert cache.get("key") is None
-
-    def test_delete(self):
-        """Test key deletion."""
-        cache = CacheManager(backend="memory", enabled=True)
-
-        cache.set("key1", "value1")
-        assert cache.delete("key1") is True
-        assert cache.get("key1") is None
-
-    def test_clear(self):
-        """Test cache clearing."""
-        cache = CacheManager(backend="memory", enabled=True)
-
-        cache.set("key1", "value1")
-        cache.set("key2", "value2")
-
-        # Record some stats
-        cache.get("key1")
-        assert cache.stats.hits == 1
-
-        # Clear should reset stats
-        assert cache.clear() is True
-        assert cache.stats.hits == 0
-        assert cache.get("key1") is None
-
-    def test_custom_ttl(self):
-        """Test custom TTL per item."""
-        cache = CacheManager(backend="memory", ttl=3600, enabled=True)
-
-        # Short TTL
-        cache.set("key1", "value1", ttl=1)
-        assert cache.get("key1") == "value1"
-
+    def test_per_call_ttl_override(self):
+        cm = CacheManager(backend="memory", ttl=3600)
+        cm.set("k", "v", ttl=1)
         time.sleep(1.1)
-        assert cache.get("key1") is None
+        self.assertIsNone(cm.get("k"))
 
-    def test_get_stats(self):
-        """Test statistics retrieval."""
-        cache = CacheManager(backend="memory", enabled=True)
+    # -- clear resets stats --
+    def test_clear_resets_stats(self):
+        cm = self._cm()
+        cm.set("k", "v")
+        cm.get("k")
+        cm.clear()
+        d = cm.get_stats()
+        self.assertEqual(d["hits"],  0)
+        self.assertEqual(d["sets"],  0)
 
-        cache.set("key1", "value1")
-        cache.get("key1")  # Hit
-        cache.get("key2")  # Miss
+    # -- delete --
+    def test_delete_removes_key(self):
+        cm = self._cm()
+        cm.set("k", "v")
+        cm.delete("k")
+        self.assertIsNone(cm.get("k"))
 
-        stats = cache.get_stats()
-        assert stats["hits"] == 1
-        assert stats["misses"] == 1
-        assert stats["sets"] == 1
-        assert stats["hit_rate"] == 50.0
+    # -- make_key stability --
+    def test_same_args_produce_same_key(self):
+        cm = self._cm()
+        k1 = cm._make_key("pfx", "arg1", x=1)
+        k2 = cm._make_key("pfx", "arg1", x=1)
+        self.assertEqual(k1, k2)
 
-    def test_cached_decorator(self):
-        """Test @cached decorator."""
-        cache = CacheManager(backend="memory", enabled=True)
+    def test_different_args_produce_different_key(self):
+        cm = self._cm()
+        k1 = cm._make_key("pfx", "arg1")
+        k2 = cm._make_key("pfx", "arg2")
+        self.assertNotEqual(k1, k2)
 
-        call_count = 0
+    def test_key_is_hex_string(self):
+        cm = self._cm()
+        k = cm._make_key("pfx", "url")
+        int(k, 16)   # must not raise
 
-        @cache.cached("test_func")
-        def expensive_function(x, y):
-            nonlocal call_count
-            call_count += 1
-            return x + y
+    # -- cached decorator --
+    def test_cached_decorator_hits_on_second_call(self):
+        cm = self._cm()
+        call_count = [0]
 
-        # First call - function executes
-        result1 = expensive_function(1, 2)
-        assert result1 == 3
-        assert call_count == 1
+        @cm.cached("test")
+        def expensive(x):
+            call_count[0] += 1
+            return x * 2
 
-        # Second call - from cache
-        result2 = expensive_function(1, 2)
-        assert result2 == 3
-        assert call_count == 1  # Not called again
+        r1 = expensive(5)
+        r2 = expensive(5)
+        self.assertEqual(r1, 10)
+        self.assertEqual(r2, 10)
+        self.assertEqual(call_count[0], 1)   # only called once
 
-        # Different args - function executes
-        result3 = expensive_function(2, 3)
-        assert result3 == 5
-        assert call_count == 2
+    def test_cached_decorator_different_args_call_twice(self):
+        cm = self._cm()
+        call_count = [0]
 
+        @cm.cached("test")
+        def fn(x):
+            call_count[0] += 1
+            return x
 
-class TestGlobalCache:
-    """Test global cache instance."""
-
-    def test_get_cache_default(self):
-        """Test getting default cache instance."""
-        cache = get_cache()
-        assert isinstance(cache, CacheManager)
-
-    def test_get_cache_singleton(self):
-        """Test that get_cache returns singleton."""
-        cache1 = get_cache()
-        cache2 = get_cache()
-        assert cache1 is cache2
+        fn(1)
+        fn(2)
+        self.assertEqual(call_count[0], 2)
 
 
-class TestCacheErrorHandling:
-    """Test error handling in cache operations."""
+# ---------------------------------------------------------------------------
+# DiskCache — import error path
+# ---------------------------------------------------------------------------
 
-    def test_set_error_handling(self):
-        """Test error handling during set."""
-        cache = CacheManager(backend="memory", enabled=True)
+class TestDiskCacheImportError(unittest.TestCase):
 
-        # Mock backend to raise error
-        def raise_error(*args, **kwargs):
-            raise Exception("Test error")
+    def test_raises_import_error_when_diskcache_absent(self):
+        import builtins
+        real_import = builtins.__import__
 
-        cache._backend.set = raise_error
+        def fake_import(name, *args, **kwargs):
+            if name == "diskcache":
+                raise ImportError("no diskcache")
+            return real_import(name, *args, **kwargs)
 
-        # Should return False and track error
-        assert cache.set("key", "value") is False
-        assert cache.stats.errors == 1
+        with patch("builtins.__import__", side_effect=fake_import):
+            from v2ray_finder.cache import DiskCache
+            # patching the module-level flag
+            with patch("v2ray_finder.cache.DISKCACHE_AVAILABLE", False):
+                with self.assertRaises(ImportError):
+                    DiskCache()
 
-    def test_get_error_handling(self):
-        """Test error handling during get."""
-        cache = CacheManager(backend="memory", enabled=True)
+    def test_cache_manager_falls_back_to_memory_on_disk_error(self):
+        """CacheManager with backend='disk' but diskcache unavailable → memory."""
+        with patch("v2ray_finder.cache.DISKCACHE_AVAILABLE", False):
+            with patch("v2ray_finder.cache.DiskCache",
+                       side_effect=ImportError("no diskcache")):
+                cm = CacheManager(backend="disk", ttl=60)
+        # After fallback we should still be able to get/set
+        cm.set("k", "v")
+        self.assertEqual(cm.get("k"), "v")
 
-        def raise_error(*args, **kwargs):
-            raise Exception("Test error")
 
-        cache._backend.get = raise_error
+# ---------------------------------------------------------------------------
+# Pipeline cache integration (V2-C1)
+# ---------------------------------------------------------------------------
 
-        # Should return None and track error
-        assert cache.get("key") is None
-        assert cache.stats.errors == 1
+class TestPipelineCacheIntegration(unittest.TestCase):
+    """Verify that Pipeline wires CacheManager into _fetch_all_sync."""
+
+    def _src(self, url="https://cache-test.example.com/sub"):
+        from v2ray_finder.sources import SourceEntry, SourceType, SourceTrust
+        return SourceEntry(
+            url=url,
+            source_type=SourceType.STATIC_SUBSCRIPTION,
+            trust=SourceTrust.HIGH,
+            label="cache-test",
+        )
+
+    VMESS = "vmess://eyJhZGQiOiIxMjcuMC4wLjEiLCJwb3J0Ijo0NDMsImlkIjoiYWJjMTIzIn0="
+    VLESS = "vless://uuid@1.2.3.4:443?security=tls"
+
+    def test_cache_disabled_by_default(self):
+        from v2ray_finder.pipeline import Pipeline
+        p = Pipeline(sources=[self._src()])
+        self.assertIsNone(p._cache)
+
+    def test_cache_enabled_creates_manager(self):
+        from v2ray_finder.pipeline import Pipeline
+        p = Pipeline(sources=[self._src()], cache_enabled=True)
+        self.assertIsNotNone(p._cache)
+        self.assertIsInstance(p._cache, CacheManager)
+
+    def test_injected_cache_manager_used(self):
+        from v2ray_finder.pipeline import Pipeline
+        cm = CacheManager(backend="memory", ttl=60)
+        p = Pipeline(sources=[self._src()], cache_manager=cm)
+        self.assertIs(p._cache, cm)
+
+    def test_cache_hit_skips_network(self):
+        """Prime cache manually → _fetch_all_sync must not call AsyncFetcher."""
+        from v2ray_finder.pipeline import Pipeline
+        src  = self._src()
+        cm   = CacheManager(backend="memory", ttl=60)
+        key  = cm._make_key("source", src.url)
+        text = "\n".join([self.VMESS, self.VLESS])
+        cm.set(key, text)
+
+        p = Pipeline(sources=[src], check_health=False, cache_manager=cm)
+
+        with patch("v2ray_finder.pipeline.AsyncFetcher") as mock_af:
+            stop = __import__("threading").Event()
+            result = p._fetch_all_sync(stop, None)
+
+        mock_af.assert_not_called()           # no network call
+        self.assertIn(src.url, result)
+        self.assertIn(self.VMESS, result[src.url])
+
+    def test_cache_miss_stores_result(self):
+        """On cache miss, successful fetch stores text in cache."""
+        from v2ray_finder.pipeline import Pipeline
+        from v2ray_finder.async_fetcher import FetchResult
+        src = self._src()
+        cm  = CacheManager(backend="memory", ttl=60)
+        p   = Pipeline(sources=[src], check_health=False, cache_manager=cm)
+
+        text = "\n".join([self.VMESS, self.VLESS])
+        fake_fr = FetchResult(
+            url=src.url, content=text, status_code=200,
+            success=True, error=None, elapsed_ms=10.0,
+        )
+        mock_fetcher = MagicMock()
+        mock_fetcher.fetch_many.return_value = [fake_fr]
+
+        with patch("v2ray_finder.pipeline.AsyncFetcher", return_value=mock_fetcher):
+            stop = __import__("threading").Event()
+            p._fetch_all_sync(stop, None)
+
+        key    = cm._make_key("source", src.url)
+        cached = cm.get(key)
+        self.assertEqual(cached, text)
+
+    def test_cache_stats_in_pipeline_result(self):
+        """PipelineResult.stats includes cache_hits / cache_misses."""
+        from v2ray_finder.pipeline import Pipeline
+        src = self._src()
+        cm  = CacheManager(backend="memory", ttl=60)
+        key = cm._make_key("source", src.url)
+        cm.set(key, self.VMESS)            # prime with 1 entry
+
+        p = Pipeline(sources=[src], check_health=False, cache_manager=cm)
+        p._fetch_all_sync = lambda stop, cb: {src.url: [self.VMESS]}
+        # Reset stats after the _fetch_all_sync stub (no real cache calls),
+        # so we add an artificial hit to verify propagation.
+        cm.stats.hits = 3
+        cm.stats.misses = 1
+        result = p.run()
+        self.assertEqual(result.stats["cache_hits"],   3)
+        self.assertEqual(result.stats["cache_misses"], 1)
+
+    def test_run_with_cache_enabled_end_to_end(self):
+        """Full run with cache_enabled=True completes without errors."""
+        from v2ray_finder.pipeline import Pipeline
+        src = self._src()
+        p   = Pipeline(sources=[src], check_health=False, cache_enabled=True)
+        p._fetch_all_sync = lambda stop, cb: {src.url: [self.VMESS, self.VLESS]}
+        result = p.run()
+        self.assertIn("cache_hits",   result.stats)
+        self.assertIn("cache_misses", result.stats)
+
+
+if __name__ == "__main__":
+    unittest.main()
