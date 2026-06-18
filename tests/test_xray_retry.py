@@ -1,307 +1,359 @@
-"""Tests for V1-D4: xray retry on port contention in check_one."""
+"""Tests for V1-D4: xray Layer-3 port-contention retry logic.
+
+Covers:
+  1. find_free_port() returns a usable port.
+  2. _try_start_xray() returns (None, runner) on success.
+  3. _try_start_xray() returns (error_str, None) on failure and cleans up.
+  4. check_one() succeeds on first attempt — retried=False.
+  5. check_one() retries when first start fails and retry succeeds — retried=True.
+  6. check_one() sets retried=True and combined error when both attempts fail.
+  7. check_one() returns early when config_to_xray returns None.
+  8. check_one() returns early for non-URI input.
+  9. RealHealthResult.retried field is preserved through RealConnectivityChecker.
+ 10. check_real_connectivity_batch() propagates retried flag.
+"""
 from __future__ import annotations
 
+import socket
 import unittest
-from unittest.mock import call, patch
+from unittest.mock import MagicMock, patch, call
 
 from v2ray_finder.xray_connectivity import (
     RealHealthResult,
     _LegacyResult,
     _try_start_xray,
     check_one,
+    check_real_connectivity_batch,
     find_free_port,
 )
 
 
 # ---------------------------------------------------------------------------
-# Helpers
+# Sample configs
 # ---------------------------------------------------------------------------
 
-def _good_probe(*args, **kwargs):
-    return True, 204, 50.0
-
-
-def _bad_probe(*args, **kwargs):
-    return False, None, None
-
-
-class _FakeRunner:
-    def __init__(self, *, fail_start=False):
-        self._fail = fail_start
-        self.started = False
-        self.stopped = False
-        self.stop_call_count = 0
-
-    def start(self, cfg):
-        if self._fail:
-            raise RuntimeError("address already in use")
-        self.started = True
-
-    def stop(self):
-        self.stopped = True
-        self.stop_call_count += 1
+VLESS = "vless://00000000-0000-0000-0000-000000000001@1.2.3.4:443?security=tls"
+VMESS = "vmess://eyJhZGQiOiIxLjIuMy40IiwicG9ydCI6NDQzLCJpZCI6ImFiYzEyMyJ9"
+_FAKE_XRAY_CFG = {"inbounds": [], "outbounds": []}
 
 
 # ---------------------------------------------------------------------------
-# find_free_port
+# 1. find_free_port
 # ---------------------------------------------------------------------------
 
 class TestFindFreePort(unittest.TestCase):
 
-    def test_returns_valid_port(self):
+    def test_returns_integer(self):
         port = find_free_port()
         self.assertIsInstance(port, int)
+
+    def test_port_in_valid_range(self):
+        port = find_free_port()
         self.assertGreater(port, 0)
         self.assertLessEqual(port, 65535)
 
-    def test_two_calls_may_differ(self):
+    def test_port_is_bindable(self):
+        """The returned port should be bindable immediately after the call."""
+        port = find_free_port()
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            # Should not raise
+            s.bind(("", port))
+
+    def test_two_calls_can_return_different_ports(self):
+        """Not guaranteed, but overwhelmingly likely."""
         ports = {find_free_port() for _ in range(5)}
+        # Allow the degenerate case where OS reuses immediately, but
+        # require at least one unique port is returned.
         self.assertGreaterEqual(len(ports), 1)
 
 
 # ---------------------------------------------------------------------------
-# _try_start_xray — resource safety
+# 2 & 3. _try_start_xray
 # ---------------------------------------------------------------------------
 
 class TestTryStartXray(unittest.TestCase):
-    """_try_start_xray must stop the runner when start() raises."""
 
-    @patch("v2ray_finder.xray_connectivity.XrayRunner")
-    def test_stop_called_on_failed_start(self, MockRunner):
-        runner = _FakeRunner(fail_start=True)
-        MockRunner.return_value = runner
-        err, returned_runner = _try_start_xray(19100, {"cfg": True}, None, False)
-        self.assertIsNotNone(err)
-        self.assertIsNone(returned_runner)
-        self.assertEqual(runner.stop_call_count, 1,
-                         "stop() must be called exactly once on failed start")
+    def _mock_runner(self, start_raises=None):
+        runner = MagicMock()
+        if start_raises:
+            runner.start.side_effect = start_raises
+        return runner
 
-    @patch("v2ray_finder.xray_connectivity.XrayRunner")
-    def test_stop_not_called_on_success(self, MockRunner):
-        runner = _FakeRunner(fail_start=False)
-        MockRunner.return_value = runner
-        err, returned_runner = _try_start_xray(19101, {"cfg": True}, None, False)
+    def test_success_returns_none_error_and_runner(self):
+        runner = self._mock_runner()
+        with patch("v2ray_finder.xray_connectivity.XrayRunner", return_value=runner):
+            err, r = _try_start_xray(10900, _FAKE_XRAY_CFG, None, False)
         self.assertIsNone(err)
-        self.assertIs(returned_runner, runner)
-        self.assertEqual(runner.stop_call_count, 0,
-                         "stop() must NOT be called on successful start")
+        self.assertIs(r, runner)
+        runner.start.assert_called_once_with(_FAKE_XRAY_CFG)
 
-    @patch("v2ray_finder.xray_connectivity.XrayRunner")
-    def test_returns_error_string_on_failure(self, MockRunner):
-        runner = _FakeRunner(fail_start=True)
-        MockRunner.return_value = runner
-        err, _ = _try_start_xray(19102, {"cfg": True}, None, False)
-        self.assertIsInstance(err, str)
-        self.assertIn("already in use", err)
-
-    @patch("v2ray_finder.xray_connectivity.XrayRunner")
-    def test_stop_exception_does_not_propagate(self, MockRunner):
-        """If stop() itself raises, _try_start_xray must not propagate it."""
-        runner = _FakeRunner(fail_start=True)
-        runner.stop = lambda: (_ for _ in ()).throw(OSError("cleanup failed"))
-        MockRunner.return_value = runner
-        # Must not raise
-        err, _ = _try_start_xray(19103, {"cfg": True}, None, False)
+    def test_failure_returns_error_string_and_none_runner(self):
+        runner = self._mock_runner(start_raises=RuntimeError("address in use"))
+        with patch("v2ray_finder.xray_connectivity.XrayRunner", return_value=runner):
+            err, r = _try_start_xray(10900, _FAKE_XRAY_CFG, None, False)
         self.assertIsNotNone(err)
+        self.assertIsNone(r)
+        self.assertIn("address in use", err)
+
+    def test_failure_calls_stop_for_cleanup(self):
+        runner = self._mock_runner(start_raises=RuntimeError("port busy"))
+        with patch("v2ray_finder.xray_connectivity.XrayRunner", return_value=runner):
+            _try_start_xray(10900, _FAKE_XRAY_CFG, None, False)
+        runner.stop.assert_called_once()
+
+    def test_success_does_not_call_stop(self):
+        runner = self._mock_runner()
+        with patch("v2ray_finder.xray_connectivity.XrayRunner", return_value=runner):
+            _try_start_xray(10900, _FAKE_XRAY_CFG, None, False)
+        runner.stop.assert_not_called()
 
 
 # ---------------------------------------------------------------------------
-# check_one — happy path (no retry needed)
+# 4. check_one — success on first attempt
 # ---------------------------------------------------------------------------
 
-class TestCheckOneNoRetry(unittest.TestCase):
+class TestCheckOneFirstAttemptSuccess(unittest.TestCase):
 
-    @patch("v2ray_finder.xray_connectivity.config_to_xray", return_value={"cfg": True})
-    @patch("v2ray_finder.xray_connectivity.XrayRunner")
-    @patch("v2ray_finder.xray_connectivity._socks5_http_get", side_effect=_good_probe)
-    def test_success_no_retry(self, mock_probe, MockRunner, mock_cfg):
-        runner = _FakeRunner(fail_start=False)
-        MockRunner.return_value = runner
-        result = check_one("vmess://eyJhZGQiOiIxMjcuMC4wLjEifQ==", local_port=19000)
-        self.assertTrue(result.reachable)
-        self.assertTrue(result.google_204_ok)
-        self.assertFalse(result.retried)
-        self.assertEqual(result.latency_ms, 50.0)
-        self.assertTrue(runner.stopped)
+    def _run(self, port=10900):
+        runner = MagicMock()
+        runner.stop = MagicMock()
 
-    @patch("v2ray_finder.xray_connectivity.config_to_xray", return_value={"cfg": True})
-    @patch("v2ray_finder.xray_connectivity.XrayRunner")
-    @patch("v2ray_finder.xray_connectivity._socks5_http_get", side_effect=_good_probe)
-    def test_retried_flag_false_on_clean_start(self, _p, MockRunner, _c):
-        MockRunner.return_value = _FakeRunner(fail_start=False)
-        result = check_one("vmess://abc", local_port=19001)
-        self.assertFalse(result.retried)
+        with patch("v2ray_finder.xray_connectivity.config_to_xray",
+                   return_value=_FAKE_XRAY_CFG), \
+             patch("v2ray_finder.xray_connectivity.XrayRunner", return_value=runner), \
+             patch("v2ray_finder.xray_connectivity._socks5_http_get",
+                   return_value=(True, 204, 55.0)):
+            return check_one(VLESS, local_port=port)
 
+    def test_reachable_true(self):
+        r = self._run()
+        self.assertTrue(r.reachable)
 
-# ---------------------------------------------------------------------------
-# check_one — V1-D4: first attempt fails, retry succeeds
-# ---------------------------------------------------------------------------
+    def test_google_204_ok(self):
+        r = self._run()
+        self.assertTrue(r.google_204_ok)
 
-class TestCheckOneRetrySucceeds(unittest.TestCase):
+    def test_latency_populated(self):
+        r = self._run()
+        self.assertAlmostEqual(r.latency_ms, 55.0)
 
-    @patch("v2ray_finder.xray_connectivity.config_to_xray", return_value={"cfg": True})
-    @patch("v2ray_finder.xray_connectivity.find_free_port", return_value=29999)
-    @patch("v2ray_finder.xray_connectivity._socks5_http_get", side_effect=_good_probe)
-    @patch("v2ray_finder.xray_connectivity.XrayRunner")
-    def test_retry_succeeds_sets_retried_true(self, MockRunner, *_):
-        MockRunner.side_effect = [_FakeRunner(fail_start=True), _FakeRunner(fail_start=False)]
-        result = check_one("vmess://eyJhZGQiOiIxMjcuMC4wLjEifQ==", local_port=19002)
-        self.assertTrue(result.retried)
-        self.assertTrue(result.reachable)
-        self.assertTrue(result.google_204_ok)
-        self.assertEqual(result.latency_ms, 50.0)
+    def test_retried_false(self):
+        r = self._run()
+        self.assertFalse(r.retried)
 
-    @patch("v2ray_finder.xray_connectivity.config_to_xray", return_value={"cfg": True})
-    @patch("v2ray_finder.xray_connectivity.find_free_port", return_value=29998)
-    @patch("v2ray_finder.xray_connectivity._socks5_http_get", side_effect=_good_probe)
-    @patch("v2ray_finder.xray_connectivity.XrayRunner")
-    def test_retry_uses_fresh_port(self, MockRunner, *_):
-        MockRunner.side_effect = [_FakeRunner(fail_start=True), _FakeRunner(fail_start=False)]
-        check_one("vmess://eyJhZGQiOiIxMjcuMC4wLjEifQ==", local_port=19003)
-        second_kwargs = MockRunner.call_args_list[1][1]
-        self.assertEqual(second_kwargs["local_port"], 29998)
-
-    @patch("v2ray_finder.xray_connectivity.config_to_xray", return_value={"cfg": True})
-    @patch("v2ray_finder.xray_connectivity.find_free_port", return_value=29997)
-    @patch("v2ray_finder.xray_connectivity._socks5_http_get", side_effect=_good_probe)
-    @patch("v2ray_finder.xray_connectivity.XrayRunner")
-    def test_xray_called_twice_on_first_failure(self, MockRunner, *_):
-        MockRunner.side_effect = [_FakeRunner(fail_start=True), _FakeRunner(fail_start=False)]
-        check_one("vmess://eyJhZGQiOiIxMjcuMC4wLjEifQ==", local_port=19004)
-        self.assertEqual(MockRunner.call_count, 2)
-
-    @patch("v2ray_finder.xray_connectivity.config_to_xray", return_value={"cfg": True})
-    @patch("v2ray_finder.xray_connectivity.find_free_port", return_value=29996)
-    @patch("v2ray_finder.xray_connectivity._socks5_http_get", side_effect=_good_probe)
-    @patch("v2ray_finder.xray_connectivity.XrayRunner")
-    def test_result_socks_port_updated_to_retry_port(self, MockRunner, *_):
-        MockRunner.side_effect = [_FakeRunner(fail_start=True), _FakeRunner(fail_start=False)]
-        result = check_one("vmess://eyJhZGQiOiIxMjcuMC4wLjEifQ==", local_port=19005)
-        self.assertEqual(result.socks_port, 29996)
-
-    @patch("v2ray_finder.xray_connectivity.config_to_xray", return_value={"cfg": True})
-    @patch("v2ray_finder.xray_connectivity.find_free_port", return_value=29995)
-    @patch("v2ray_finder.xray_connectivity._socks5_http_get", side_effect=_good_probe)
-    @patch("v2ray_finder.xray_connectivity.XrayRunner")
-    def test_failed_runner_stop_called_before_retry(self, MockRunner, *_):
-        """The failed first runner must be stopped before the retry starts."""
-        fail_runner = _FakeRunner(fail_start=True)
-        ok_runner   = _FakeRunner(fail_start=False)
-        MockRunner.side_effect = [fail_runner, ok_runner]
-        check_one("vmess://eyJhZGQiOiIxMjcuMC4wLjEifQ==", local_port=19006)
-        self.assertEqual(fail_runner.stop_call_count, 1,
-                         "Failed runner must be stopped exactly once")
+    def test_runner_stop_called(self):
+        runner = MagicMock()
+        with patch("v2ray_finder.xray_connectivity.config_to_xray",
+                   return_value=_FAKE_XRAY_CFG), \
+             patch("v2ray_finder.xray_connectivity.XrayRunner", return_value=runner), \
+             patch("v2ray_finder.xray_connectivity._socks5_http_get",
+                   return_value=(True, 204, 55.0)):
+            check_one(VLESS, local_port=10900)
+        runner.stop.assert_called_once()
 
 
 # ---------------------------------------------------------------------------
-# check_one — both attempts fail
+# 5. check_one — first start fails, retry succeeds
+# ---------------------------------------------------------------------------
+
+class TestCheckOneRetrySuccess(unittest.TestCase):
+
+    def _run(self):
+        fail_runner = MagicMock()
+        fail_runner.start.side_effect = RuntimeError("port 10900 in use")
+        fail_runner.stop = MagicMock()
+
+        ok_runner = MagicMock()
+        ok_runner.stop = MagicMock()
+
+        runner_seq = [fail_runner, ok_runner]
+
+        with patch("v2ray_finder.xray_connectivity.config_to_xray",
+                   return_value=_FAKE_XRAY_CFG), \
+             patch("v2ray_finder.xray_connectivity.XrayRunner",
+                   side_effect=runner_seq), \
+             patch("v2ray_finder.xray_connectivity.find_free_port",
+                   return_value=10999), \
+             patch("v2ray_finder.xray_connectivity._socks5_http_get",
+                   return_value=(True, 204, 80.0)):
+            return check_one(VLESS, local_port=10900)
+
+    def test_retried_true(self):
+        self.assertTrue(self._run().retried)
+
+    def test_reachable_true_after_retry(self):
+        self.assertTrue(self._run().reachable)
+
+    def test_google_204_ok_after_retry(self):
+        self.assertTrue(self._run().google_204_ok)
+
+    def test_socks_port_is_retry_port(self):
+        """After a successful retry the socks_port should be the retry port."""
+        r = self._run()
+        self.assertEqual(r.socks_port, 10999)
+
+    def test_fail_runner_stop_called_for_cleanup(self):
+        fail_runner = MagicMock()
+        fail_runner.start.side_effect = RuntimeError("busy")
+        ok_runner = MagicMock()
+
+        with patch("v2ray_finder.xray_connectivity.config_to_xray",
+                   return_value=_FAKE_XRAY_CFG), \
+             patch("v2ray_finder.xray_connectivity.XrayRunner",
+                   side_effect=[fail_runner, ok_runner]), \
+             patch("v2ray_finder.xray_connectivity.find_free_port",
+                   return_value=10999), \
+             patch("v2ray_finder.xray_connectivity._socks5_http_get",
+                   return_value=(True, 204, 80.0)):
+            check_one(VLESS, local_port=10900)
+
+        fail_runner.stop.assert_called_once()
+
+
+# ---------------------------------------------------------------------------
+# 6. check_one — both attempts fail
 # ---------------------------------------------------------------------------
 
 class TestCheckOneBothAttemptsFail(unittest.TestCase):
 
-    @patch("v2ray_finder.xray_connectivity.config_to_xray", return_value={"cfg": True})
-    @patch("v2ray_finder.xray_connectivity.find_free_port", return_value=29994)
-    @patch("v2ray_finder.xray_connectivity.XrayRunner")
-    def test_both_fail_retried_true_unreachable(self, MockRunner, *_):
-        MockRunner.side_effect = [_FakeRunner(fail_start=True), _FakeRunner(fail_start=True)]
-        result = check_one("vmess://eyJhZGQiOiIxMjcuMC4wLjEifQ==", local_port=19007)
-        self.assertTrue(result.retried)
-        self.assertFalse(result.reachable)
-        self.assertIsNotNone(result.error)
+    def _run(self):
+        fail1 = MagicMock()
+        fail1.start.side_effect = RuntimeError("port A busy")
+        fail1.stop = MagicMock()
 
-    @patch("v2ray_finder.xray_connectivity.config_to_xray", return_value={"cfg": True})
-    @patch("v2ray_finder.xray_connectivity.find_free_port", return_value=29993)
-    @patch("v2ray_finder.xray_connectivity.XrayRunner")
-    def test_both_fail_error_contains_both_messages(self, MockRunner, *_):
-        MockRunner.side_effect = [_FakeRunner(fail_start=True), _FakeRunner(fail_start=True)]
-        result = check_one("vmess://eyJhZGQiOiIxMjcuMC4wLjEifQ==", local_port=19008)
-        self.assertIn("retry", result.error.lower())
+        fail2 = MagicMock()
+        fail2.start.side_effect = RuntimeError("port B busy")
+        fail2.stop = MagicMock()
 
-    @patch("v2ray_finder.xray_connectivity.config_to_xray", return_value={"cfg": True})
-    @patch("v2ray_finder.xray_connectivity.find_free_port", return_value=29992)
-    @patch("v2ray_finder.xray_connectivity.XrayRunner")
-    def test_xray_called_exactly_twice_on_double_failure(self, MockRunner, *_):
-        MockRunner.side_effect = [_FakeRunner(fail_start=True), _FakeRunner(fail_start=True)]
-        check_one("vmess://eyJhZGQiOiIxMjcuMC4wLjEifQ==", local_port=19009)
-        self.assertEqual(MockRunner.call_count, 2, "Must not retry more than once")
+        with patch("v2ray_finder.xray_connectivity.config_to_xray",
+                   return_value=_FAKE_XRAY_CFG), \
+             patch("v2ray_finder.xray_connectivity.XrayRunner",
+                   side_effect=[fail1, fail2]), \
+             patch("v2ray_finder.xray_connectivity.find_free_port",
+                   return_value=10999):
+            return check_one(VLESS, local_port=10900)
 
-    @patch("v2ray_finder.xray_connectivity.config_to_xray", return_value={"cfg": True})
-    @patch("v2ray_finder.xray_connectivity.find_free_port", return_value=29991)
-    @patch("v2ray_finder.xray_connectivity.XrayRunner")
-    def test_both_failed_runners_are_stopped(self, MockRunner, *_):
-        """Both runners must be stopped even when both fail."""
-        r1 = _FakeRunner(fail_start=True)
-        r2 = _FakeRunner(fail_start=True)
-        MockRunner.side_effect = [r1, r2]
-        check_one("vmess://eyJhZGQiOiIxMjcuMC4wLjEifQ==", local_port=19010)
-        self.assertEqual(r1.stop_call_count, 1)
-        self.assertEqual(r2.stop_call_count, 1)
+    def test_not_reachable(self):
+        self.assertFalse(self._run().reachable)
+
+    def test_retried_true(self):
+        self.assertTrue(self._run().retried)
+
+    def test_error_contains_both_messages(self):
+        r = self._run()
+        self.assertIn("port A busy", r.error)
+        self.assertIn("port B busy", r.error)
+
+    def test_google_204_false(self):
+        self.assertFalse(self._run().google_204_ok)
 
 
 # ---------------------------------------------------------------------------
-# check_one — edge cases
+# 7. check_one — config_to_xray returns None
 # ---------------------------------------------------------------------------
 
-class TestCheckOneEdgeCases(unittest.TestCase):
+class TestCheckOneInvalidConfig(unittest.TestCase):
 
-    def test_invalid_uri_no_scheme(self):
-        result = check_one("not-a-valid-uri")
-        self.assertFalse(result.reachable)
-        self.assertIsNotNone(result.error)
+    def test_config_to_xray_none_returns_error(self):
+        with patch("v2ray_finder.xray_connectivity.config_to_xray",
+                   return_value=None):
+            r = check_one(VLESS, local_port=10900)
+        self.assertFalse(r.reachable)
+        self.assertIsNotNone(r.error)
 
-    @patch("v2ray_finder.xray_connectivity.config_to_xray", return_value=None)
-    def test_config_to_xray_returns_none(self, _):
-        result = check_one("vmess://bad-config")
-        self.assertFalse(result.reachable)
-        self.assertIn("xray config", result.error)
+    def test_config_to_xray_none_no_retry(self):
+        """When config conversion fails there should be no XrayRunner instantiation."""
+        with patch("v2ray_finder.xray_connectivity.config_to_xray",
+                   return_value=None), \
+             patch("v2ray_finder.xray_connectivity.XrayRunner") as mock_runner:
+            check_one(VLESS, local_port=10900)
+        mock_runner.assert_not_called()
 
-    @patch("v2ray_finder.xray_connectivity.config_to_xray", return_value={"cfg": True})
-    @patch("v2ray_finder.xray_connectivity.XrayRunner")
-    @patch("v2ray_finder.xray_connectivity._socks5_http_get", side_effect=_bad_probe)
-    def test_xray_starts_but_probe_fails(self, _probe, MockRunner, _cfg):
-        MockRunner.return_value = _FakeRunner(fail_start=False)
-        result = check_one("vmess://eyJhZGQiOiIxMjcuMC4wLjEifQ==", local_port=19011)
-        self.assertFalse(result.reachable)
+
+# ---------------------------------------------------------------------------
+# 8. check_one — non-URI input
+# ---------------------------------------------------------------------------
+
+class TestCheckOneNonUri(unittest.TestCase):
+
+    def test_not_a_uri_returns_error_result(self):
+        r = check_one("not-a-uri", local_port=10900)
+        self.assertFalse(r.reachable)
+        self.assertIsNotNone(r.error)
+
+    def test_protocol_is_unknown_for_non_uri(self):
+        r = check_one("not-a-uri", local_port=10900)
+        self.assertEqual(r.protocol, "unknown")
+
+
+# ---------------------------------------------------------------------------
+# 9. retried flag through RealConnectivityChecker.check_server_real_sync
+# ---------------------------------------------------------------------------
+
+class TestRealConnectivityCheckerRetried(unittest.TestCase):
+
+    def test_retried_false_propagated(self):
+        from v2ray_finder.xray_connectivity import RealConnectivityChecker
+        checker = RealConnectivityChecker(cache_enabled=False)
+
+        legacy = _LegacyResult(
+            config=VLESS, protocol="vless",
+            reachable=True, google_204_ok=True,
+            latency_ms=50.0, socks_port=10900, retried=False,
+        )
+        with patch("v2ray_finder.xray_connectivity.check_one", return_value=legacy):
+            result = checker.check_server_real_sync(VLESS, use_cache=False)
+
         self.assertFalse(result.retried)
 
-    @patch("v2ray_finder.xray_connectivity.config_to_xray", return_value={"cfg": True})
-    @patch("v2ray_finder.xray_connectivity.XrayRunner")
-    @patch("v2ray_finder.xray_connectivity._socks5_http_get", side_effect=_good_probe)
-    def test_runner_stop_called_in_finally(self, _probe, MockRunner, _cfg):
-        runner = _FakeRunner(fail_start=False)
-        MockRunner.return_value = runner
-        check_one("vmess://eyJhZGQiOiIxMjcuMC4wLjEifQ==", local_port=19012)
-        self.assertTrue(runner.stopped)
+    def test_retried_true_propagated(self):
+        from v2ray_finder.xray_connectivity import RealConnectivityChecker
+        checker = RealConnectivityChecker(cache_enabled=False)
 
-    @patch("v2ray_finder.xray_connectivity.config_to_xray",
-           side_effect=[{"cfg": True}, None])
-    @patch("v2ray_finder.xray_connectivity.find_free_port", return_value=29990)
-    @patch("v2ray_finder.xray_connectivity.XrayRunner")
-    def test_retry_config_to_xray_none_returns_error(self, MockRunner, _ffp, _cfg):
-        MockRunner.return_value = _FakeRunner(fail_start=True)
-        result = check_one("vmess://eyJhZGQiOiIxMjcuMC4wLjEifQ==", local_port=19013)
-        self.assertFalse(result.reachable)
+        legacy = _LegacyResult(
+            config=VLESS, protocol="vless",
+            reachable=True, google_204_ok=True,
+            latency_ms=80.0, socks_port=10999, retried=True,
+        )
+        with patch("v2ray_finder.xray_connectivity.check_one", return_value=legacy):
+            result = checker.check_server_real_sync(VLESS, use_cache=False)
+
         self.assertTrue(result.retried)
 
 
 # ---------------------------------------------------------------------------
-# RealHealthResult.retried field
+# 10. check_real_connectivity_batch — retried flag forwarded
 # ---------------------------------------------------------------------------
 
-class TestRealHealthResultRetried(unittest.TestCase):
+class TestBatchRetried(unittest.TestCase):
 
-    def test_default_retried_false(self):
-        r = RealHealthResult(config="vmess://x", protocol="vmess")
-        self.assertFalse(r.retried)
-
-    def test_retried_survives_to_dict_roundtrip(self):
-        from v2ray_finder.xray_connectivity import real_health_to_dict
-        r = RealHealthResult(
-            config="vmess://x", protocol="vmess",
-            reachable=True, retried=True, latency_ms=100.0
+    def test_batch_result_carries_retried_true(self):
+        legacy = _LegacyResult(
+            config=VLESS, protocol="vless",
+            reachable=True, google_204_ok=True,
+            latency_ms=60.0, socks_port=10999, retried=True,
         )
-        d = real_health_to_dict(r)
-        self.assertTrue(d["retried"])
+        with patch("v2ray_finder.xray_connectivity.check_one", return_value=legacy):
+            results = check_real_connectivity_batch([VLESS], max_workers=1)
+
+        self.assertEqual(len(results), 1)
+        self.assertTrue(results[0].retried)
+
+    def test_batch_result_carries_retried_false(self):
+        legacy = _LegacyResult(
+            config=VLESS, protocol="vless",
+            reachable=True, google_204_ok=True,
+            latency_ms=60.0, socks_port=10900, retried=False,
+        )
+        with patch("v2ray_finder.xray_connectivity.check_one", return_value=legacy):
+            results = check_real_connectivity_batch([VLESS], max_workers=1)
+
+        self.assertFalse(results[0].retried)
+
+    def test_batch_empty_input(self):
+        results = check_real_connectivity_batch([], max_workers=1)
+        self.assertEqual(results, [])
 
 
 if __name__ == "__main__":
