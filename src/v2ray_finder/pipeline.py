@@ -35,6 +35,17 @@ stable, round-trip-safe representations::
     result = pipeline.run()
     print(result.to_json())
 
+Layer-3 cache stats (V1-Q4)
+----------------------------
+When ``check_google_204=True`` the Layer-3 result cache stats are surfaced
+in ``PipelineResult.stats["layer3_cache"]``::
+
+    result = pipeline.run()
+    print(result.stats["layer3_cache"])  # {hits, misses, size, hit_rate}
+
+Call ``pipeline.clear_caches()`` to reset the Layer-3 result cache between
+runs without reconstructing the pipeline.
+
 Stub-ability
 ------------
 Tests may replace :meth:`_fetch_all_sync` on an instance::
@@ -50,8 +61,9 @@ Example
     from v2ray_finder.pipeline import Pipeline, StopController
 
     stop = StopController()
-    pipeline = Pipeline(check_health=True, cache_enabled=True)
+    pipeline = Pipeline(check_health=True, check_google_204=True, cache_enabled=True)
     result = pipeline.run(stop_event=stop.event)
+    print(result.stats.get("layer3_cache"))
     print(result.to_json(indent=2))
     for score in result.scores[:10]:
         print(score.grade, score.config[:80])
@@ -150,6 +162,7 @@ class PipelineResult:
         Keys
         ----
         stats    -- pipeline run statistics (fetched, deduped, healthy, ...).
+                    Includes ``layer3_cache`` when Layer 3 ran (V1-Q4).
         servers  -- list of :meth:`~scorer.ServerScore.to_dict` dicts,
                     ordered by score (best first).
         configs  -- raw config strings in score order (convenience duplicate).
@@ -234,6 +247,38 @@ class Pipeline:
             s.url: s.trust.value for s in self.sources
         }
 
+        # Shared HealthChecker — created once and reused across run() calls.
+        # This keeps the Layer-3 RealConnectivityChecker (and its result cache)
+        # alive between runs so clear_caches() can reach it (V1-Q4).
+        self._health_checker: Optional[Any] = None
+
+    # ------------------------------------------------------------------
+    # V1-Q4: cache management
+    # ------------------------------------------------------------------
+
+    def clear_caches(self) -> None:
+        """Clear all in-pipeline caches between runs.
+
+        Clears:
+        - Source-text TTL cache (:class:`~cache.CacheManager`) if enabled.
+        - Layer-3 result cache (``RealConnectivityChecker._cache``) if
+          ``check_google_204=True`` and a checker was previously created.
+        """
+        if self._cache is not None:
+            try:
+                self._cache.clear()
+            except Exception as exc:
+                logger.debug("[pipeline] Source cache clear failed: %s", exc)
+
+        if self._health_checker is not None:
+            checker = getattr(self._health_checker, "_layer3_checker", None)
+            if checker is not None:
+                try:
+                    checker.clear_result_cache()
+                    logger.debug("[pipeline] Layer-3 result cache cleared.")
+                except Exception as exc:
+                    logger.debug("[pipeline] Layer-3 cache clear failed: %s", exc)
+
     # ------------------------------------------------------------------
     # Public entry point
     # ------------------------------------------------------------------
@@ -262,7 +307,7 @@ class Pipeline:
             stats["cache_misses"] = cs.get("misses", 0)
 
         for url in list(servers_by_source.keys()):
-            if isinstance(servers_by_source[url], str):   # error sentinel
+            if isinstance(servers_by_source[url], str):
                 stats["errors"][url] = servers_by_source.pop(url)
                 continue
             full = servers_by_source[url]
@@ -315,6 +360,16 @@ class Pipeline:
                 configs, config_source_map, overlap_map, _stop, progress_callback
             )
         stats["healthy"] = len(result.health_dicts)
+
+        # V1-Q4: capture Layer-3 cache stats after health checks
+        if self.check_google_204 and self._health_checker is not None:
+            l3 = getattr(self._health_checker, "_layer3_checker", None)
+            if l3 is not None:
+                try:
+                    stats["layer3_cache"] = l3.cache_stats
+                except Exception:
+                    pass
+
         if _stop.is_set():
             result.stats = stats
             return result
@@ -512,13 +567,17 @@ class Pipeline:
     ) -> List[Dict[str, Any]]:
         from .health_checker import HealthChecker, filter_healthy_servers
 
-        checker = HealthChecker(
-            timeout=self.timeout,
-            min_quality_score=self.min_quality_score,
-            check_http_probe=self.check_http_probe,
-            check_google_204=self.check_google_204,
-            binary_path=self.binary_path,
-        )
+        # Reuse existing checker so Layer-3 cache persists across batches
+        # and is accessible via clear_caches() / stats (V1-Q4).
+        if self._health_checker is None:
+            self._health_checker = HealthChecker(
+                timeout=self.timeout,
+                min_quality_score=self.min_quality_score,
+                check_http_probe=self.check_http_probe,
+                check_google_204=self.check_google_204,
+                binary_path=self.binary_path,
+            )
+        checker = self._health_checker
 
         total      = len(configs)
         all_health: list = []
