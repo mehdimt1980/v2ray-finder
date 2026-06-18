@@ -19,6 +19,14 @@
 
 ---
 
+## 🚀 تازه‌های نسخه 0.7.0
+
+🛡️ **مدل خطای ساختاریافته** — `FetchResult.structured_error` با فیلدهای `category` / `kind` / `message` / `retryable` برای تشخیص هوشمند خطا (V1-D2)  
+🔄 **retry لایه ۳ xray هنگام port contention** — `check_one()` وقتی xray نتونه روی port bind کنه، خودکار با یک port جدید retry می‌کنه؛ فلگ `retried` در نتیجه نشون می‌ده (V1-D4)  
+🖥️ **GUI کاملاً به Pipeline مهاجرت کرد** — دکمه Stop، progress bar واقعی، ستون‌های Score/Grade/Latency، پنل Failed Sources (V1-A2)  
+
+---
+
 ## 🚀 تازه‌های نسخه 0.6.0 — Pipeline Orchestrator
 
 🏗️ **کلاس `Pipeline`** — یک entry point برای کل زنجیره کشف → fetch → dedup → health → score  
@@ -65,11 +73,12 @@ for score in result.scores[:5]:
 ### بررسی سلامت
 - 🔌 **لایه ۱** — TCP + تأخیر
 - 🌐 **لایه ۲** — HTTP probe مستقیم
-- 🔒 **لایه ۳** — xray SOCKS5 + Google 204
+- 🔒 **لایه ۳** — xray SOCKS5 + Google 204؛ retry خودکار هنگام port contention
 - 📊 پردازش دسته‌ای با stop-event checkpoint
 
 ### تجربه توسعه‌دهنده
 - 🛡️ نوع `Result[T, E]`
+- 🗂️ `FetchResult.structured_error` — dict قابل خواندن ماشین با `category`، `kind`، `message`، `retryable`
 - 📈 `get_rate_limit_info()`
 - 🔒 اعتبارسنجی Token
 - 🧪 پوشش تست ~۸۵٪
@@ -152,6 +161,24 @@ def on_progress(stage, current, total, message):
 result = Pipeline(check_health=True).run(progress_callback=on_progress)
 ```
 
+### مدیریت خطا (v0.7.0+)
+
+```python
+from v2ray_finder.async_fetcher import AsyncFetcher
+
+async def main():
+    fetcher = AsyncFetcher()
+    result = await fetcher.fetch(url="https://example.com/subs.txt")
+    if result.structured_error:
+        err = result.structured_error
+        # {"category": "network", "kind": "timeout",
+        #  "message": "...", "retryable": True}
+        if err["retryable"]:
+            print(f"خطای موقت ({err['kind']}) — retry می‌شه")
+        else:
+            print(f"خطای دائمی: {err['message']}")
+```
+
 ### API کلاسیک
 
 ```python
@@ -207,6 +234,18 @@ v2ray-finder-rich --prompt-token
 pip install "v2ray-finder[gui]"
 v2ray-finder-gui
 ```
+
+**ویژگی‌های GUI (نسخه 0.7.0):**
+
+| ویژگی | جزئیات |
+|-------|--------|
+| Backend | `Pipeline` — کل زنجیره fetch → dedup → health → score |
+| دکمه Stop | لغو در اولین checkpoint با `StopController` |
+| Progress bar | درصد واقعی از `progress_callback` |
+| جدول نتایج | ۷ ستون: #، Protocol، **Score**، **Grade**، **Latency (ms)**، Source، Config |
+| نوار آمار | Fetched / Deduped / Healthy / Scored / Cache hits |
+| Failed Sources | پنل جمع‌شونده برای نمایش URLهای خطادار با دلیل |
+| مرتب‌سازی | کلیک روی هر سرستون |
 
 ---
 

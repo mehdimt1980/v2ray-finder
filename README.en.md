@@ -19,6 +19,14 @@ The goal is to give you a clean, deduplicated list of `vmess://`, `vless://`, `t
 
 ---
 
+## 🚀 What's New in v0.7.0
+
+🛡️ **Structured error model** — `FetchResult.structured_error` carries a `category` / `kind` / `message` / `retryable` dict, enabling smarter retry logic and richer diagnostics (V1-D2)  
+🔄 **xray Layer-3 port-contention retry** — `check_one()` automatically retries on a fresh OS-assigned port when xray fails to bind; `RealHealthResult.retried` flag tells you when this happened (V1-D4)  
+🖥️ **GUI fully migrated to Pipeline** — Stop button, real progress bar driven by `progress_callback`, 7-column table (Score, Grade, Latency, Source), collapsible Failed Sources panel (V1-A2)  
+
+---
+
 ## 🚀 What's New in v0.6.0 — Pipeline Orchestrator
 
 🏗️ **`Pipeline` class** — single entry point for the full discovery → fetch → dedup → health → score chain  
@@ -67,11 +75,12 @@ for score in result.scores[:5]:
 ### Health Checking
 - 🔌 **Layer 1** — TCP connectivity + latency
 - 🌐 **Layer 2** — Direct HTTP probe
-- 🔒 **Layer 3** — xray SOCKS5 + Google 204 real-world check
+- 🔒 **Layer 3** — xray SOCKS5 + Google 204 real-world check; auto-retries on port contention
 - 📊 Batch processing with stop-event checkpoints
 
 ### Developer Experience
 - 🛡️ `Result[T, E]` type for explicit error handling
+- 🗂️ `FetchResult.structured_error` — machine-readable error dict with `category`, `kind`, `message`, `retryable`
 - 📈 `get_rate_limit_info()` for API monitoring
 - 🔒 Token validation, sanitization, and security warnings
 - ⌨️ Interactive token prompt with masked input
@@ -239,6 +248,24 @@ else:
         print("Invalid GitHub token")
 ```
 
+**Structured fetch errors (v0.7.0+):**
+
+```python
+from v2ray_finder.async_fetcher import AsyncFetcher
+
+async def main():
+    fetcher = AsyncFetcher()
+    result = await fetcher.fetch(url="https://example.com/subs.txt")
+    if result.structured_error:
+        err = result.structured_error
+        # err = {"category": "network", "kind": "timeout",
+        #        "message": "...", "retryable": True}
+        if err["retryable"]:
+            print(f"Transient {err['kind']}, will retry")
+        else:
+            print(f"Permanent {err['category']} error: {err['message']}")
+```
+
 ---
 
 ## ⚡ CLI
@@ -276,7 +303,17 @@ pip install "v2ray-finder[gui]"
 v2ray-finder-gui
 ```
 
-Features: token field, GitHub search toggle, limit configuration, fetch & display, save to file, copy selected, protocol statistics.
+**GUI features (v0.7.0):**
+
+| Feature | Details |
+|---------|--------|
+| Backend | `Pipeline` — full fetch → dedup → health → score chain |
+| Stop button | Cancels at next checkpoint via `StopController` |
+| Progress bar | Real percentage driven by `progress_callback` |
+| Result table | 7 columns: #, Protocol, **Score**, **Grade**, **Latency (ms)**, Source, Config |
+| Stats bar | Fetched / Deduped / Healthy / Scored / Cache hits |
+| Failed Sources | Collapsible panel listing URLs that errored with reason |
+| Sortable table | Click any column header to sort |
 
 ---
 

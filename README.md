@@ -17,13 +17,11 @@ A **high-performance** tool to **fetch, aggregate, validate and health-check pub
 
 ---
 
-## 🚀 What's New in v0.6.0
+## 🚀 What's New in v0.7.0
 
-🏗️ **`Pipeline` class** — single entry point for the full discovery → fetch → dedup → health → score chain  
-⚡ **Async concurrent fetch** — `asyncio` + `httpx` (10× faster for 30+ sources)  
-🔒 **`StopController`** — thread-safe cancellation for GUI/CLI workers  
-📦 **`PipelineResult`** — unified output dataclass  
-🧪 **40 new tests** — `test_pipeline.py`  
+🛡️ **Structured error model** — `FetchResult.structured_error` with `category` / `kind` / `message` hierarchy (V1-D2)  
+🔄 **xray Layer-3 port-contention retry** — auto-retry on a fresh OS port when xray fails to bind (V1-D4)  
+🖥️ **GUI fully migrated to Pipeline** — Stop button, real progress bar, Score/Grade/Latency columns, Failed Sources panel (V1-A2)  
 
 ```python
 from v2ray_finder import Pipeline, StopController
