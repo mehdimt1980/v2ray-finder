@@ -32,10 +32,18 @@ try:
 except ImportError:
     pass
 
-__version__ = "0.5.1"
+# Pipeline orchestrator (always available — no optional deps beyond requests)
+try:
+    from .pipeline import Pipeline, PipelineResult, StopController
+except ImportError:  # pragma: no cover
+    pass
+
+__version__ = "0.6.0"
 
 __all__ = [
+    # Core
     "V2RayServerFinder",
+    # Exceptions
     "V2RayFinderError",
     "GitHubAPIError",
     "RateLimitError",
@@ -43,29 +51,35 @@ __all__ = [
     "ConfigParseError",
     "ParseError",
     "ErrorType",
+    # Normalizer
     "NormalizedServer",
     "normalize_server",
     "deduplicate_servers",
     "deduplicate_across_sources",
+    # Result monad
     "Ok",
     "Err",
     "Result",
+    # Sources
     "SourceRegistry",
     "SourceStats",
     "SourceEntry",
     "SourceType",
     "SourceTrust",
-    # health_checker exports (optional, available when health_checker is installed)
+    # Health checker (optional)
     "HealthChecker",
     "ServerHealth",
     "HealthStatus",
     "ServerValidator",
     "filter_healthy_servers",
     "sort_by_quality",
+    # Pipeline
+    "Pipeline",
+    "PipelineResult",
+    "StopController",
 ]
 
-# xray real-connectivity layer (optional — gracefully absent if the xray
-# binary is not installed or dependencies are missing)
+# xray real-connectivity layer (optional)
 try:
     from .xray_connectivity import (
         RealConnectivityChecker,
