@@ -6,7 +6,8 @@ so callers can rank servers by overall quality.
 Dimensions
 ----------
 latency_score        TCP round-trip time, normalised and inverted.
-reachability_score   Combination of tcp_ok, http_ok, google_204_ok.
+reachability_score   Combination of tcp_ok + http_ok.
+google_204_score     Whether the proxy passed the Google 204 real-world check.
 protocol_score       Fixed weight per proxy protocol.
 source_trust_score   Trustworthiness of the subscription source (1/2/3).
 freshness_score      How recently the config was seen.
@@ -17,6 +18,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
+
+from .scoring_curves import latency_to_score_1
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -31,24 +34,18 @@ _PROTOCOL_SCORES: Dict[str, float] = {
 }
 
 _WEIGHTS: Dict[str, float] = {
-    "latency":       0.35,
+    "latency":       0.30,
     "reachability":  0.30,
-    "protocol":      0.15,
+    "protocol":      0.10,
     "source_trust":  0.10,
     "freshness":     0.05,
     "uniqueness":    0.05,
+    "google_204":    0.10,
 }
 
-# Latency thresholds (ms)
-_LATENCY_EXCELLENT = 100.0
-_LATENCY_GOOD      = 300.0
-_LATENCY_FAIR      = 800.0
-_LATENCY_MAX       = 5000.0
-
-# Reachability component weights (must sum to 1.0; google_204 = 0 until xray)
+# Reachability component weights (TCP + HTTP only; google_204 is a separate dimension)
 _REACH_W_TCP  = 0.70
 _REACH_W_HTTP = 0.30
-_REACH_W_G204 = 0.00
 
 
 # ---------------------------------------------------------------------------
@@ -56,37 +53,25 @@ _REACH_W_G204 = 0.00
 # ---------------------------------------------------------------------------
 
 def _latency_to_score(latency_ms: Optional[float]) -> float:
-    """Map latency (ms) -> [0, 1].  None / <= 0 -> 0.0."""
-    if latency_ms is None or latency_ms <= 0:
-        return 0.0
-    if latency_ms <= _LATENCY_EXCELLENT:
-        return 1.0
-    if latency_ms >= _LATENCY_MAX:
-        return 0.0
-    if latency_ms <= _LATENCY_GOOD:
-        t = (latency_ms - _LATENCY_EXCELLENT) / (_LATENCY_GOOD - _LATENCY_EXCELLENT)
-        return round(1.0 - 0.3 * t, 6)
-    if latency_ms <= _LATENCY_FAIR:
-        t = (latency_ms - _LATENCY_GOOD) / (_LATENCY_FAIR - _LATENCY_GOOD)
-        return round(0.7 - 0.3 * t, 6)
-    t = (latency_ms - _LATENCY_FAIR) / (_LATENCY_MAX - _LATENCY_FAIR)
-    return round(0.4 - 0.4 * t, 6)
+    """Map latency (ms) -> [0, 1].  Delegates to shared scoring_curves."""
+    return latency_to_score_1(latency_ms)
 
 
-# Keep old name as alias
+# Keep old name as alias for backward compatibility
 _latency_score = _latency_to_score
 
 
 def _reachability_to_score(
     tcp_ok: bool,
     http_ok: bool,
-    google_204_ok: bool,
 ) -> float:
-    """Combine connectivity signals into a [0, 1] reachability score."""
+    """Combine TCP + HTTP connectivity signals into a [0, 1] reachability score.
+
+    google_204_ok is now a separate top-level dimension and is NOT included here.
+    """
     score = (
         _REACH_W_TCP  * float(tcp_ok)
         + _REACH_W_HTTP * float(http_ok)
-        + _REACH_W_G204 * float(google_204_ok)
     )
     return round(min(max(score, 0.0), 1.0), 6)
 
@@ -105,6 +90,11 @@ def _protocol_score(protocol: str) -> float:
 # ServerScore dataclass
 # ---------------------------------------------------------------------------
 
+# Sentinel used as a safe default inside sort keys to avoid constructing a
+# temporary ServerScore('', '') on every list item.
+_ZERO_SCORE: "ServerScore"  # forward-declared; assigned after class definition
+
+
 @dataclass
 class ServerScore:
     """Scoring result for a single server."""
@@ -117,6 +107,7 @@ class ServerScore:
     source_trust_score: float = 0.0
     freshness_score:    float = 0.0
     uniqueness_score:   float = 0.0
+    google_204_score:   float = 0.0
     latency_ms:         Optional[float] = None
     health_details:     Dict[str, Any] = field(default_factory=dict)
 
@@ -129,6 +120,7 @@ class ServerScore:
             + _WEIGHTS["source_trust"] * self.source_trust_score
             + _WEIGHTS["freshness"]    * self.freshness_score
             + _WEIGHTS["uniqueness"]   * self.uniqueness_score
+            + _WEIGHTS["google_204"]   * self.google_204_score
         )
         return round(min(max(raw, 0.0), 1.0), 4)
 
@@ -151,6 +143,10 @@ class ServerScore:
             f"<ServerScore protocol={self.protocol} total={self.total:.4f}"
             f" grade={self.grade} latency={lat}>"
         )
+
+
+# Assign sentinel after class is defined so the type annotation resolves.
+_ZERO_SCORE = ServerScore(config="", protocol="")
 
 
 # ---------------------------------------------------------------------------
@@ -176,7 +172,7 @@ def score_server(
         latency_ms:      TCP round-trip in milliseconds, or None.
         tcp_ok:          Whether TCP connection succeeded.
         http_ok:         Whether HTTP probe succeeded.
-        google_204_ok:   Whether Google 204 check succeeded (weight=0 for now).
+        google_204_ok:   Whether Google 204 check succeeded (now a live dimension).
         source_trust:    Integer 1/2/3 trust level of the subscription source.
         freshness_score: Pre-computed freshness score in [0, 1].
         overlap_ratio:   Fraction of other sources that also contain this config.
@@ -187,11 +183,12 @@ def score_server(
     # Normalise protocol string
     proto = protocol.lower().rstrip("/").rstrip(":")
 
-    ls = _latency_to_score(latency_ms)
-    rs = _reachability_to_score(tcp_ok, http_ok, google_204_ok)
-    ps = _protocol_score(proto)
-    ts = _trust_to_score(source_trust)
-    us = round(max(0.0, 1.0 - overlap_ratio), 6)
+    ls   = _latency_to_score(latency_ms)
+    rs   = _reachability_to_score(tcp_ok, http_ok)
+    ps   = _protocol_score(proto)
+    ts   = _trust_to_score(source_trust)
+    us   = round(max(0.0, 1.0 - overlap_ratio), 6)
+    g204 = 1.0 if google_204_ok else 0.0
 
     return ServerScore(
         config=config,
@@ -203,6 +200,7 @@ def score_server(
         source_trust_score=ts,
         freshness_score=freshness_score,
         uniqueness_score=us,
+        google_204_score=g204,
         health_details={
             "tcp_ok": tcp_ok,
             "http_ok": http_ok,
@@ -280,7 +278,7 @@ def sort_by_quality(
     score_by_config = {s.config: s for s in scored}
     result = sorted(
         health_results,
-        key=lambda h: score_by_config.get(h.get("config", ""), ServerScore("", "")).total,
+        key=lambda h: score_by_config.get(h.get("config", ""), _ZERO_SCORE).total,
         reverse=descending,
     )
     for item in result:

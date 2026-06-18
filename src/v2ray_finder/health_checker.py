@@ -21,7 +21,7 @@ disabled.
       → sets ServerHealth.http_probe_ok / http_probe_latency_ms
 
   Layer 3 — xray SOCKS5 / Google 204   (when xray available, opt-in)
-      Spins up xray with the server's config, then sends an HTTP GET
+      Spins up xray with the server’s config, then sends an HTTP GET
       through the SOCKS5 proxy to clients3.google.com/generate_204.
       A 204 confirms the *proxy server* has real internet access.
       This is the most accurate check; requires the xray binary.
@@ -29,7 +29,7 @@ disabled.
 
 Quality scoring
 ---------------
-All layers use the same piecewise-linear latency curve:
+All layers use the same piecewise-linear latency curve (see scoring_curves.py):
 
     ≤100 ms   → 100
     ≤300 ms   → 100 → 70
@@ -50,11 +50,14 @@ import base64
 import json
 import logging
 import socket
-import struct
 import time
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Dict, List, Optional, Tuple
+
+from .probes import http_direct_probe as _http_direct_probe_fn
+from .probes import socks5_http_get as _socks5_http_get_fn
+from .scoring_curves import latency_to_score_100
 
 logger = logging.getLogger(__name__)
 
@@ -63,29 +66,20 @@ _GOOGLE_204_PATH = "/generate_204"
 _GOOGLE_204_PORT = 80
 _GOOGLE_204_ALT_HOST = "connectivitycheck.gstatic.com"
 
+# Maximum concurrency for Layer 3 (xray is heavy — one process per server).
+_LAYER3_MAX_CONCURRENT = 5
+
 
 # ---------------------------------------------------------------------------
-# Shared latency → score helper
+# Shared latency → score helper (delegates to scoring_curves)
 # ---------------------------------------------------------------------------
 
 def _latency_to_score(latency_ms: float) -> float:
     """Piecewise-linear latency-to-score mapping (0–100).
 
-    ≤100 ms   → 100
-    ≤300 ms   → 100 → 70
-    ≤1000 ms  → 70  → 20
-    ≤3000 ms  → 20  → 0
-    >3000 ms  → 0
+    Delegates to the canonical implementation in scoring_curves.py.
     """
-    if latency_ms <= 100.0:
-        return 100.0
-    if latency_ms <= 300.0:
-        return 100.0 - (latency_ms - 100.0) * (30.0 / 200.0)
-    if latency_ms <= 1000.0:
-        return 70.0 - (latency_ms - 300.0) * (50.0 / 700.0)
-    if latency_ms <= 3000.0:
-        return 20.0 - (latency_ms - 1000.0) * (20.0 / 2000.0)
-    return 0.0
+    return latency_to_score_100(latency_ms)
 
 
 class HealthStatus(Enum):
@@ -137,6 +131,11 @@ class ServerHealth:
     # How many layers completed (1 = TCP only, 2 = + HTTP, 3 = + xray/204)
     probe_level: int = 0
 
+    # Source metadata (populated by pipeline / batch callers)
+    source_url: str = ""
+    source_trust: int = 1
+    overlap_ratio: float = 0.0
+
     @property
     def is_healthy(self) -> bool:
         """Return True if status is HEALTHY or DEGRADED."""
@@ -176,42 +175,8 @@ def _http_direct_probe(
     path: str = _GOOGLE_204_PATH,
     timeout: float = 5.0,
 ) -> Tuple[bool, Optional[int], Optional[float], Optional[str]]:
-    """Send a direct HTTP HEAD to *host* and return (ok, status, latency_ms, error).
-
-    Uses a raw socket so there are zero external dependencies and it works
-    even when urllib / requests is monkey-patched in tests.
-    """
-    t0 = time.monotonic()
-    try:
-        sock = socket.create_connection((host, port), timeout=timeout)
-        sock.settimeout(timeout)
-        request = (
-            f"HEAD {path} HTTP/1.1\r\n"
-            f"Host: {host}\r\n"
-            "Connection: close\r\n"
-            "User-Agent: v2ray-finder-probe/1.0\r\n"
-            "\r\n"
-        ).encode()
-        sock.sendall(request)
-        raw = b""
-        while True:
-            chunk = sock.recv(256)
-            if not chunk:
-                break
-            raw += chunk
-            if b"\r\n" in raw:
-                break
-        sock.close()
-        latency = (time.monotonic() - t0) * 1000.0
-        first_line = raw.split(b"\r\n")[0].decode(errors="replace")
-        parts = first_line.split()
-        if len(parts) >= 2:
-            return True, int(parts[1]), latency, None
-        return False, None, latency, "Malformed HTTP response"
-    except socket.timeout:
-        return False, None, (time.monotonic() - t0) * 1000.0, "HTTP probe timeout"
-    except Exception as exc:
-        return False, None, (time.monotonic() - t0) * 1000.0, str(exc)
+    """Thin wrapper around probes.http_direct_probe for backward compatibility."""
+    return _http_direct_probe_fn(host=host, port=port, path=path, timeout=timeout)
 
 
 # ---------------------------------------------------------------------------
@@ -226,65 +191,15 @@ def _socks5_http_get(
     path: str,
     timeout: float = 8.0,
 ) -> Tuple[bool, int, float]:
-    """Send an HTTP GET through a SOCKS5 proxy (no auth).
-
-    Returns (success, http_status_code, latency_ms).
-    Mirrors the implementation in xray_connectivity so both modules
-    share identical probe behaviour.
-    """
-    t0 = time.monotonic()
-    try:
-        sock = socket.create_connection((socks_host, socks_port), timeout=timeout)
-        sock.settimeout(timeout)
-
-        # SOCKS5 handshake — no auth
-        sock.sendall(b"\x05\x01\x00")
-        resp = sock.recv(2)
-        if len(resp) < 2 or resp[1] != 0x00:
-            sock.close()
-            return False, 0, (time.monotonic() - t0) * 1000.0
-
-        host_bytes = target_host.encode()
-        req = (
-            b"\x05\x01\x00\x03"
-            + bytes([len(host_bytes)])
-            + host_bytes
-            + struct.pack(">H", target_port)
-        )
-        sock.sendall(req)
-        conn_resp = sock.recv(10)
-        if len(conn_resp) < 2 or conn_resp[1] != 0x00:
-            sock.close()
-            return False, 0, (time.monotonic() - t0) * 1000.0
-
-        http_req = (
-            f"GET {path} HTTP/1.1\r\n"
-            f"Host: {target_host}\r\n"
-            "Connection: close\r\n"
-            "User-Agent: v2ray-finder-probe/1.0\r\n"
-            "\r\n"
-        ).encode()
-        sock.sendall(http_req)
-
-        raw = b""
-        while True:
-            chunk = sock.recv(256)
-            if not chunk:
-                break
-            raw += chunk
-            if b"\r\n" in raw:
-                break
-        sock.close()
-
-        latency = (time.monotonic() - t0) * 1000.0
-        first_line = raw.split(b"\r\n")[0].decode(errors="replace")
-        parts = first_line.split()
-        if len(parts) >= 2:
-            return True, int(parts[1]), latency
-        return False, 0, latency
-    except Exception as exc:
-        logger.debug("SOCKS5 probe failed: %s", exc)
-        return False, 0, (time.monotonic() - t0) * 1000.0
+    """Thin wrapper around probes.socks5_http_get for backward compatibility."""
+    return _socks5_http_get_fn(
+        socks_host=socks_host,
+        socks_port=socks_port,
+        target_host=target_host,
+        target_port=target_port,
+        path=path,
+        timeout=timeout,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -462,7 +377,7 @@ class HealthChecker:
     timeout:
         Seconds for TCP connect and HTTP probes.
     max_workers:
-        Concurrency limit for check_servers_batch.
+        Concurrency limit for TCP/HTTP checks (Layers 1–2).
     check_http_probe:
         Enable Layer 2 (direct HTTP probe to Google 204).
         Default: False.  Adds ~200-500 ms per server but confirms the
@@ -470,8 +385,12 @@ class HealthChecker:
     check_google_204:
         Enable Layer 3 (xray SOCKS5 proxy probe).
         Requires xray binary.  Default: False.
+        Layer 3 concurrency is capped at _LAYER3_MAX_CONCURRENT (5)
+        regardless of max_workers, because each check spawns an xray process.
     min_quality_score:
         Servers scoring below this threshold are excluded from batch results.
+    binary_path:
+        Optional explicit path to the xray binary.
     """
 
     def __init__(
@@ -481,12 +400,30 @@ class HealthChecker:
         check_http_probe: bool = False,
         check_google_204: bool = False,
         min_quality_score: float = 0.0,
+        binary_path: Optional[str] = None,
     ) -> None:
         self.timeout = timeout
         self.max_workers = max_workers
         self.check_http_probe = check_http_probe
         self.check_google_204 = check_google_204
         self.min_quality_score = min_quality_score
+        self.binary_path = binary_path
+
+        # Shared Layer-3 checker: one instance, one port counter, one cache.
+        # Only instantiated when check_google_204=True to avoid importing
+        # xray_connectivity unnecessarily.
+        self._layer3_checker = None
+        if check_google_204:
+            try:
+                from .xray_connectivity import RealConnectivityChecker
+                self._layer3_checker = RealConnectivityChecker(
+                    timeout=timeout,
+                    auto_download=False,
+                    binary_path=binary_path,
+                    concurrent_limit=_LAYER3_MAX_CONCURRENT,
+                )
+            except Exception as exc:
+                logger.warning("Could not initialise Layer 3 checker: %s", exc)
 
     # ------------------------------------------------------------------
     # Layer 1 — TCP
@@ -539,26 +476,30 @@ class HealthChecker:
         )
 
     # ------------------------------------------------------------------
-    # Layer 3 — xray SOCKS5 (run in executor)
+    # Layer 3 — xray SOCKS5 (uses shared checker)
     # ------------------------------------------------------------------
 
-    async def _run_socks5_probe(
-        self,
-        socks_port: int,
-    ) -> Tuple[bool, int, float]:
-        """Async wrapper around _socks5_http_get."""
+    async def _run_layer3_probe(self, config: str) -> Tuple[bool, Optional[float]]:
+        """Run Layer 3 probe using the shared RealConnectivityChecker.
+
+        Returns (google_204_ok, latency_ms_or_None).
+        Uses the shared self._layer3_checker to avoid per-server port-counter
+        churn and port-binding collisions under concurrency.
+        """
+        if self._layer3_checker is None:
+            return False, None
+        if not self._layer3_checker.is_xray_available():
+            return False, None
         loop = asyncio.get_event_loop()
-        return await loop.run_in_executor(
-            None,
-            lambda: _socks5_http_get(
-                socks_host="127.0.0.1",
-                socks_port=socks_port,
-                target_host=_GOOGLE_204_HOST,
-                target_port=_GOOGLE_204_PORT,
-                path=_GOOGLE_204_PATH,
-                timeout=self.timeout,
-            ),
-        )
+        try:
+            real = await loop.run_in_executor(
+                None,
+                lambda: self._layer3_checker.check_server_real_sync(config),
+            )
+            return real.google_204_ok, real.latency_ms
+        except Exception as exc:
+            logger.debug("Layer 3 probe failed for %s: %s", config[:60], exc)
+            return False, None
 
     # ------------------------------------------------------------------
     # Full pipeline
@@ -638,20 +579,11 @@ class HealthChecker:
             result.probe_level = 2
 
         # --- Layer 3: xray SOCKS5 / Google 204 ---
-        if self.check_google_204:
-            try:
-                from .xray_connectivity import RealConnectivityChecker
-                checker = RealConnectivityChecker(
-                    timeout=self.timeout,
-                    auto_download=False,
-                )
-                if checker.is_xray_available():
-                    real = checker.check_server_real_sync(config)
-                    result.google_204_ok = real.google_204_ok
-                    result.google_204_latency_ms = real.latency_ms
-                    result.probe_level = 3
-            except Exception as exc:
-                logger.debug("Layer 3 xray probe failed: %s", exc)
+        if self.check_google_204 and self._layer3_checker is not None:
+            g204_ok, g204_latency = await self._run_layer3_probe(config)
+            result.google_204_ok = g204_ok
+            result.google_204_latency_ms = g204_latency
+            result.probe_level = 3
 
         # Determine final status using best available latency
         effective_latency = result.google_204_latency_ms or latency or 0.0
