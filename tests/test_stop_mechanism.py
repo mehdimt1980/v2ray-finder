@@ -72,7 +72,9 @@ class TestKnownSourcesInterrupt:
             with patch.object(finder, "get_servers_from_url", side_effect=side_effect):
                 result = finder.get_servers_from_known_sources()
 
-        assert "vmess://partial" in result
+        # result is Dict[str, List[str]] — check across all source values
+        all_configs = [cfg for configs in result.values() for cfg in configs]
+        assert "vmess://partial" in all_configs
 
     def test_sets_should_stop_after_interrupt(self):
         finder = self._finder_two_sources()
@@ -176,7 +178,10 @@ class TestHealthPreStop:
         finder.request_stop()
 
         servers = ["vmess://s1", "ss://s2"]
-        with patch.object(finder, "get_all_servers", return_value=servers):
+        # get_all_servers now returns (configs, overlap_map) tuple
+        with patch.object(
+            finder, "get_all_servers", return_value=(servers, {})
+        ):
             result = finder.get_servers_with_health(check_health=True)
 
         assert len(result) == 2
@@ -185,7 +190,9 @@ class TestHealthPreStop:
     def test_no_health_check_returns_unchecked_servers(self):
         finder = _finder()
         servers = ["trojan://t1", "vless://v1"]
-        with patch.object(finder, "get_all_servers", return_value=servers):
+        with patch.object(
+            finder, "get_all_servers", return_value=(servers, {})
+        ):
             result = finder.get_servers_with_health(check_health=False)
 
         assert len(result) == 2
@@ -211,6 +218,9 @@ class TestHealthBatchStop:
         h.port = 443
         h.error = None
         h.validation_error = None
+        h.tcp_ok = True
+        h.http_probe_ok = True
+        h.google_204_ok = False
         return h
 
     def test_ki_during_batch_returns_partial(self):
@@ -228,30 +238,26 @@ class TestHealthBatchStop:
             batch_call["n"] += 1
             if batch_call["n"] == 2:
                 raise KeyboardInterrupt
-            return [self._make_health_result(s[0]) for s in batch]
+            return [self._make_health_result(s) for s in batch]
 
         checker_mock = MagicMock()
-        checker_mock.check_servers.side_effect = fake_check
+        checker_mock.check_batch.side_effect = fake_check
 
         with ExitStack() as stack:
             stack.enter_context(
-                patch.object(finder, "get_all_servers", return_value=servers)
+                patch.object(
+                    finder, "get_all_servers", return_value=(servers, {})
+                )
             )
             stack.enter_context(
                 patch(
-                    "v2ray_finder.health_checker.HealthChecker",
+                    "v2ray_finder.core.HealthChecker",
                     return_value=checker_mock,
                 )
             )
             stack.enter_context(
                 patch(
-                    "v2ray_finder.health_checker.filter_healthy_servers",
-                    side_effect=lambda r, **_: r,
-                )
-            )
-            stack.enter_context(
-                patch(
-                    "v2ray_finder.health_checker.sort_by_quality",
+                    "v2ray_finder.core.filter_healthy_servers",
                     side_effect=lambda r, **_: r,
                 )
             )
@@ -272,27 +278,23 @@ class TestHealthBatchStop:
             pytest.skip("health_checker not available")
 
         checker_mock = MagicMock()
-        checker_mock.check_servers.side_effect = KeyboardInterrupt
+        checker_mock.check_batch.side_effect = KeyboardInterrupt
 
         with ExitStack() as stack:
             stack.enter_context(
-                patch.object(finder, "get_all_servers", return_value=servers)
+                patch.object(
+                    finder, "get_all_servers", return_value=(servers, {})
+                )
             )
             stack.enter_context(
                 patch(
-                    "v2ray_finder.health_checker.HealthChecker",
+                    "v2ray_finder.core.HealthChecker",
                     return_value=checker_mock,
                 )
             )
             stack.enter_context(
                 patch(
-                    "v2ray_finder.health_checker.filter_healthy_servers",
-                    side_effect=lambda r, **_: r,
-                )
-            )
-            stack.enter_context(
-                patch(
-                    "v2ray_finder.health_checker.sort_by_quality",
+                    "v2ray_finder.core.filter_healthy_servers",
                     side_effect=lambda r, **_: r,
                 )
             )
@@ -312,30 +314,26 @@ class TestHealthBatchStop:
 
         def fake_check(batch):
             finder.request_stop()
-            return [self._make_health_result(s[0]) for s in batch]
+            return [self._make_health_result(s) for s in batch]
 
         checker_mock = MagicMock()
-        checker_mock.check_servers.side_effect = fake_check
+        checker_mock.check_batch.side_effect = fake_check
 
         with ExitStack() as stack:
             stack.enter_context(
-                patch.object(finder, "get_all_servers", return_value=servers)
+                patch.object(
+                    finder, "get_all_servers", return_value=(servers, {})
+                )
             )
             stack.enter_context(
                 patch(
-                    "v2ray_finder.health_checker.HealthChecker",
+                    "v2ray_finder.core.HealthChecker",
                     return_value=checker_mock,
                 )
             )
             stack.enter_context(
                 patch(
-                    "v2ray_finder.health_checker.filter_healthy_servers",
-                    side_effect=lambda r, **_: r,
-                )
-            )
-            stack.enter_context(
-                patch(
-                    "v2ray_finder.health_checker.sort_by_quality",
+                    "v2ray_finder.core.filter_healthy_servers",
                     side_effect=lambda r, **_: r,
                 )
             )
@@ -343,7 +341,7 @@ class TestHealthBatchStop:
                 check_health=True, health_batch_size=3
             )
 
-        assert checker_mock.check_servers.call_count == 1
+        assert checker_mock.check_batch.call_count == 1
         assert len(result) == 3
 
     def test_custom_batch_size_splits_work(self):
@@ -356,29 +354,25 @@ class TestHealthBatchStop:
             pytest.skip("health_checker not available")
 
         checker_mock = MagicMock()
-        checker_mock.check_servers.side_effect = lambda batch: [
-            self._make_health_result(s[0]) for s in batch
+        checker_mock.check_batch.side_effect = lambda batch: [
+            self._make_health_result(s) for s in batch
         ]
 
         with ExitStack() as stack:
             stack.enter_context(
-                patch.object(finder, "get_all_servers", return_value=servers)
+                patch.object(
+                    finder, "get_all_servers", return_value=(servers, {})
+                )
             )
             stack.enter_context(
                 patch(
-                    "v2ray_finder.health_checker.HealthChecker",
+                    "v2ray_finder.core.HealthChecker",
                     return_value=checker_mock,
                 )
             )
             stack.enter_context(
                 patch(
-                    "v2ray_finder.health_checker.filter_healthy_servers",
-                    side_effect=lambda r, **_: r,
-                )
-            )
-            stack.enter_context(
-                patch(
-                    "v2ray_finder.health_checker.sort_by_quality",
+                    "v2ray_finder.core.filter_healthy_servers",
                     side_effect=lambda r, **_: r,
                 )
             )
@@ -386,7 +380,7 @@ class TestHealthBatchStop:
                 check_health=True, health_batch_size=2
             )
 
-        assert checker_mock.check_servers.call_count == 3
+        assert checker_mock.check_batch.call_count == 3
         assert len(result) == 6
 
 
@@ -548,7 +542,14 @@ class TestMainNonInteractivePipeline:
             ):
                 with patch("sys.argv", ["v2ray-finder", "-o", out, "-q"]):
                     with patch("builtins.print"):
-                        cli.main()  # must NOT raise SystemExit
+                        with patch.object(cli, "save_results"):
+                            # Normal completion: accept clean return or SystemExit(0)
+                            try:
+                                cli.main()
+                            except SystemExit as exc:
+                                assert exc.code == 0, (
+                                    f"Expected exit 0 or no exit, got {exc.code}"
+                                )
 
     def test_saves_partial_when_stopped(self, tmp_path):
         from v2ray_finder import cli

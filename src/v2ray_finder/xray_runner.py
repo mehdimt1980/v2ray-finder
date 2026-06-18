@@ -89,7 +89,11 @@ def _asset_name() -> str:
 
 
 def _binary_name() -> str:
-    return "xray.exe" if sys.platform == "win32" else "xray"
+    """Return the xray binary filename for the current platform.
+
+    Uses platform.system() (mockable in tests) instead of sys.platform.
+    """
+    return "xray.exe" if platform.system().lower() == "windows" else "xray"
 
 
 def find_xray_binary(extra_path: Optional[str] = None) -> Optional[str]:
@@ -99,7 +103,6 @@ def find_xray_binary(extra_path: Optional[str] = None) -> Optional[str]:
     found = shutil.which("xray")
     if found:
         return found
-    # Also check common install dirs
     for d in _COMMON_INSTALL_DIRS:
         candidate = Path(d) / _binary_name()
         if candidate.is_file():
@@ -111,11 +114,7 @@ def find_xray_binary(extra_path: Optional[str] = None) -> Optional[str]:
 
 
 def download_xray_binary() -> str:
-    """Download latest xray binary from XTLS/Xray-core releases.
-
-    Returns the path to the extracted binary.
-    Raises RuntimeError on failure.
-    """
+    """Download latest xray binary from XTLS/Xray-core releases."""
     logger.info("Fetching latest xray release info...")
     req = urllib.request.Request(
         _XRAY_GITHUB,
@@ -219,23 +218,15 @@ class XrayRunner:
         return self.find_binary() is not None
 
     async def run(self, config: dict) -> None:  # type: ignore[override]
-        """Async context manager entry stub — use as sync context manager instead."""
+        """Async stub — use XrayBinaryManager.run() context manager instead."""
         raise NotImplementedError(
-            "Use XrayRunner as a sync context manager: `with runner: runner.start(cfg)`"
+            "Use XrayBinaryManager.run() as an async context manager."
         )
 
     def start(self, config: dict) -> None:
-        """Write *config* to a temp file and start xray.
-
-        Args:
-            config: xray JSON config dict (from xray_config_adapter).
-
-        Raises:
-            XrayBinaryNotFoundError: If binary not found and auto_download is False.
-            RuntimeError: If xray fails to start or the port does not open.
-        """
+        """Write config to a temp file and start xray."""
         if self._process and self._process.poll() is None:
-            self.stop()  # ensure clean state
+            self.stop()
 
         binary = self._get_binary()
 
@@ -289,18 +280,12 @@ class XrayRunner:
 
 
 # ---------------------------------------------------------------------------
-# XrayBinaryManager: the primary class expected by tests.
+# XrayBinaryManager: primary class used by tests and the rest of the codebase
 # ---------------------------------------------------------------------------
 
 
 class XrayBinaryManager(XrayRunner):
-    """Extended XrayRunner that supports all parameters expected by tests.
-
-    Parameters mirror XrayRunner, plus:
-        download_dir:     Override the default cache directory for the binary.
-        startup_timeout:  Seconds to wait for the SOCKS5 port to open.
-        socks_port:       Alias for local_port.
-    """
+    """Extended XrayRunner supporting download_dir, startup_timeout, socks_port."""
 
     def __init__(
         self,
@@ -324,12 +309,24 @@ class XrayBinaryManager(XrayRunner):
             self._download_dir.mkdir(parents=True, exist_ok=True)
         self._resolved_binary: Optional[str] = None
 
-    def find_binary(self) -> Optional[Path]:
-        """Return path to xray binary as a Path object (cached after first lookup).
+    # ------------------------------------------------------------------
+    # Binary discovery
+    # ------------------------------------------------------------------
+
+    def find_binary(self) -> Optional[Path]:  # type: ignore[override]
+        """Return Path to xray binary, or None.
+
+        Resolution order:
+          1. Explicit binary_path (raises if given but missing)
+          2. PATH (shutil.which)
+          3. _COMMON_INSTALL_DIRS
+          4. Custom download_dir (if set)
+          5. Default cache dir
 
         Raises:
-            XrayBinaryNotFoundError: If an explicit binary_path was given but
-                the file does not exist at that path.
+            XrayBinaryNotFoundError: if auto_download=False and binary
+                not found anywhere, OR if an explicit path was given but
+                the file does not exist.
         """
         if self._resolved_binary is not None:
             return Path(self._resolved_binary)
@@ -370,11 +367,21 @@ class XrayBinaryManager(XrayRunner):
             self._resolved_binary = str(cached)
             return cached
 
+        # Not found
+        if not self._auto_download:
+            raise XrayBinaryNotFoundError(
+                "xray binary not found in PATH, common dirs, or cache. "
+                "Install xray manually or set auto_download=True."
+            )
+
         return None
 
     def _get_binary(self) -> str:
         """Like XrayRunner._get_binary but honours custom download_dir."""
-        path = self.find_binary()
+        try:
+            path = self.find_binary()
+        except XrayBinaryNotFoundError:
+            raise
         if path:
             return str(path)
         if self._auto_download:
@@ -386,6 +393,10 @@ class XrayBinaryManager(XrayRunner):
             "xray binary not found. Install xray or use auto_download=True."
         )
 
+    # ------------------------------------------------------------------
+    # Download helpers
+    # ------------------------------------------------------------------
+
     def _download_to_dir(self) -> str:
         """Download xray binary, using _download_dir if set."""
         logger.info("Fetching latest xray release info...")
@@ -393,8 +404,13 @@ class XrayBinaryManager(XrayRunner):
             _XRAY_GITHUB,
             headers={"User-Agent": "v2ray-finder/1.0", "Accept": "application/json"},
         )
-        with urllib.request.urlopen(req, timeout=15) as resp:
-            release = json.loads(resp.read().decode())
+        try:
+            with urllib.request.urlopen(req, timeout=15) as resp:
+                release = json.loads(resp.read().decode())
+        except OSError as exc:
+            raise XrayBinaryNotFoundError(
+                f"Failed to fetch release info from GitHub: {exc}"
+            ) from exc
 
         asset_name = _asset_name()
         download_url: Optional[str] = None
@@ -404,28 +420,58 @@ class XrayBinaryManager(XrayRunner):
                 break
 
         if not download_url:
-            raise RuntimeError(
-                f"Could not find asset '{asset_name}' in the latest xray release."
+            raise XrayBinaryNotFoundError(
+                f"Asset '{asset_name}' not found in the latest xray release."
             )
 
         target_dir = (
             self._download_dir if self._download_dir is not None else _cache_dir()
         )
-        zip_path = target_dir / asset_name
-        logger.info("Downloading %s ...", download_url)
-        urllib.request.urlretrieve(download_url, zip_path)
 
-        with zipfile.ZipFile(zip_path) as zf:
-            zf.extractall(target_dir)
+        with tempfile.NamedTemporaryFile(
+            suffix=".zip", dir=str(target_dir), delete=False
+        ) as tmp:
+            tmp_path = tmp.name
 
-        binary = target_dir / _binary_name()
+        try:
+            urllib.request.urlretrieve(download_url, tmp_path)
+
+            with zipfile.ZipFile(tmp_path) as zf:
+                bin_name = _binary_name()
+                names = zf.namelist()
+                matches = [n for n in names if Path(n).name == bin_name]
+                if not matches:
+                    raise XrayBinaryNotFoundError(
+                        f"Could not find '{bin_name}' inside zip. Contents: {names}"
+                    )
+                member = matches[0]
+                zf.extract(member, path=str(target_dir))
+                extracted = target_dir / member
+                binary = target_dir / bin_name
+                if extracted != binary:
+                    extracted.rename(binary)
+        finally:
+            try:
+                os.unlink(tmp_path)
+            except OSError:
+                pass
+
         if not binary.is_file():
-            raise RuntimeError(f"Binary '{_binary_name()}' not found after extraction.")
+            raise XrayBinaryNotFoundError(
+                f"Binary '{bin_name}' not found after extraction."
+            )
 
         binary.chmod(binary.stat().st_mode | stat.S_IEXEC | stat.S_IXGRP | stat.S_IXOTH)
-        zip_path.unlink(missing_ok=True)
         logger.info("xray binary ready at %s", binary)
         return str(binary)
+
+    def _download_binary(self) -> Path:
+        """Public alias for _download_to_dir(); returns Path (test contract)."""
+        return Path(self._download_to_dir())
+
+    # ------------------------------------------------------------------
+    # Version / availability
+    # ------------------------------------------------------------------
 
     def get_version(self) -> str:
         """Return xray version string, or 'unknown' if binary not available."""
@@ -451,8 +497,12 @@ class XrayBinaryManager(XrayRunner):
         except XrayBinaryNotFoundError:
             return False
 
+    # ------------------------------------------------------------------
+    # Process lifecycle
+    # ------------------------------------------------------------------
+
     def start(self, config: dict) -> None:
-        """Start xray using startup_timeout for port-readiness check."""
+        """Start xray using self._startup_timeout for port-readiness check."""
         if self._process and self._process.poll() is None:
             self.stop()
 
@@ -481,22 +531,28 @@ class XrayBinaryManager(XrayRunner):
             )
 
     def run(self, config_path, socks_port: Optional[int] = None):  # type: ignore
-        """Async context manager: start xray and yield the process.
+        """Return an async context manager that starts xray and terminates it on exit.
 
         Args:
-            config_path: Path object or str to the JSON config file.
-            socks_port:  SOCKS5 port xray listens on (overrides local_port).
-        """
-        import asyncio
+            config_path: Path or str to the xray JSON config file.
+            socks_port:  SOCKS5 port xray listens on (informational only here;
+                         the actual port must match what is in config_path).
 
+        Usage::
+            async with mgr.run(cfg_path) as proc:
+                # xray is running; proc is asyncio.subprocess.Process
+                ...
+            # xray has been terminated
+        """
         mgr = self
-        port = socks_port if socks_port is not None else self.local_port
 
         class _AsyncCtx:
             def __init__(ctx_self):
                 ctx_self._proc = None
 
             async def __aenter__(ctx_self):
+                import asyncio
+
                 binary = mgr.find_binary()
                 if binary is None:
                     if mgr._auto_download:
@@ -513,36 +569,47 @@ class XrayBinaryManager(XrayRunner):
                     stderr=asyncio.subprocess.PIPE,
                 )
 
+                # Wait for startup marker or timeout
                 async def _read_startup():
                     async for line in ctx_self._proc.stdout:
-                        if b"started" in line.lower() or b"listening" in line.lower():
+                        decoded = line.lower()
+                        if b"started" in decoded or b"listening" in decoded:
                             return
+                    # EOF without marker — check if process crashed
                     if ctx_self._proc.returncode not in (None, 0):
                         raise RuntimeError("xray exited during startup")
 
+                import asyncio as _asyncio
+
                 try:
-                    await asyncio.wait_for(
+                    await _asyncio.wait_for(
                         _read_startup(), timeout=mgr._startup_timeout
                     )
-                except asyncio.TimeoutError:
+                except _asyncio.TimeoutError:
                     ctx_self._proc.kill()
                     await ctx_self._proc.wait()
                     raise RuntimeError(
                         f"xray did not start within {mgr._startup_timeout}s"
                     )
 
-                if (
-                    ctx_self._proc.returncode is not None
-                    and ctx_self._proc.returncode != 0
-                ):
-                    raise RuntimeError(
-                        f"xray crashed on startup (rc={ctx_self._proc.returncode})"
-                    )
+                rc = ctx_self._proc.returncode
+                if rc is not None and rc != 0:
+                    raise RuntimeError(f"xray crashed on startup (rc={rc})")
+
                 return ctx_self._proc
 
             async def __aexit__(ctx_self, *args):
+                # Graceful shutdown: terminate first, kill only if needed
                 if ctx_self._proc and ctx_self._proc.returncode is None:
-                    ctx_self._proc.kill()
-                    await ctx_self._proc.wait()
+                    ctx_self._proc.terminate()
+                    try:
+                        import asyncio as _asyncio
+
+                        await _asyncio.wait_for(
+                            ctx_self._proc.wait(), timeout=3.0
+                        )
+                    except Exception:
+                        ctx_self._proc.kill()
+                        await ctx_self._proc.wait()
 
         return _AsyncCtx()

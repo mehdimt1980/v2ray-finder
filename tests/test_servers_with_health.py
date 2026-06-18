@@ -5,7 +5,7 @@ Targets core.py lines 684-795 (Part 4 of coverage improvement plan).
 """
 
 import sys
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -40,6 +40,9 @@ def _make_mock_health(
     h.port = 443
     h.error = None
     h.validation_error = None
+    h.tcp_ok = True
+    h.http_probe_ok = True
+    h.google_204_ok = False
     return h
 
 
@@ -47,7 +50,8 @@ def _make_hc_module(health_results):
     """Return a mock health_checker module that yields *health_results*."""
     m = MagicMock()
     checker = MagicMock()
-    checker.check_servers.return_value = health_results
+    # check_batch is the method used by core.py's batch loop
+    checker.check_batch.return_value = health_results
     m.HealthChecker.return_value = checker
     # Pass-through by default; individual tests override if needed
     m.filter_healthy_servers.side_effect = lambda x, **kw: x
@@ -62,8 +66,11 @@ def _make_hc_module(health_results):
 
 def test_get_servers_with_health_check_false_skips_checker(finder):
     """check_health=False must return a list with health_checked=False for each server."""
+    # get_all_servers returns (configs, overlap_map) tuple
     with patch.object(
-        finder, "get_all_servers", return_value=["vmess://s1", "vless://s2"]
+        finder,
+        "get_all_servers",
+        return_value=(["vmess://s1", "vless://s2"], {}),
     ):
         result = finder.get_servers_with_health(check_health=False)
 
@@ -82,7 +89,9 @@ def test_get_servers_with_health_import_error_falls_back_gracefully(finder):
     """When health_checker cannot be imported the method must fall back to
     returning servers with health_checked=False, not raise.
     """
-    with patch.object(finder, "get_all_servers", return_value=["vmess://s1"]):
+    with patch.object(
+        finder, "get_all_servers", return_value=(["vmess://s1"], {})
+    ):
         with patch.dict(sys.modules, {"v2ray_finder.health_checker": None}):
             result = finder.get_servers_with_health(check_health=True)
 
@@ -97,12 +106,14 @@ def test_get_servers_with_health_import_error_falls_back_gracefully(finder):
 
 
 def test_get_servers_with_health_full_flow_returns_formatted_results(finder):
-    """Full path must call HealthChecker.check_servers and return formatted dicts."""
+    """Full path must call HealthChecker.check_batch and return formatted dicts."""
     mock_health = _make_mock_health()
     hc_mod = _make_hc_module([mock_health])
 
     with (
-        patch.object(finder, "get_all_servers", return_value=["vmess://test"]),
+        patch.object(
+            finder, "get_all_servers", return_value=(["vmess://test"], {})
+        ),
         patch.dict(sys.modules, {"v2ray_finder.health_checker": hc_mod}),
     ):
         result = finder.get_servers_with_health(check_health=True)
@@ -122,7 +133,9 @@ def test_get_servers_with_health_filter_unhealthy_calls_filter(finder):
     hc_mod = _make_hc_module([mock_health])
 
     with (
-        patch.object(finder, "get_all_servers", return_value=["vmess://test"]),
+        patch.object(
+            finder, "get_all_servers", return_value=(["vmess://test"], {})
+        ),
         patch.dict(sys.modules, {"v2ray_finder.health_checker": hc_mod}),
     ):
         finder.get_servers_with_health(check_health=True, filter_unhealthy=True)
@@ -136,7 +149,9 @@ def test_get_servers_with_health_min_quality_calls_filter(finder):
     hc_mod = _make_hc_module([mock_health])
 
     with (
-        patch.object(finder, "get_all_servers", return_value=["vmess://test"]),
+        patch.object(
+            finder, "get_all_servers", return_value=(["vmess://test"], {})
+        ),
         patch.dict(sys.modules, {"v2ray_finder.health_checker": hc_mod}),
     ):
         finder.get_servers_with_health(check_health=True, min_quality_score=50.0)
@@ -145,16 +160,15 @@ def test_get_servers_with_health_min_quality_calls_filter(finder):
 
 
 def test_get_servers_with_health_empty_server_list(finder):
-    """Empty server list must short-circuit HealthChecker (no check_servers call)."""
+    """Empty server list must short-circuit and return []."""
     hc_mod = _make_hc_module([])
 
     with (
-        patch.object(finder, "get_all_servers", return_value=[]),
+        patch.object(finder, "get_all_servers", return_value=([], {})),
         patch.dict(sys.modules, {"v2ray_finder.health_checker": hc_mod}),
     ):
         result = finder.get_servers_with_health(check_health=True)
 
-    # checker.check_servers is called with an empty list — result must be []
     assert result == []
 
 
@@ -181,7 +195,7 @@ def test_save_to_file_with_check_health_writes_configs(finder, tmp_path):
 
     assert count == 2
     assert output.exists()
-    lines = [l.strip() for l in output.read_text().splitlines() if l.strip()]
+    lines = [ln.strip() for ln in output.read_text().splitlines() if ln.strip()]
     assert "vmess://server-a" in lines
     assert "vless://server-b" in lines
 
