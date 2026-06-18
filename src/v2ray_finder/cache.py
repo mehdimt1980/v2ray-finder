@@ -72,7 +72,19 @@ class CacheBackend(ABC):
 
 
 class MemoryCache(CacheBackend):
-    """In-memory cache backend."""
+    """In-memory cache backend with FIFO eviction.
+
+    **Eviction policy: FIFO (First-In, First-Out), NOT LRU.**
+
+    When the cache reaches *max_size*, the entry that was inserted first
+    (i.e. the key returned first by ``iter(self._cache)``) is evicted,
+    regardless of how recently it was accessed.  This means a frequently
+    read entry can still be evicted if it was inserted before newer entries.
+
+    If you need LRU semantics, use ``collections.OrderedDict`` with
+    move-to-end on access, or switch to the DiskCache backend which
+    delegates eviction policy to diskcache.
+    """
 
     def __init__(self, max_size: int = 1000):
         self._cache: Dict[str, tuple] = {}  # key -> (value, expiry_time)
@@ -88,9 +100,8 @@ class MemoryCache(CacheBackend):
         return None
 
     def set(self, key: str, value: Any, ttl: Optional[int] = None) -> bool:
-        # Evict oldest if at capacity
+        # Evict oldest (FIFO) if at capacity
         if len(self._cache) >= self.max_size and key not in self._cache:
-            # Simple FIFO eviction
             oldest_key = next(iter(self._cache))
             del self._cache[oldest_key]
 
@@ -212,7 +223,6 @@ class CacheManager:
         Returns:
             SHA256 hash as hex string
         """
-        # Combine all inputs into a deterministic string
         parts = [prefix]
         parts.extend(str(arg) for arg in args)
         parts.extend(f"{k}={v}" for k, v in sorted(kwargs.items()))
@@ -331,15 +341,10 @@ class CacheManager:
 
         def decorator(func: Callable) -> Callable:
             def wrapper(*args, **kwargs):
-                # Generate cache key from function args
                 cache_key = self._make_key(key_prefix, *args, **kwargs)
-
-                # Try to get from cache
                 cached_value = self.get(cache_key)
                 if cached_value is not None:
                     return cached_value
-
-                # Call function and cache result
                 result = func(*args, **kwargs)
                 self.set(cache_key, result, ttl)
                 return result
