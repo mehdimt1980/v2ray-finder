@@ -28,6 +28,14 @@ sync ``requests`` if neither async library is available (V1-D1).
 Connection pooling and retry/backoff are handled entirely by
 ``AsyncFetcher``.
 
+GitHub rate-limit handling (V1-C3)
+-----------------------------------
+Sources hosted on ``api.github.com`` or ``raw.githubusercontent.com``
+are detected after fetch via ``FetchResult.status_code``.  When a
+403/429 response is returned, all remaining GitHub-host sources are
+skipped for this run.  Pass ``github_token`` to :class:`Pipeline` to
+attach ``Authorization: token <tok>`` to GitHub requests only.
+
 Source attribution
 ------------------
 During fetch each config string is mapped to the source URL it came
@@ -55,9 +63,10 @@ import logging
 import re
 import threading
 from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional, Set
+from urllib.parse import urlparse
 
-from .async_fetcher import AsyncFetcher
+from .async_fetcher import AsyncFetcher, FetchResult
 from .normalizer import deduplicate_across_sources
 from .scorer import ServerScore, score_servers, sort_by_quality
 from .sources import SourceEntry, SourceTrust, get_enabled_sources
@@ -70,11 +79,25 @@ _PROTO_RE = re.compile(
     re.IGNORECASE,
 )
 
+# GitHub hosts that require rate-limit awareness
+_GITHUB_HOSTS: frozenset = frozenset({
+    "api.github.com",
+    "raw.githubusercontent.com",
+})
+
 # Default concurrency cap for async source fetches
 _DEFAULT_FETCH_CONCURRENCY = 10
 
 # Type alias for the progress callback.
 ProgressCallback = Optional[Callable[[str, int, int, str], None]]
+
+
+def _is_github_url(url: str) -> bool:
+    """Return True if *url* is hosted on a known GitHub API/raw domain."""
+    try:
+        return urlparse(url).hostname in _GITHUB_HOSTS
+    except Exception:
+        return False
 
 
 def _parse_configs(text: str) -> List[str]:
@@ -179,6 +202,12 @@ class Pipeline:
         Cap the number of configs returned after dedup.  Default: ``None``.
     binary_path:
         Explicit path to the xray binary (Layer 3 only).
+    github_token:
+        Optional GitHub personal-access token.  When provided, an
+        ``Authorization: token <tok>`` header is added **only** to
+        requests targeting ``api.github.com`` or
+        ``raw.githubusercontent.com``.  Raises the API rate limit from
+        60 to 5 000 requests/hour.
     """
 
     def __init__(
@@ -194,6 +223,7 @@ class Pipeline:
         fetch_concurrency: int = _DEFAULT_FETCH_CONCURRENCY,
         limit: Optional[int] = None,
         binary_path: Optional[str] = None,
+        github_token: Optional[str] = None,
     ) -> None:
         self.sources           = sources or get_enabled_sources()
         self.check_health      = check_health
@@ -206,6 +236,7 @@ class Pipeline:
         self.fetch_concurrency = fetch_concurrency
         self.limit             = limit
         self.binary_path       = binary_path
+        self.github_token      = github_token
 
         # Pre-build source-URL → trust-level lookup (avoids repeated iteration).
         self._source_trust_map: Dict[str, int] = {
@@ -309,8 +340,6 @@ class Pipeline:
         (first source wins).
         """
         config_source: Dict[str, str] = {}
-        # Process sources in ascending trust order so that higher-trust
-        # sources overwrite lower-trust ones.
         sorted_sources = sorted(
             servers_by_source.keys(),
             key=lambda url: self._source_trust_map.get(url, 1),
@@ -339,7 +368,7 @@ class Pipeline:
         }
 
     # ------------------------------------------------------------------
-    # Stage 1: Fetch  (V1-D1: delegated entirely to AsyncFetcher)
+    # Stage 1: Fetch  (V1-D1 + V1-C3)
     # ------------------------------------------------------------------
 
     def _fetch_all(
@@ -347,50 +376,98 @@ class Pipeline:
         stop_event: threading.Event,
         progress_callback: ProgressCallback,
     ) -> Dict[str, List[str]]:
-        """Fetch all sources via :class:`~async_fetcher.AsyncFetcher`.
+        """Fetch all sources, with GitHub rate-limit handling (V1-C3).
 
-        ``AsyncFetcher`` selects the best available backend (aiohttp →
-        httpx → requests) and handles connection pooling, retry, and
-        backoff internally.  This method translates the list of
-        :class:`~sources.SourceEntry` objects into a URL list, calls
-        ``fetch_many``, then maps results back to
-        ``{source_url: [config, …]}``.
+        Sources are split into GitHub and non-GitHub batches.  GitHub
+        sources get an ``Authorization`` header when ``github_token`` is
+        set.  If any GitHub source returns 403/429, all remaining GitHub
+        sources are skipped for this run.
         """
-        urls  = [s.url for s in self.sources]
-        total = len(urls)
+        github_urls     = [s.url for s in self.sources if _is_github_url(s.url)]
+        non_github_urls = [s.url for s in self.sources if not _is_github_url(s.url)]
+        total           = len(self.sources)
 
         self._emit(progress_callback, "fetch", 0, total, "Starting fetch…")
 
-        fetcher = AsyncFetcher(
-            max_concurrent=self.fetch_concurrency,
-            timeout=float(self.fetch_timeout),
-            headers={"User-Agent": "v2ray-finder/1.0"},
-        )
-
-        fetch_results = fetcher.fetch_many(urls)
+        # Build per-batch headers
+        base_headers   = {"User-Agent": "v2ray-finder/1.0"}
+        github_headers = dict(base_headers)
+        if self.github_token:
+            github_headers["Authorization"] = f"token {self.github_token}"
 
         servers_by_source: Dict[str, List[str]] = {}
-        for i, fr in enumerate(fetch_results):
-            if stop_event.is_set():
-                break
-            if fr.success and fr.content:
-                parsed = _parse_configs(fr.content)
-                if parsed:
-                    servers_by_source[fr.url] = parsed
-                    logger.debug(
-                        "[pipeline] %s: %d configs.", fr.url, len(parsed)
-                    )
-            else:
-                logger.warning(
-                    "[pipeline] %s: fetch failed — %s.", fr.url, fr.error
-                )
-            self._emit(
-                progress_callback, "fetch", i + 1, total,
-                f"Fetched {i + 1}/{total} sources…",
+        completed = 0
+
+        # ---- non-GitHub sources ----
+        if non_github_urls and not stop_event.is_set():
+            fetcher = AsyncFetcher(
+                max_concurrent=self.fetch_concurrency,
+                timeout=float(self.fetch_timeout),
+                headers=base_headers,
             )
+            for fr in fetcher.fetch_many(non_github_urls):
+                if stop_event.is_set():
+                    break
+                self._process_fetch_result(fr, servers_by_source)
+                completed += 1
+                self._emit(
+                    progress_callback, "fetch", completed, total,
+                    f"Fetched {completed}/{total} sources…",
+                )
+
+        # ---- GitHub sources (with rate-limit guard) ----
+        if github_urls and not stop_event.is_set():
+            github_fetcher = AsyncFetcher(
+                max_concurrent=min(self.fetch_concurrency, 5),  # gentler on GH
+                timeout=float(self.fetch_timeout),
+                headers=github_headers,
+            )
+            github_rate_limited = False
+            for fr in github_fetcher.fetch_many(github_urls):
+                if stop_event.is_set():
+                    break
+                if github_rate_limited:
+                    logger.debug(
+                        "[pipeline] Skipping %s (GitHub rate-limited).", fr.url
+                    )
+                    completed += 1
+                    self._emit(
+                        progress_callback, "fetch", completed, total,
+                        f"Fetched {completed}/{total} sources…",
+                    )
+                    continue
+                if fr.status_code in (403, 429):
+                    logger.warning(
+                        "[pipeline] GitHub rate limit hit on %s (HTTP %d). "
+                        "Skipping remaining GitHub sources. "
+                        "Pass github_token= to Pipeline to raise the limit.",
+                        fr.url, fr.status_code,
+                    )
+                    github_rate_limited = True
+                else:
+                    self._process_fetch_result(fr, servers_by_source)
+                completed += 1
+                self._emit(
+                    progress_callback, "fetch", completed, total,
+                    f"Fetched {completed}/{total} sources…",
+                )
 
         self._emit(progress_callback, "fetch", total, total, "Fetch complete.")
         return servers_by_source
+
+    @staticmethod
+    def _process_fetch_result(
+        fr: FetchResult,
+        servers_by_source: Dict[str, List[str]],
+    ) -> None:
+        """Parse configs from a successful FetchResult into *servers_by_source*."""
+        if fr.success and fr.content:
+            parsed = _parse_configs(fr.content)
+            if parsed:
+                servers_by_source[fr.url] = parsed
+                logger.debug("[pipeline] %s: %d configs.", fr.url, len(parsed))
+        else:
+            logger.warning("[pipeline] %s: fetch failed — %s.", fr.url, fr.error)
 
     # ------------------------------------------------------------------
     # Stage 3: Health
@@ -445,7 +522,6 @@ class Pipeline:
 
         result_dicts: List[Dict[str, Any]] = []
         for h in healthy:
-            # V1-C1: per-config source attribution
             src_url   = config_source_map.get(h.config, "")
             src_trust = self._source_trust_map.get(src_url, 1)
             result_dicts.append({
