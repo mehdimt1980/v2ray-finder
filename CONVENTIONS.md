@@ -207,72 +207,37 @@ public API and a one-line usage example. Do not export internal helpers (_parse_
 internals). Add a test asserting every name in __all__ is importable from v2ray_finder.
 ```
 
-### [ ] V1-A4. No structured result serialization
+### [x] V1-A4. No structured result serialization
 `PipelineResult` and `ServerScore` have no `to_dict`/`to_json`. JSON output
 (CLI --format json, GUI export, programmatic use) each re-implement
 serialization, guaranteeing drift.
-
-```
-Add to_dict() methods to ServerScore in src/v2ray_finder/scorer.py and to PipelineResult in
-src/v2ray_finder/pipeline.py. ServerScore.to_dict returns config, protocol, total, grade, latency_ms, and all component
-scores. PipelineResult.to_dict returns stats plus a "servers" list of ServerScore.to_dict() entries. Add
-PipelineResult.to_json(indent: int = 2) that uses json.dumps over to_dict. Add tests verifying round-trip-safe keys and
-that to_json produces valid JSON.
-```
+— Fixed: `ServerScore.to_dict()`, `PipelineResult.to_dict()`, `PipelineResult.to_json()` added.
 
 ---
 
 ## 3. Technical Debt (fix before v1.0.0)
 
-### [ ] V1-D1. Two parallel fetch implementations
+### [x] V1-D1. Two parallel fetch implementations
 `async_fetcher.py` (A3 path) and `pipeline.py::_fetch_all_async` both
-implement httpx fetching with retry/backoff. This is the exact duplication
-A4 was meant to prevent, one layer up.
+implement httpx fetching with retry/backoff.
+— Fixed: `pipeline.py` delegates all HTTP fetching to `AsyncFetcher.fetch_many`;
+own httpx loop removed; GitHub rate-limit handled via separate GitHub/non-GitHub
+fetcher instances with token support.
 
-```
-Refactor src/v2ray_finder/pipeline.py to delegate all HTTP fetching to v2ray_finder.async_fetcher.AsyncFetcher instead
-of its own httpx loop. Pipeline should construct one AsyncFetcher(max_concurrent=self.fetch_concurrency,
-timeout=self.fetch_timeout, headers=...), call fetch_many(urls), then map FetchResult -> parsed configs per source URL.
-Keep the sync fallback delegating to AsyncFetcher.fetch_many (which already falls back to requests). Remove the now-dead
-_fetch_all_async httpx code. Preserve stop_event checks and progress callbacks. Update tests/test_pipeline.py to mock
-AsyncFetcher.fetch_many.
-```
+### [x] V1-D2. Inconsistent timeout/error semantics across modules
+— Fixed: Pipeline records per-source failures in `PipelineResult.stats["errors"]`;
+`PipelineResult.failed_sources` property added; Pipeline never raises on network failures.
 
-### [ ] V1-D2. Inconsistent timeout/error semantics across modules
-`core.py` returns Result[Ok/Err], `pipeline.py` swallows exceptions and logs,
-`async_fetcher.py` returns FetchResult with .error strings. Three error
-models. A public library needs one predictable error surface.
+### [x] V1-D3. Missing py.typed marker and full type coverage
+— Fixed: `py.typed` marker added at `src/v2ray_finder/py.typed`;
+mypy section added to `pyproject.toml`.
 
-```
-Document and unify the error model in CONTRIBUTING/docs and code. Decision: low-level fetchers return FetchResult/Result
-(no raising); Pipeline never raises for per-source failures but records them in PipelineResult.stats under a new
-"errors" dict {source_url: error_str}. Add result.stats["errors"] and a PipelineResult.failed_sources property. Ensure
-Pipeline.run still raises only for programmer errors (bad args), never for network failures. Add a test that a failing
-source appears in result.stats["errors"] and does not abort the run.
-```
-
-### [ ] V1-D3. Missing py.typed marker and full type coverage
-The package ships type hints but no `py.typed`, so downstream `mypy` ignores
-them. Several public functions also use bare `dict`/`list`.
-
-```
-Add an empty py.typed marker file at src/v2ray_finder/py.typed and include it in package data in pyproject.toml
-(tool.setuptools.package-data or equivalent). Tighten public signatures in pipeline.py, scorer.py, and __init__.py to
-use precise generics (List[ServerScore], Dict[str, float], Optional[...]). Add a mypy configuration section to
-pyproject.toml targeting the v2ray_finder package with disallow_untyped_defs for public modules. Do not add mypy to
-required CI gates yet; just make it pass for the public surface.
-```
-
-### [ ] V1-D4. No retry/backoff on Layer-3 xray startup at scale
-`xray_connectivity.py` caps Layer 3 concurrency at 5 (C2) but a flaky binary
-or port contention yields hard failures with no retry, so legitimate servers
-get scored 0 under load.
-
-```
-In src/v2ray_finder/xray_connectivity.py, add one retry with a fresh free port in check_one (and the async
-check_server_real fallback path) when xray fails to open its SOCKS5 port within startup_timeout. Use find_free_port()
-for the retry port. Log at debug level. Add a test simulating a first-attempt port-bind failure that succeeds on retry.
-```
+### [x] V1-D4. No retry/backoff on Layer-3 xray startup at scale
+`xray_connectivity.py` caps Layer 3 concurrency at 5 but a flaky binary
+or port contention yields hard failures with no retry.
+— Fixed: `_try_start_xray()` helper extracted with `runner.stop()` on failure;
+one retry on fresh free port in `check_one`; resource leak plugged; type hints
+corrected; tests added in `tests/test_xray_retry.py`.
 
 ---
 
@@ -294,25 +259,18 @@ v2ray_finder.find_servers() and iterating result.scores, and the three CLI invoc
 short API table listing Pipeline, PipelineResult, StopController, find_servers. Keep it under 60 lines.
 ```
 
-### [ ] V1-Q3. Deterministic score tie-breaking
+### [x] V1-Q3. Deterministic score tie-breaking
 `scorer.score_servers` sorts by `total` only; equal totals produce
 nondeterministic order across runs, breaking reproducible output/tests.
+— Fixed: composite sort key (total desc, latency_ms asc, config asc) in
+`score_servers` and `sort_by_score`; test added.
 
-```
-In src/v2ray_finder/scorer.py, make score_servers and sort_by_score sort by a stable composite key: primary total
-descending, secondary latency_ms ascending (None last), tertiary config string ascending. Add a test with three servers
-sharing the same total asserting a deterministic, repeatable order.
-```
-
-### [ ] V1-Q4. Expose cache stats and a clear-cache hook in Pipeline
+### [x] V1-Q4. Expose cache stats and a clear-cache hook in Pipeline
 Layer-3 has a result cache (`_ResultCache`) but Pipeline neither surfaces its
 stats nor lets callers clear it between runs.
-
-```
-In src/v2ray_finder/pipeline.py, when check_google_204 is enabled, expose the shared RealConnectivityChecker's
-cache_stats in PipelineResult.stats under "layer3_cache" and add a Pipeline.clear_caches() method that clears the
-Layer-3 result cache. Add a test asserting stats include layer3_cache when Layer 3 runs.
-```
+— Fixed: `PipelineResult.stats["layer3_cache"]` populated when `check_google_204=True`;
+`Pipeline.clear_caches()` added; tests added in `tests/test_pipeline_cache_stats.py`
+(duplicate test fixed, `HealthChecker` patch path corrected, object-identity reuse test added).
 
 ---
 
