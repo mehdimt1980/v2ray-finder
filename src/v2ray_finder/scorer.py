@@ -16,6 +16,7 @@ uniqueness_score     Inverse of overlap with other subscription sources.
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
@@ -43,7 +44,6 @@ _WEIGHTS: Dict[str, float] = {
     "google_204":    0.10,
 }
 
-# Reachability component weights (TCP + HTTP only; google_204 is a separate dimension)
 _REACH_W_TCP  = 0.70
 _REACH_W_HTTP = 0.30
 
@@ -53,33 +53,19 @@ _REACH_W_HTTP = 0.30
 # ---------------------------------------------------------------------------
 
 def _latency_to_score(latency_ms: Optional[float]) -> float:
-    """Map latency (ms) -> [0, 1].  Delegates to shared scoring_curves."""
     return latency_to_score_1(latency_ms)
 
 
-# Keep old name as alias for backward compatibility
 _latency_score = _latency_to_score
 
 
-def _reachability_to_score(
-    tcp_ok: bool,
-    http_ok: bool,
-) -> float:
-    """Combine TCP + HTTP connectivity signals into a [0, 1] reachability score.
-
-    google_204_ok is now a separate top-level dimension and is NOT included here.
-    """
-    score = (
-        _REACH_W_TCP  * float(tcp_ok)
-        + _REACH_W_HTTP * float(http_ok)
-    )
+def _reachability_to_score(tcp_ok: bool, http_ok: bool) -> float:
+    score = _REACH_W_TCP * float(tcp_ok) + _REACH_W_HTTP * float(http_ok)
     return round(min(max(score, 0.0), 1.0), 6)
 
 
 def _trust_to_score(trust_level: int) -> float:
-    """Map integer trust level (1=low, 2=medium, 3=high) to [0, 1]."""
-    mapping = {1: 0.0, 2: 0.5, 3: 1.0}
-    return mapping.get(trust_level, 0.0)
+    return {1: 0.0, 2: 0.5, 3: 1.0}.get(trust_level, 0.0)
 
 
 def _protocol_score(protocol: str) -> float:
@@ -90,9 +76,7 @@ def _protocol_score(protocol: str) -> float:
 # ServerScore dataclass
 # ---------------------------------------------------------------------------
 
-# Sentinel used as a safe default inside sort keys to avoid constructing a
-# temporary ServerScore('', '') on every list item.
-_ZERO_SCORE: "ServerScore"  # forward-declared; assigned after class definition
+_ZERO_SCORE: "ServerScore"
 
 
 @dataclass
@@ -127,15 +111,38 @@ class ServerScore:
     @property
     def grade(self) -> str:
         t = self.total
-        if t >= 0.80:
-            return "A"
-        if t >= 0.60:
-            return "B"
-        if t >= 0.40:
-            return "C"
-        if t >= 0.20:
-            return "D"
+        if t >= 0.80: return "A"
+        if t >= 0.60: return "B"
+        if t >= 0.40: return "C"
+        if t >= 0.20: return "D"
         return "F"
+
+    # V3-A1: serialisation
+    def to_dict(self) -> Dict[str, Any]:
+        """Return a JSON-safe dict representation of this score.
+
+        All keys are stable across versions; new optional keys may be added
+        but existing keys will not be renamed or removed.
+        """
+        return {
+            "config":             self.config,
+            "protocol":           self.protocol,
+            "total":              self.total,
+            "grade":              self.grade,
+            "latency_ms":         self.latency_ms,
+            "latency_score":      self.latency_score,
+            "reachability_score": self.reachability_score,
+            "protocol_score":     self.protocol_score,
+            "source_trust_score": self.source_trust_score,
+            "freshness_score":    self.freshness_score,
+            "uniqueness_score":   self.uniqueness_score,
+            "google_204_score":   self.google_204_score,
+            "health_details":     self.health_details,
+        }
+
+    def to_json(self, indent: int = 2) -> str:
+        """Return a JSON string of :meth:`to_dict`."""
+        return json.dumps(self.to_dict(), indent=indent, ensure_ascii=False)
 
     def __repr__(self) -> str:  # pragma: no cover
         lat = f"{self.latency_ms:.0f}ms" if self.latency_ms is not None else "n/a"
@@ -145,7 +152,6 @@ class ServerScore:
         )
 
 
-# Assign sentinel after class is defined so the type annotation resolves.
 _ZERO_SCORE = ServerScore(config="", protocol="")
 
 
@@ -164,32 +170,14 @@ def score_server(
     freshness_score: float = 0.0,
     overlap_ratio: float = 0.0,
 ) -> ServerScore:
-    """Score a single server.
-
-    Args:
-        config:          Raw config string (vmess://, vless://, ...).
-        protocol:        Protocol name. Trailing '://' or '//' stripped automatically.
-        latency_ms:      TCP round-trip in milliseconds, or None.
-        tcp_ok:          Whether TCP connection succeeded.
-        http_ok:         Whether HTTP probe succeeded.
-        google_204_ok:   Whether Google 204 check succeeded (now a live dimension).
-        source_trust:    Integer 1/2/3 trust level of the subscription source.
-        freshness_score: Pre-computed freshness score in [0, 1].
-        overlap_ratio:   Fraction of other sources that also contain this config.
-
-    Returns:
-        ServerScore instance.
-    """
-    # Normalise protocol string
+    """Score a single server."""
     proto = protocol.lower().rstrip("/").rstrip(":")
-
     ls   = _latency_to_score(latency_ms)
     rs   = _reachability_to_score(tcp_ok, http_ok)
     ps   = _protocol_score(proto)
     ts   = _trust_to_score(source_trust)
     us   = round(max(0.0, 1.0 - overlap_ratio), 6)
     g204 = 1.0 if google_204_ok else 0.0
-
     return ServerScore(
         config=config,
         protocol=proto,
@@ -209,6 +197,18 @@ def score_server(
     )
 
 
+def _sort_key(s: ServerScore, descending: bool = True) -> tuple:
+    """V3-Q3: stable composite sort key.
+
+    Primary:   total (descending when descending=True)
+    Secondary: latency_ms ascending (None sorts last)
+    Tertiary:  config string ascending (deterministic tie-break)
+    """
+    sign = -1 if descending else 1
+    lat  = s.latency_ms if s.latency_ms is not None else float("inf")
+    return (sign * s.total, lat, s.config)
+
+
 def score_servers(
     health_results: List[Dict[str, Any]],
     overlap_map: Optional[Dict[str, float]] = None,
@@ -216,22 +216,8 @@ def score_servers(
 ) -> List[ServerScore]:
     """Score a batch of health-check result dicts and return sorted scores.
 
-    Each dict must contain at minimum:
-        ``config``     -- raw config string
-        ``protocol``   -- protocol name
-
-    Optional keys:
-        ``latency_ms``, ``tcp_ok``, ``http_ok``, ``google_204_ok``,
-        ``source_trust``, ``freshness_score``, ``overlap_ratio``,
-        ``source_url`` (used with *overlap_map*).
-
-    Args:
-        health_results: List of dicts from the health checker.
-        overlap_map:    Optional {source_url: overlap_ratio} mapping.
-        descending:     True -> best servers first (default).
-
-    Returns:
-        List of ServerScore objects sorted by total score.
+    Sorting is stable and deterministic (V3-Q3):
+    primary total, secondary latency_ms asc (None last), tertiary config asc.
     """
     if overlap_map is None:
         overlap_map = {}
@@ -253,15 +239,15 @@ def score_servers(
                 overlap_ratio=float(overlap_ratio),
             )
         )
-    return sorted(scores, key=lambda s: s.total, reverse=descending)
+    return sorted(scores, key=lambda s: _sort_key(s, descending))
 
 
 def sort_by_score(
     scores: List[ServerScore],
     descending: bool = True,
 ) -> List[ServerScore]:
-    """Sort ServerScore objects by their total score."""
-    return sorted(scores, key=lambda s: s.total, reverse=descending)
+    """Sort ServerScore objects — stable composite key (V3-Q3)."""
+    return sorted(scores, key=lambda s: _sort_key(s, descending))
 
 
 def sort_by_quality(
@@ -269,17 +255,14 @@ def sort_by_quality(
     descending: bool = True,
     overlap_map: Optional[Dict[str, float]] = None,
 ) -> List[Dict[str, Any]]:
-    """Score health_results, sort by total score, return enriched original dicts.
-
-    The original dict is enriched with a ``_score`` key containing the
-    ServerScore object.
-    """
+    """Score health_results, sort, return enriched original dicts."""
     scored = score_servers(health_results, overlap_map=overlap_map, descending=descending)
     score_by_config = {s.config: s for s in scored}
     result = sorted(
         health_results,
-        key=lambda h: score_by_config.get(h.get("config", ""), _ZERO_SCORE).total,
-        reverse=descending,
+        key=lambda h: _sort_key(
+            score_by_config.get(h.get("config", ""), _ZERO_SCORE), descending
+        ),
     )
     for item in result:
         item["_score"] = score_by_config.get(item.get("config", ""))

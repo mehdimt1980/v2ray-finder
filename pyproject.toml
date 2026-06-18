@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "v2ray-finder"
-version = "0.6.0"
+version = "0.7.0"
 description = "Search and collect V2Ray servers from GitHub repositories"
 readme = "README.md"
 authors = [
@@ -78,6 +78,9 @@ v2ray-finder = "v2ray_finder.cli:main"
 where = ["src"]
 namespaces = false
 
+[tool.setuptools.package-data]
+v2ray_finder = ["py.typed"]
+
 [tool.black]
 line-length = 88
 target-version = ["py312"]
@@ -105,3 +108,12 @@ python_version = "3.8"
 warn_return_any = true
 warn_unused_configs = true
 disallow_untyped_defs = false
+
+[[tool.mypy.overrides]]
+module = [
+    "v2ray_finder.pipeline",
+    "v2ray_finder.scorer",
+    "v2ray_finder.cache",
+    "v2ray_finder.async_fetcher",
+]
+disallow_untyped_defs = true

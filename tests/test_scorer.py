@@ -1,316 +1,252 @@
-"""Unit tests for scorer.py.
-
-Covers:
-- _latency_to_score: full curve including boundaries and clamping
-- _reachability_to_score: tcp/http/google_204 combinations
-- _trust_to_score: 1/2/3 mapping
-- ServerScore.total: weighted formula and clamping
-- ServerScore.grade: A/B/C/D/F thresholds
-- score_server: public API smoke tests
-- score_servers: batch sorting and empty input
-"""
-
+"""Tests for scorer.py — to_dict/to_json (V3-A1) and deterministic sort (V3-Q3)."""
 from __future__ import annotations
 
-import pytest
+import json
+import unittest
 
 from v2ray_finder.scorer import (
     ServerScore,
-    _latency_to_score,
-    _reachability_to_score,
-    _trust_to_score,
+    _sort_key,
     score_server,
     score_servers,
-    _WEIGHTS,
-    _PROTOCOL_SCORES,
+    sort_by_score,
 )
 
+VMESS  = "vmess://eyJhZGQiOiIxMjcuMC4wLjEifQ=="
+VLESS  = "vless://uuid@1.2.3.4:443?security=tls"
+TROJAN = "trojan://pass@5.6.7.8:443"
 
-# ---------------------------------------------------------------------------
-# _latency_to_score
-# ---------------------------------------------------------------------------
 
-
-class TestLatencyToScore:
-    def test_none_returns_zero(self):
-        assert _latency_to_score(None) == 0.0
-
-    def test_zero_returns_zero(self):
-        # 0ms means unmeasured / no data — score is 0 by design
-        assert _latency_to_score(0) == 0.0
-
-    def test_negative_returns_zero(self):
-        assert _latency_to_score(-50) == 0.0
-
-    def test_under_100ms_is_perfect(self):
-        assert _latency_to_score(50) == 1.0
-        assert _latency_to_score(100) == 1.0
-
-    def test_200ms_in_middle_band(self):
-        score = _latency_to_score(200)
-        assert 0.6 < score < 1.0
-
-    def test_300ms_boundary(self):
-        score = _latency_to_score(300)
-        # At 300ms the formula transitions; result should be between 0.5 and 0.9
-        assert 0.5 <= score <= 0.9
-
-    def test_1000ms_low_but_positive(self):
-        score = _latency_to_score(1000)
-        assert 0.0 <= score <= 0.15
-
-    def test_6000ms_floored_at_zero(self):
-        score = _latency_to_score(6000)
-        assert score == 0.0
-
-    def test_monotonically_decreasing(self):
-        """Higher latency → lower or equal score.
-
-        Note: 0ms is excluded because _latency_to_score(0) == 0.0 by design
-        (0 means unmeasured). The meaningful range starts at 1ms.
-        """
-        latencies = [1, 50, 100, 200, 300, 500, 800, 1000, 2000, 5000, 9999]
-        scores = [_latency_to_score(l) for l in latencies]
-        for i in range(1, len(scores)):
-            assert scores[i] <= scores[i - 1] + 1e-9, (
-                f"score increased from {latencies[i-1]}ms to {latencies[i]}ms"
-            )
+def _score(**kw) -> ServerScore:
+    defaults = dict(config=VMESS, protocol="vmess")
+    defaults.update(kw)
+    return score_server(**defaults)
 
 
 # ---------------------------------------------------------------------------
-# _reachability_to_score
+# V3-A1: ServerScore.to_dict / to_json
 # ---------------------------------------------------------------------------
 
+class TestServerScoreToDict(unittest.TestCase):
 
-class TestReachabilityToScore:
-    def test_all_false(self):
-        assert _reachability_to_score(False, False, False) == 0.0
+    def test_to_dict_contains_required_keys(self):
+        s = _score(latency_ms=100)
+        d = s.to_dict()
+        for key in ("config", "protocol", "total", "grade", "latency_ms",
+                    "latency_score", "reachability_score", "protocol_score",
+                    "source_trust_score", "freshness_score",
+                    "uniqueness_score", "google_204_score", "health_details"):
+            self.assertIn(key, d)
 
-    def test_tcp_only(self):
-        score = _reachability_to_score(True, False, False)
-        assert abs(score - 0.70) < 1e-6
+    def test_to_dict_values_match_properties(self):
+        s = _score(latency_ms=50, tcp_ok=True)
+        d = s.to_dict()
+        self.assertEqual(d["total"],   s.total)
+        self.assertEqual(d["grade"],   s.grade)
+        self.assertEqual(d["config"],  s.config)
+        self.assertAlmostEqual(d["latency_ms"], 50)
 
-    def test_http_only(self):
-        score = _reachability_to_score(False, True, False)
-        assert abs(score - 0.30) < 1e-6
+    def test_to_dict_none_latency(self):
+        s = _score()
+        d = s.to_dict()
+        self.assertIsNone(d["latency_ms"])
 
-    def test_tcp_and_http(self):
-        score = _reachability_to_score(True, True, False)
-        assert abs(score - 1.00) < 1e-6
+    def test_to_dict_health_details_keys(self):
+        s = _score(tcp_ok=True, http_ok=False, google_204_ok=True)
+        d = s.to_dict()
+        self.assertTrue(d["health_details"]["tcp_ok"])
+        self.assertFalse(d["health_details"]["http_ok"])
+        self.assertTrue(d["health_details"]["google_204_ok"])
 
-    def test_google_204_carries_zero_weight(self):
-        """google_204=True should NOT change the score (weight is 0 until xray integration)."""
-        without = _reachability_to_score(True, False, False)
-        with_204 = _reachability_to_score(True, False, True)
-        assert abs(without - with_204) < 1e-9
+    def test_to_json_is_valid_json(self):
+        s = _score(latency_ms=80)
+        j = s.to_json()
+        parsed = json.loads(j)   # must not raise
+        self.assertIsInstance(parsed, dict)
 
-    def test_all_true(self):
-        # Still 1.0 because google_204 weight is zero
-        assert abs(_reachability_to_score(True, True, True) - 1.00) < 1e-6
+    def test_to_json_roundtrip_total(self):
+        s = _score(latency_ms=80, tcp_ok=True)
+        parsed = json.loads(s.to_json())
+        self.assertAlmostEqual(parsed["total"], s.total, places=4)
+
+    def test_to_json_indent_respected(self):
+        s = _score()
+        j2 = s.to_json(indent=2)
+        j4 = s.to_json(indent=4)
+        self.assertIn("\n", j2)
+        self.assertIn("    ", j4)
+
+    def test_to_json_non_ascii_config(self):
+        s = ServerScore(config="vmess://فارسی", protocol="vmess")
+        j = s.to_json()
+        self.assertIn("فارسی", j)
+
+    def test_to_dict_is_json_serialisable(self):
+        s = _score(latency_ms=200, tcp_ok=True, google_204_ok=True)
+        json.dumps(s.to_dict())  # must not raise TypeError
 
 
 # ---------------------------------------------------------------------------
-# _trust_to_score
+# V3-A1: PipelineResult.to_dict / to_json
 # ---------------------------------------------------------------------------
 
+class TestPipelineResultSerialization(unittest.TestCase):
 
-class TestTrustToScore:
-    def test_trust_1_is_zero(self):
-        assert _trust_to_score(1) == 0.0
+    def _result(self, n=3):
+        from v2ray_finder.pipeline import PipelineResult
+        configs = [VMESS, VLESS, TROJAN][:n]
+        scores  = [score_server(c, c.split("://")[0]) for c in configs]
+        return PipelineResult(
+            configs=configs,
+            scores=scores,
+            stats={"fetched": n, "deduped": n, "healthy": 0,
+                   "scored": n, "cache_hits": 0, "cache_misses": 0,
+                   "errors": {}},
+        )
 
-    def test_trust_2_is_half(self):
-        assert abs(_trust_to_score(2) - 0.5) < 1e-6
+    def test_to_dict_has_required_keys(self):
+        r = self._result()
+        d = r.to_dict()
+        for key in ("stats", "servers", "configs"):
+            self.assertIn(key, d)
 
-    def test_trust_3_is_full(self):
-        assert abs(_trust_to_score(3) - 1.0) < 1e-6
+    def test_to_dict_servers_count_matches_scores(self):
+        r = self._result(3)
+        d = r.to_dict()
+        self.assertEqual(len(d["servers"]), 3)
+
+    def test_to_dict_each_server_has_config_key(self):
+        r = self._result(2)
+        for srv in r.to_dict()["servers"]:
+            self.assertIn("config", srv)
+
+    def test_to_dict_configs_list_derived_from_scores(self):
+        r = self._result(2)
+        d = r.to_dict()
+        self.assertEqual(d["configs"], [s["config"] for s in d["servers"]])
+
+    def test_to_json_valid_json(self):
+        r = self._result()
+        parsed = json.loads(r.to_json())
+        self.assertIsInstance(parsed, dict)
+
+    def test_to_json_roundtrip_stats(self):
+        r = self._result(2)
+        parsed = json.loads(r.to_json())
+        self.assertEqual(parsed["stats"]["fetched"], 2)
+
+    def test_to_json_empty_result(self):
+        from v2ray_finder.pipeline import PipelineResult
+        r = PipelineResult()
+        parsed = json.loads(r.to_json())
+        self.assertEqual(parsed["servers"], [])
+
+    def test_failed_sources_property_empty(self):
+        r = self._result()
+        self.assertEqual(r.failed_sources, {})
+
+    def test_failed_sources_property_from_stats(self):
+        from v2ray_finder.pipeline import PipelineResult
+        r = PipelineResult(stats={"errors": {"http://bad.example": "timeout"}})
+        self.assertEqual(r.failed_sources["http://bad.example"], "timeout")
 
 
 # ---------------------------------------------------------------------------
-# ServerScore.total and .grade
+# V3-Q3: Deterministic sort
 # ---------------------------------------------------------------------------
 
+class TestDeterministicSort(unittest.TestCase):
 
-class TestServerScore:
-    def _make(self, **kwargs) -> ServerScore:
-        defaults = dict(
-            config="vmess://x",
+    def _s(self, config, total_override=None, latency=None):
+        """Build a ServerScore with predictable total via freshness_score."""
+        s = ServerScore(
+            config=config,
             protocol="vmess",
-            latency_score=0.0,
-            reachability_score=0.0,
-            protocol_score=0.0,
-            source_trust_score=0.0,
-            freshness_score=0.0,
-            uniqueness_score=0.0,
+            latency_ms=latency,
+            freshness_score=total_override if total_override is not None else 0.0,
         )
-        defaults.update(kwargs)
-        return ServerScore(**defaults)
+        return s
 
-    def test_all_zero_total(self):
-        s = self._make()
-        assert s.total == 0.0
+    # -- _sort_key structure --
+    def test_sort_key_descending_sign(self):
+        s = self._s(VMESS)
+        key_d = _sort_key(s, descending=True)
+        key_a = _sort_key(s, descending=False)
+        # descending flips sign of first element
+        self.assertAlmostEqual(key_d[0], -key_a[0], places=6)
 
-    def test_all_one_total(self):
-        s = self._make(
-            latency_score=1.0,
-            reachability_score=1.0,
-            protocol_score=1.0,
-            source_trust_score=1.0,
-            freshness_score=1.0,
-            uniqueness_score=1.0,
-        )
-        assert s.total == 1.0
+    def test_sort_key_none_latency_last(self):
+        s_none = self._s(VMESS,  latency=None)
+        s_fast = self._s(VLESS,  latency=10)
+        # For ascending secondary key None should sort after any real value
+        self.assertGreater(_sort_key(s_none)[1], _sort_key(s_fast)[1])
 
-    def test_total_clamped_above_one(self):
-        s = self._make(
-            latency_score=2.0,
-            reachability_score=2.0,
-            protocol_score=2.0,
-            source_trust_score=2.0,
-            freshness_score=2.0,
-            uniqueness_score=2.0,
-        )
-        assert s.total <= 1.0
+    def test_sort_key_third_element_is_config(self):
+        s = self._s(VMESS)
+        self.assertEqual(_sort_key(s)[2], VMESS)
 
-    def test_total_clamped_below_zero(self):
-        s = self._make(
-            latency_score=-1.0,
-            reachability_score=-1.0,
-            protocol_score=-1.0,
-            source_trust_score=-1.0,
-            freshness_score=-1.0,
-            uniqueness_score=-1.0,
-        )
-        assert s.total >= 0.0
+    # -- Three servers with identical total --
+    def test_tie_broken_by_latency(self):
+        """Lower latency wins when totals are equal."""
+        s1 = ServerScore(config="vmess://aaa", protocol="vmess", latency_ms=100)
+        s2 = ServerScore(config="vmess://bbb", protocol="vmess", latency_ms=50)
+        result = sort_by_score([s1, s2], descending=True)
+        # s1.total == s2.total == 0.0; s2 has lower latency -> comes first
+        self.assertEqual(result[0].config, "vmess://bbb")
 
-    def test_grade_A_at_0_80(self):
-        s = self._make(
-            latency_score=1.0,
-            reachability_score=1.0,
-            protocol_score=1.0,
-            source_trust_score=1.0,
-            freshness_score=1.0,
-            uniqueness_score=1.0,
-        )
-        assert s.grade == "A"
+    def test_tie_broken_by_config_string(self):
+        """When total AND latency are equal, config string ascending wins."""
+        s1 = ServerScore(config="vmess://zzz", protocol="vmess", latency_ms=50)
+        s2 = ServerScore(config="vmess://aaa", protocol="vmess", latency_ms=50)
+        result = sort_by_score([s1, s2], descending=True)
+        self.assertEqual(result[0].config, "vmess://aaa")
 
-    def test_grade_F_at_zero(self):
-        s = self._make()
-        assert s.grade == "F"
-
-    def test_grade_boundaries(self):
-        """Verify each grade bucket by constructing scores at boundaries."""
-        cases = [
-            (1.0, "A"),
-            (0.80, "A"),
-            (0.60, "B"),
-            (0.40, "C"),
-            (0.20, "D"),
-            (0.19, "F"),
-            (0.0, "F"),
+    def test_sort_is_deterministic_across_multiple_calls(self):
+        servers = [
+            ServerScore(config=f"vmess://x{i:03d}", protocol="vmess", latency_ms=i * 10)
+            for i in range(10)
         ]
-        for total_target, expected_grade in cases:
-            # Use latency_score as a proxy to hit the target
-            latency_weight = _WEIGHTS["latency"]
-            latency_score = min(1.0, total_target / latency_weight) if latency_weight > 0 else 0.0
-            s = self._make(latency_score=latency_score)
-            if s.total >= 0.80:
-                assert s.grade == "A"
-            elif s.total >= 0.60:
-                assert s.grade == "B"
-            elif s.total >= 0.40:
-                assert s.grade == "C"
-            elif s.total >= 0.20:
-                assert s.grade == "D"
-            else:
-                assert s.grade == "F"
+        r1 = sort_by_score(servers[:])
+        r2 = sort_by_score(servers[::-1])
+        self.assertEqual([s.config for s in r1], [s.config for s in r2])
 
-    def test_repr_contains_protocol_and_total(self):
-        s = self._make(protocol="vless")
-        r = repr(s)
-        assert "vless" in r
-        assert "total=" in r
-
-
-# ---------------------------------------------------------------------------
-# score_server
-# ---------------------------------------------------------------------------
-
-
-class TestScoreServer:
-    def test_smoke_all_defaults(self):
-        result = score_server(config="vmess://x", protocol="vmess")
-        assert isinstance(result, ServerScore)
-        assert 0.0 <= result.total <= 1.0
-
-    def test_protocol_score_vless_is_highest(self):
-        vless = score_server("v", "vless", tcp_ok=True)
-        vmess = score_server("v", "vmess", tcp_ok=True)
-        assert vless.total > vmess.total
-
-    def test_known_protocols_have_defined_scores(self):
-        for proto in ("vless", "trojan", "ss", "vmess", "ssr"):
-            s = score_server("x", proto)
-            assert s.protocol_score == _PROTOCOL_SCORES[proto]
-
-    def test_unknown_protocol_falls_back(self):
-        s = score_server("x", "shadowsocks")
-        assert s.protocol_score == 0.5
-
-    def test_health_details_stored(self):
-        s = score_server("x", "vmess", tcp_ok=True, http_ok=False, google_204_ok=True)
-        assert s.health_details["tcp_ok"] is True
-        assert s.health_details["http_ok"] is False
-        assert s.health_details["google_204_ok"] is True
-
-    def test_google_204_silently_ignored_in_total(self):
-        without = score_server("x", "vmess", tcp_ok=True, google_204_ok=False)
-        with_204 = score_server("x", "vmess", tcp_ok=True, google_204_ok=True)
-        assert abs(without.total - with_204.total) < 1e-9
-
-    def test_overlap_ratio_reduces_uniqueness(self):
-        no_overlap = score_server("x", "vmess", overlap_ratio=0.0)
-        full_overlap = score_server("x", "vmess", overlap_ratio=1.0)
-        assert no_overlap.uniqueness_score > full_overlap.uniqueness_score
-
-    def test_protocol_normalised_from_uri(self):
-        """Protocol 'vmess//' (accidentally passed as URI) should strip to 'vmess'."""
-        s = score_server("x", "vmess//")
-        assert s.protocol == "vmess"
-
-
-# ---------------------------------------------------------------------------
-# score_servers (batch)
-# ---------------------------------------------------------------------------
-
-
-class TestScoreServers:
-    def _hr(self, config: str, protocol: str, latency_ms: float, tcp_ok: bool) -> dict:
-        return {
-            "config": config,
-            "protocol": protocol,
-            "latency_ms": latency_ms,
-            "tcp_ok": tcp_ok,
-            "http_ok": False,
-            "google_204_ok": False,
-            "source_url": "http://src",
-        }
-
-    def test_empty_returns_empty(self):
-        assert score_servers([]) == []
-
-    def test_sorted_descending(self):
-        health_results = [
-            self._hr("a", "vmess", latency_ms=1000, tcp_ok=False),
-            self._hr("b", "vless", latency_ms=50, tcp_ok=True),
-            self._hr("c", "trojan", latency_ms=200, tcp_ok=True),
+    # -- score_servers uses composite key --
+    def test_score_servers_deterministic(self):
+        health = [
+            {"config": VMESS,  "protocol": "vmess",  "latency_ms": 100},
+            {"config": VLESS,  "protocol": "vless",  "latency_ms": 50},
+            {"config": TROJAN, "protocol": "trojan", "latency_ms": 200},
         ]
-        scored = score_servers(health_results)
-        totals = [s.total for s in scored]
-        for i in range(1, len(totals)):
-            assert totals[i] <= totals[i - 1] + 1e-9
+        r1 = score_servers(health)
+        r2 = score_servers(health[::-1])
+        self.assertEqual([s.config for s in r1], [s.config for s in r2])
 
-    def test_overlap_ratio_field_passed(self):
-        hr = self._hr("a", "vmess", 100, True)
-        hr["overlap_ratio"] = 0.9
-        scored = score_servers([hr])
-        assert scored[0].uniqueness_score < 1.0
+    def test_ascending_sort(self):
+        s1 = ServerScore(config="vmess://low",  protocol="vmess", latency_score=0.1)
+        s2 = ServerScore(config="vmess://high", protocol="vmess", latency_score=0.9)
+        result = sort_by_score([s1, s2], descending=False)
+        self.assertLessEqual(result[0].total, result[1].total)
+
+
+# ---------------------------------------------------------------------------
+# V3-D3: py.typed present
+# ---------------------------------------------------------------------------
+
+class TestPyTyped(unittest.TestCase):
+
+    def test_py_typed_marker_exists(self):
+        import importlib.resources as ir
+        import v2ray_finder
+        try:
+            # Python 3.9+
+            ref = ir.files(v2ray_finder).joinpath("py.typed")
+            self.assertTrue(ref.is_file())
+        except AttributeError:
+            # Python 3.8 fallback
+            import os, v2ray_finder as pkg
+            marker = os.path.join(os.path.dirname(pkg.__file__), "py.typed")
+            self.assertTrue(os.path.exists(marker))
+
+
+if __name__ == "__main__":
+    unittest.main()

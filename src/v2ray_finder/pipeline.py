@@ -20,59 +20,28 @@ before every source fetch and every health-check batch.
 Source caching (V2-C1)
 ----------------------
 The pipeline has built-in TTL source caching via :class:`~cache.CacheManager`.
-Each source URL's raw response text is cached under a key derived from the URL.
+Each source URL’s raw response text is cached under a key derived from the URL.
 On cache hit the network fetch is skipped entirely.  Caching is opt-in::
 
-    # memory cache, 1-hour TTL (default)
     pipeline = Pipeline(cache_enabled=True)
+    pipeline = Pipeline(cache_enabled=True, cache_backend="disk", cache_ttl=1800)
+    pipeline = Pipeline(cache_manager=my_cm)
 
-    # disk cache, custom TTL
-    pipeline = Pipeline(
-        cache_enabled=True,
-        cache_backend="disk",
-        cache_ttl=1800,          # 30 minutes
-        cache_dir="~/.v2rf",
-    )
+Serialization (V3-A1)
+---------------------
+:meth:`PipelineResult.to_dict` and :meth:`PipelineResult.to_json` produce
+stable, round-trip-safe representations::
 
-    # inject your own CacheManager
-    from v2ray_finder.cache import CacheManager
-    cm = CacheManager(backend="memory", ttl=600)
-    pipeline = Pipeline(cache_manager=cm)
+    result = pipeline.run()
+    print(result.to_json())
 
 Stub-ability
 ------------
-Tests (and advanced callers) may replace :meth:`_fetch_all_sync` on an
-instance to inject pre-canned results without touching the network::
+Tests may replace :meth:`_fetch_all_sync` on an instance::
 
     p = Pipeline(sources=[src], check_health=False)
     p._fetch_all_sync = lambda stop, cb: {src.url: ["vmess://..."]}
     result = p.run()
-
-:meth:`_fetch_all` calls :meth:`_fetch_all_sync` internally so the stub
-is picked up transparently.
-
-GitHub rate-limit handling
----------------------------
-Sources hosted on ``api.github.com`` or ``raw.githubusercontent.com``
-are detected after fetch via ``FetchResult.status_code``.  When a
-403/429 response is returned, all remaining GitHub-host sources are
-skipped for this run.  Pass ``github_token`` to :class:`Pipeline` to
-attach ``Authorization: token <tok>`` to GitHub requests only.
-
-Memory caps
-------------
-``max_configs_per_source`` (default 5 000) truncates each source's
-parsed config list before they are aggregated.  ``max_total_configs``
-(default 50 000) truncates the global list after structural dedup but
-before health checks.  Both caps log how many entries were dropped.
-
-Source attribution
-------------------
-During fetch each config string is mapped to the source URL it came
-from (highest-trust source wins on collision) via
-``_build_config_source_map()``.  In ``_run_health`` every health-result
-dict receives the correct ``source_url``, ``source_trust``, and
-``overlap_ratio`` for that specific config.
 
 Example
 -------
@@ -81,14 +50,16 @@ Example
     from v2ray_finder.pipeline import Pipeline, StopController
 
     stop = StopController()
-    pipeline = Pipeline(check_health=True, check_google_204=True, cache_enabled=True)
+    pipeline = Pipeline(check_health=True, cache_enabled=True)
     result = pipeline.run(stop_event=stop.event)
+    print(result.to_json(indent=2))
     for score in result.scores[:10]:
         print(score.grade, score.config[:80])
 """
 
 from __future__ import annotations
 
+import json
 import logging
 import re
 import threading
@@ -117,7 +88,7 @@ _GITHUB_HOSTS: frozenset = frozenset({
 _DEFAULT_FETCH_CONCURRENCY       = 10
 _DEFAULT_MAX_CONFIGS_PER_SOURCE  = 5_000
 _DEFAULT_MAX_TOTAL_CONFIGS       = 50_000
-_DEFAULT_CACHE_TTL               = 3_600   # 1 hour
+_DEFAULT_CACHE_TTL               = 3_600
 
 ProgressCallback = Optional[Callable[[str, int, int, str], None]]
 
@@ -171,59 +142,44 @@ class PipelineResult:
     def top_configs(self) -> List[str]:
         return [s.config for s in self.scores]
 
+    # V3-A1: serialisation -------------------------------------------------
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Return a JSON-safe dict representation of this result.
+
+        Keys
+        ----
+        stats    -- pipeline run statistics (fetched, deduped, healthy, ...).
+        servers  -- list of :meth:`~scorer.ServerScore.to_dict` dicts,
+                    ordered by score (best first).
+        configs  -- raw config strings in score order (convenience duplicate).
+        """
+        servers = [s.to_dict() for s in self.scores]
+        return {
+            "stats":   self.stats,
+            "servers": servers,
+            "configs": [s["config"] for s in servers] if servers else self.configs,
+        }
+
+    def to_json(self, indent: int = 2) -> str:
+        """Return a JSON string of :meth:`to_dict`."""
+        return json.dumps(self.to_dict(), indent=indent, ensure_ascii=False)
+
+    @property
+    def failed_sources(self) -> Dict[str, str]:
+        """V1-D2: sources that failed during fetch, keyed by URL."""
+        errors = self.stats.get("errors")
+        if isinstance(errors, dict):
+            return errors
+        return {}
+
 
 # ---------------------------------------------------------------------------
 # Pipeline
 # ---------------------------------------------------------------------------
 
 class Pipeline:
-    """Full discovery → fetch → dedup → health → score pipeline.
-
-    Parameters
-    ----------
-    sources:
-        List of :class:`~sources.SourceEntry` objects to fetch.
-        Defaults to all enabled sources.
-    check_health:
-        Run TCP health checks.  Default: ``True``.
-    check_http_probe:
-        Run direct HTTP probe.  Default: ``False``.
-    check_google_204:
-        Run xray SOCKS5 / Google 204 probe.  Default: ``False``.
-    timeout:
-        Per-server probe timeout in seconds.  Default: ``5.0``.
-    min_quality_score:
-        Exclude servers scoring below this threshold.  Default: ``0.0``.
-    health_batch_size:
-        Number of servers per health-check batch.  Default: ``100``.
-    fetch_timeout:
-        HTTP timeout for source fetches in seconds.  Default: ``15``.
-    fetch_concurrency:
-        Maximum concurrent source fetches.  Default: ``10``.
-    limit:
-        Cap configs returned after dedup.  Default: ``None``.
-    binary_path:
-        Explicit path to the xray binary (Layer 3 only).
-    github_token:
-        Optional GitHub PAT — added only to GitHub-host requests.
-    max_configs_per_source:
-        Maximum configs per source after parsing.  Default: ``5_000``.
-    max_total_configs:
-        Maximum configs after dedup before health checks.
-        Default: ``50_000``.  Pass ``None`` to disable.
-    cache_enabled:
-        Enable TTL caching of raw source responses.  Default: ``False``.
-    cache_backend:
-        ``"memory"`` (default) or ``"disk"``.
-    cache_ttl:
-        Cache TTL in seconds.  Default: ``3600`` (1 hour).
-    cache_dir:
-        Directory for disk cache.  Default: ``~/.v2ray_finder_cache``.
-    cache_manager:
-        Inject a pre-configured :class:`~cache.CacheManager` instance.
-        When provided, *cache_enabled*, *cache_backend*, *cache_ttl*, and
-        *cache_dir* are ignored.
-    """
+    """Full discovery → fetch → dedup → health → score pipeline."""
 
     def __init__(
         self,
@@ -241,7 +197,6 @@ class Pipeline:
         github_token: Optional[str] = None,
         max_configs_per_source: int = _DEFAULT_MAX_CONFIGS_PER_SOURCE,
         max_total_configs: Optional[int] = _DEFAULT_MAX_TOTAL_CONFIGS,
-        # V2-C1 cache params
         cache_enabled: bool = False,
         cache_backend: str = "memory",
         cache_ttl: int = _DEFAULT_CACHE_TTL,
@@ -263,7 +218,6 @@ class Pipeline:
         self.max_configs_per_source = max_configs_per_source
         self.max_total_configs      = max_total_configs
 
-        # V2-C1: cache setup
         if cache_manager is not None:
             self._cache: Optional[CacheManager] = cache_manager
         elif cache_enabled:
@@ -296,19 +250,21 @@ class Pipeline:
             "fetched": 0, "deduped": 0, "healthy": 0, "scored": 0,
             "dropped_per_source": 0, "dropped_global": 0,
             "cache_hits": 0, "cache_misses": 0,
+            "errors": {},
         }
 
-        # ── Stage 1: Fetch ──────────────────────────────────────────────
+        # Stage 1: Fetch
         servers_by_source = self._fetch_all(_stop, progress_callback)
 
-        # Propagate cache stats
         if self._cache is not None:
             cs = self._cache.get_stats()
             stats["cache_hits"]   = cs.get("hits",   0)
             stats["cache_misses"] = cs.get("misses", 0)
 
-        # Per-source cap
         for url in list(servers_by_source.keys()):
+            if isinstance(servers_by_source[url], str):   # error sentinel
+                stats["errors"][url] = servers_by_source.pop(url)
+                continue
             full = servers_by_source[url]
             if len(full) > self.max_configs_per_source:
                 dropped = len(full) - self.max_configs_per_source
@@ -324,7 +280,7 @@ class Pipeline:
             result.stats = stats
             return result
 
-        # ── Stage 2: Structural dedup ────────────────────────────────────
+        # Stage 2: Structural dedup
         configs, overlap_map = deduplicate_across_sources(servers_by_source)
 
         if self.max_total_configs is not None and len(configs) > self.max_total_configs:
@@ -348,7 +304,7 @@ class Pipeline:
 
         config_source_map = self._build_config_source_map(servers_by_source)
 
-        # ── Stage 3: Health checks ──────────────────────────────────────
+        # Stage 3: Health checks
         if not self.check_health:
             result.health_dicts = [
                 self._make_unchecked_dict(c, config_source_map, overlap_map)
@@ -363,7 +319,7 @@ class Pipeline:
             result.stats = stats
             return result
 
-        # ── Stage 4: Score ─────────────────────────────────────────────
+        # Stage 4: Score
         self._emit(progress_callback, "score", 0, 1, "Scoring servers…")
         result.scores = score_servers(
             result.health_dicts,
@@ -401,8 +357,10 @@ class Pipeline:
     ) -> Dict[str, Any]:
         src_url   = config_source_map.get(config, "")
         src_trust = self._source_trust_map.get(src_url, 1)
+        proto = config.split("://")[0].lower() if "://" in config else "unknown"
         return {
             "config":         config,
+            "protocol":       proto,
             "health_checked": False,
             "source_url":     src_url,
             "source_trust":   src_trust,
@@ -417,24 +375,15 @@ class Pipeline:
         self,
         stop_event: threading.Event,
         progress_callback: ProgressCallback,
-    ) -> Dict[str, List[str]]:
-        """Thin delegate to :meth:`_fetch_all_sync` (stub point for tests)."""
+    ) -> Dict[str, Any]:
         return self._fetch_all_sync(stop_event, progress_callback)
 
     def _fetch_all_sync(
         self,
         stop_event: threading.Event,
         progress_callback: ProgressCallback,
-    ) -> Dict[str, List[str]]:
-        """Fetch all sources, with TTL cache support (V2-C1) and GitHub
-        rate-limit handling.
-
-        Cache flow per URL
-        ------------------
-        1. If ``self._cache`` is set, attempt a cache GET keyed on the URL.
-        2. On hit  → parse cached text, skip network.
-        3. On miss → fetch via AsyncFetcher, store raw text on 200 OK.
-        """
+    ) -> Dict[str, Any]:
+        """Fetch all sources with TTL cache support and GitHub rate-limit handling."""
         github_urls     = [s.url for s in self.sources if _is_github_url(s.url)]
         non_github_urls = [s.url for s in self.sources if not _is_github_url(s.url)]
         total           = len(self.sources)
@@ -446,14 +395,13 @@ class Pipeline:
         if self.github_token:
             github_headers["Authorization"] = f"token {self.github_token}"
 
-        servers_by_source: Dict[str, List[str]] = {}
+        servers_by_source: Dict[str, Any] = {}
         completed = 0
 
-        # ── helper: try cache, return (hit, parsed_configs) ──
         def _try_cache(url: str):
             if self._cache is None:
                 return False, None
-            key   = self._cache._make_key("source", url)
+            key    = self._cache._make_key("source", url)
             cached = self._cache.get(key)
             if cached is not None:
                 return True, _parse_configs(cached)
@@ -461,15 +409,14 @@ class Pipeline:
 
         def _store_cache(url: str, text: str) -> None:
             if self._cache is not None:
-                key = self._cache._make_key("source", url)
-                self._cache.set(key, text)
+                self._cache.set(self._cache._make_key("source", url), text)
 
-        # ── non-GitHub sources ────────────────────────────────────────
+        # Non-GitHub sources
         urls_to_fetch_ng: List[str] = []
         for url in non_github_urls:
             hit, configs = _try_cache(url)
             if hit:
-                servers_by_source[url] = configs  # type: ignore[assignment]
+                servers_by_source[url] = configs
                 completed += 1
                 self._emit(progress_callback, "fetch", completed, total,
                            f"Cache hit {completed}/{total}…")
@@ -487,17 +434,19 @@ class Pipeline:
                     break
                 if fr.success and fr.content:
                     _store_cache(fr.url, fr.content)
-                self._process_fetch_result(fr, servers_by_source)
+                    self._process_fetch_result(fr, servers_by_source)
+                elif not fr.success:
+                    servers_by_source[fr.url] = fr.error or "fetch failed"
                 completed += 1
                 self._emit(progress_callback, "fetch", completed, total,
                            f"Fetched {completed}/{total} sources…")
 
-        # ── GitHub sources ────────────────────────────────────────────
+        # GitHub sources
         urls_to_fetch_gh: List[str] = []
         for url in github_urls:
             hit, configs = _try_cache(url)
             if hit:
-                servers_by_source[url] = configs  # type: ignore[assignment]
+                servers_by_source[url] = configs
                 completed += 1
                 self._emit(progress_callback, "fetch", completed, total,
                            f"Cache hit {completed}/{total}…")
@@ -518,15 +467,17 @@ class Pipeline:
                     logger.debug("[pipeline] Skipping %s (GitHub rate-limited).", fr.url)
                 elif fr.status_code in (403, 429):
                     logger.warning(
-                        "[pipeline] GitHub rate limit on %s (HTTP %d). "
-                        "Pass github_token= to raise the limit.",
+                        "[pipeline] GitHub rate limit on %s (HTTP %d).",
                         fr.url, fr.status_code,
                     )
                     github_rate_limited = True
+                    servers_by_source[fr.url] = f"rate_limited:{fr.status_code}"
                 else:
                     if fr.success and fr.content:
                         _store_cache(fr.url, fr.content)
-                    self._process_fetch_result(fr, servers_by_source)
+                        self._process_fetch_result(fr, servers_by_source)
+                    elif not fr.success:
+                        servers_by_source[fr.url] = fr.error or "fetch failed"
                 completed += 1
                 self._emit(progress_callback, "fetch", completed, total,
                            f"Fetched {completed}/{total} sources…")
@@ -537,7 +488,7 @@ class Pipeline:
     @staticmethod
     def _process_fetch_result(
         fr: FetchResult,
-        servers_by_source: Dict[str, List[str]],
+        servers_by_source: Dict[str, Any],
     ) -> None:
         if fr.success and fr.content:
             parsed = _parse_configs(fr.content)
@@ -596,9 +547,10 @@ class Pipeline:
         for h in healthy:
             src_url   = config_source_map.get(h.config, "")
             src_trust = self._source_trust_map.get(src_url, 1)
+            proto = h.config.split("://")[0].lower() if "://" in h.config else getattr(h, "protocol", "unknown")
             result_dicts.append({
                 "config":         h.config,
-                "protocol":       h.protocol,
+                "protocol":       proto,
                 "tcp_ok":         h.tcp_ok,
                 "http_ok":        h.http_probe_ok,
                 "google_204_ok":  h.google_204_ok,
