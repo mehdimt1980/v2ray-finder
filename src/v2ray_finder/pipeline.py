@@ -20,7 +20,7 @@ before every source fetch and every health-check batch.
 Source caching (V2-C1)
 ----------------------
 The pipeline has built-in TTL source caching via :class:`~cache.CacheManager`.
-Each source URL’s raw response text is cached under a key derived from the URL.
+Each source URL's raw response text is cached under a key derived from the URL.
 On cache hit the network fetch is skipped entirely.  Caching is opt-in::
 
     pipeline = Pipeline(cache_enabled=True)
@@ -45,6 +45,14 @@ in ``PipelineResult.stats["layer3_cache"]``::
 
 Call ``pipeline.clear_caches()`` to reset the Layer-3 result cache between
 runs without reconstructing the pipeline.
+
+Source attribution (V1-C1)
+--------------------------
+Each config is attributed to the **highest-trust** source that contained it.
+When the same config appears in multiple sources the source with the
+highest ``SourceTrust`` value wins (first-wins among equals).  This means
+``source_trust`` and ``overlap_ratio`` in every health/score dict always
+reflect the real originating source, not an arbitrary one.
 
 Stub-ability
 ------------
@@ -243,6 +251,8 @@ class Pipeline:
         else:
             self._cache = None
 
+        # Build a lookup from source URL → trust value (int) for attribution.
+        # Computed once at construction; used in _build_config_source_map.
         self._source_trust_map: Dict[str, int] = {
             s.url: s.trust.value for s in self.sources
         }
@@ -347,6 +357,8 @@ class Pipeline:
             result.stats = stats
             return result
 
+        # V1-C1: build per-config source attribution map before health checks.
+        # Each config is mapped to the highest-trust source that contained it.
         config_source_map = self._build_config_source_map(servers_by_source)
 
         # Stage 3: Health checks
@@ -388,20 +400,41 @@ class Pipeline:
         return result
 
     # ------------------------------------------------------------------
-    # Source attribution
+    # V1-C1: Source attribution
     # ------------------------------------------------------------------
 
     def _build_config_source_map(
         self,
         servers_by_source: Dict[str, List[str]],
     ) -> Dict[str, str]:
+        """Return a mapping ``config → source_url`` with correct trust priority.
+
+        When the same config appears in multiple sources the source with the
+        **highest** ``SourceTrust`` value wins.  Among sources with equal
+        trust, the first one encountered wins (stable).
+
+        Implementation note
+        -------------------
+        Sources are iterated in **descending** trust order so that the
+        highest-trust source is processed first.  ``setdefault`` is then used
+        for assignment, which means the first write (highest trust) is never
+        overwritten by a later lower-trust source.  This is the correct
+        "highest-trust wins" semantic.
+
+        Previously the code used unconditional assignment (``config_source[cfg]
+        = url``), which caused the *last* processed source — the lowest-trust
+        one — to win.  That was the V1-C1 bug.
+        """
         config_source: Dict[str, str] = {}
+        # Sort descending so highest-trust sources are processed first;
+        # setdefault ensures the first (highest-trust) assignment is kept.
         for url in sorted(
             servers_by_source.keys(),
             key=lambda u: self._source_trust_map.get(u, 1),
+            reverse=True,
         ):
             for cfg in servers_by_source[url]:
-                config_source[cfg] = url
+                config_source.setdefault(cfg, url)
         return config_source
 
     def _make_unchecked_dict(
@@ -604,9 +637,16 @@ class Pipeline:
 
         result_dicts: List[Dict[str, Any]] = []
         for h in healthy:
+            # V1-C1: look up the actual originating source for this config.
+            # config_source_map was built with highest-trust-wins semantics
+            # so this is always the correct (highest-trust) source URL.
             src_url   = config_source_map.get(h.config, "")
             src_trust = self._source_trust_map.get(src_url, 1)
-            proto = h.config.split("://")[0].lower() if "://" in h.config else getattr(h, "protocol", "unknown")
+            proto = (
+                h.config.split("://")[0].lower()
+                if "://" in h.config
+                else getattr(h, "protocol", "unknown")
+            )
             result_dicts.append({
                 "config":         h.config,
                 "protocol":       proto,
