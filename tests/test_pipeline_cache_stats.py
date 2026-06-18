@@ -35,46 +35,58 @@ def _pipeline_with_stub(configs=None, check_google_204=False) -> Pipeline:
 class TestLayer3CacheAbsent(unittest.TestCase):
 
     def test_no_layer3_cache_key_without_google_204(self):
+        """layer3_cache must not appear when check_google_204=False."""
         p = _pipeline_with_stub(check_google_204=False)
         result = p.run()
         self.assertNotIn("layer3_cache", result.stats)
 
-    def test_no_layer3_cache_when_health_disabled(self):
-        p = _pipeline_with_stub(check_google_204=False)
+    def test_no_layer3_cache_when_google_204_true_but_health_skipped(self):
+        """layer3_cache must not appear when check_health=False even if
+        check_google_204=True, because _run_health is never called and
+        _health_checker is never instantiated."""
+        src = _make_source()
+        p = Pipeline(
+            sources=[src],
+            check_health=False,   # skips _run_health entirely
+            check_google_204=True,
+        )
+        p._fetch_all_sync = lambda stop, cb: {src.url: [VMESS]}
         result = p.run()
+        # _health_checker is None → the stats injection branch is skipped
         self.assertNotIn("layer3_cache", result.stats)
 
 
 # ---------------------------------------------------------------------------
-# layer3_cache present when check_google_204=True
+# layer3_cache present when check_google_204=True and health runs
 # ---------------------------------------------------------------------------
 
 class TestLayer3CachePresent(unittest.TestCase):
 
     def _run_with_mock_l3(self, cache_stats_ret=None):
-        """Run a pipeline with check_google_204=True and a mocked layer3 checker."""
+        """Run a pipeline with check_health=True, check_google_204=True and a
+        mocked HealthChecker whose _layer3_checker exposes fake cache stats."""
         if cache_stats_ret is None:
             cache_stats_ret = {"hits": 3, "misses": 7, "size": 4, "hit_rate": 30.0}
 
         src = _make_source()
         p = Pipeline(
             sources=[src],
-            check_health=False,
+            check_health=True,
             check_google_204=True,
         )
         p._fetch_all_sync = lambda stop, cb: {src.url: [VMESS]}
 
-        # Inject a fake HealthChecker with a fake _layer3_checker
+        # Build a fake HealthChecker with _layer3_checker carrying our stats.
         fake_l3 = MagicMock()
         fake_l3.cache_stats = cache_stats_ret
         fake_checker = MagicMock()
         fake_checker._layer3_checker = fake_l3
-        p._health_checker = fake_checker
-        # check_health=False skips _run_health, so we force the stats injection
-        # by temporarily enabling health to exercise the stats path
-        p.check_health = True
-        # Stub check_batch to return empty list (no real health checks)
         fake_checker.check_batch.return_value = []
+
+        # Inject the pre-built fake so _run_health reuses it instead of
+        # constructing a real one (the reuse branch: if self._health_checker
+        # is not None, skip instantiation).
+        p._health_checker = fake_checker
 
         result = p.run()
         return result, fake_l3
@@ -155,25 +167,61 @@ class TestClearCaches(unittest.TestCase):
 class TestHealthCheckerReuse(unittest.TestCase):
 
     def test_health_checker_created_once_across_runs(self):
-        """The same HealthChecker instance is reused on repeated run() calls."""
-        from v2ray_finder.health_checker import HealthChecker
+        """The same HealthChecker instance is reused on repeated run() calls.
 
+        Strategy: patch HealthChecker at its *definition* site
+        (v2ray_finder.health_checker.HealthChecker) so the local import
+        inside _run_health picks up the mock regardless of import caching.
+        The mock's return_value is a pre-built fake that satisfies the
+        interface expected by _run_health.
+        """
         src = _make_source()
         p = Pipeline(sources=[src], check_health=True)
         p._fetch_all_sync = lambda stop, cb: {src.url: [VMESS]}
 
+        fake_checker_instance = MagicMock()
+        fake_checker_instance.check_batch.return_value = []
+        # _layer3_checker must be set so stats injection doesn't crash
+        fake_checker_instance._layer3_checker = None
+
         with patch(
-            "v2ray_finder.pipeline.HealthChecker",
-            wraps=HealthChecker,
+            "v2ray_finder.health_checker.HealthChecker",
+            return_value=fake_checker_instance,
         ) as mock_hc_cls:
-            mock_hc_cls.return_value = MagicMock()
-            mock_hc_cls.return_value.check_batch.return_value = []
-
             p.run()
             p.run()
 
-            # HealthChecker should be instantiated exactly once
-            self.assertEqual(mock_hc_cls.call_count, 1)
+            # HealthChecker constructor called exactly once:
+            # second run() reuses p._health_checker set in first run().
+            self.assertEqual(
+                mock_hc_cls.call_count, 1,
+                "HealthChecker must be instantiated only once across multiple run() calls",
+            )
+
+    def test_health_checker_instance_is_same_object(self):
+        """p._health_checker is set after the first run and unchanged after
+        the second, confirming object identity reuse."""
+        src = _make_source()
+        p = Pipeline(sources=[src], check_health=True)
+        p._fetch_all_sync = lambda stop, cb: {src.url: [VMESS]}
+
+        fake_checker_instance = MagicMock()
+        fake_checker_instance.check_batch.return_value = []
+        fake_checker_instance._layer3_checker = None
+
+        with patch(
+            "v2ray_finder.health_checker.HealthChecker",
+            return_value=fake_checker_instance,
+        ):
+            p.run()
+            checker_after_first = p._health_checker
+            p.run()
+            checker_after_second = p._health_checker
+
+        self.assertIs(
+            checker_after_first, checker_after_second,
+            "_health_checker must be the same object after both runs",
+        )
 
 
 if __name__ == "__main__":
