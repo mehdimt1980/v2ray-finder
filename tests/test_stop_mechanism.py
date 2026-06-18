@@ -156,7 +156,9 @@ class TestGitHubSearchInterrupt:
 
         with patch.object(finder, "search_repos", return_value=_ok(repos)):
             with patch.object(finder, "get_repo_files", return_value=_ok(files)):
-                with patch.object(finder, "get_servers_from_url", side_effect=url_side):
+                with patch.object(
+                    finder, "get_servers_from_url", side_effect=url_side
+                ):
                     result = finder.get_servers_from_github(search_keywords=["kw"])
 
         assert "vmess://first" in result
@@ -497,15 +499,6 @@ class TestInteractiveMenu:
 
 class TestMainNonInteractivePipeline:
     """main() must exit(130) and save results when StopController is set."""
-
-    def _fake_result(self, configs=None, stopped=False):
-        r = MagicMock()
-        r.scores = []
-        r.configs = configs or []
-        r.top_configs = configs or []
-        r.stats = {}
-        r.health_dicts = None
-        return r, stopped
 
     def test_exits_130_when_stopped(self, tmp_path):
         from v2ray_finder import cli
