@@ -3,9 +3,6 @@ name: Publish to PyPI
 on:
   release:
     types: [published]
-  push:
-    tags:
-      - 'v*.*.*'
 
 jobs:
   build:
@@ -31,21 +28,12 @@ jobs:
     - name: Check package
       run: twine check dist/*
 
-    - name: Publish to Test PyPI
-      if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
-      env:
-        TWINE_USERNAME: __token__
-        TWINE_PASSWORD: ${{ secrets.TEST_PYPI_API_TOKEN }}
-      run: |
-        twine upload --repository testpypi dist/* --skip-existing
-
     - name: Publish to PyPI
-      if: github.event_name == 'release'
       env:
         TWINE_USERNAME: __token__
         TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
       run: |
-        twine upload dist/*
+        twine upload dist/* --skip-existing
 
     - name: Upload artifacts
       uses: actions/upload-artifact@v4
