@@ -19,6 +19,13 @@
 
 ---
 
+## ⚡ پورت‌های جامعه
+
+یک پورت .NET/C# توسط جامعه در [v2ray-finder-dotnet](https://github.com/rkarimabadi/v2ray-finder-dotnet) در دسترس است — مشارکت از [@rkarimabadi](https://github.com/rkarimabadi).\
+هر پیاده‌سازی مستقل است و می‌توانید از هر کدام به‌تنهایی استفاده کنید.
+
+---
+
 ## 🚀 تازه‌های نسخه 0.7.0
 
 🛡️ **مدل خطای ساختاریافته** — `FetchResult.structured_error` با فیلدهای `category` / `kind` / `message` / `retryable` برای تشخیص هوشمند خطا (V1-D2)  
@@ -171,8 +178,6 @@ async def main():
     result = await fetcher.fetch(url="https://example.com/subs.txt")
     if result.structured_error:
         err = result.structured_error
-        # {"category": "network", "kind": "timeout",
-        #  "message": "...", "retryable": True}
         if err["retryable"]:
             print(f"خطای موقت ({err['kind']}) — retry می‌شه")
         else:

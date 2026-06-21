@@ -19,6 +19,13 @@ Ziel ist es, eine saubere, deduplizierte Liste von `vmess://`-, `vless://`-, `tr
 
 ---
 
+## ⚡ Community-Portierungen
+
+Eine Community-.NET/C#-Portierung ist verfügbar unter [v2ray-finder-dotnet](https://github.com/rkarimabadi/v2ray-finder-dotnet) — beigetragen von [@rkarimabadi](https://github.com/rkarimabadi).\
+Jede Implementierung ist eigenständig. Sie können beide unabhängig voneinander verwenden.
+
+---
+
 ## 🚀 Neu in v0.2.1
 
 ### 🐛 Ctrl+C & Graceful Stop — Komplette Überarbeitung

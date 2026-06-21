@@ -19,6 +19,13 @@ The goal is to give you a clean, deduplicated list of `vmess://`, `vless://`, `t
 
 ---
 
+## ⚡ Community Ports
+
+A community .NET/C# port is available at [v2ray-finder-dotnet](https://github.com/rkarimabadi/v2ray-finder-dotnet) — contributed by [@rkarimabadi](https://github.com/rkarimabadi).\
+Each implementation is self-contained. You can use either one independently.
+
+---
+
 ## 🚀 What's New in v0.7.0
 
 🛡️ **Structured error model** — `FetchResult.structured_error` carries a `category` / `kind` / `message` / `retryable` dict, enabling smarter retry logic and richer diagnostics (V1-D2)  

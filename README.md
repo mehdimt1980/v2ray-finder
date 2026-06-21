@@ -17,23 +17,18 @@ A **high-performance** tool to **fetch, aggregate, validate and health-check pub
 
 ---
 
-## 🗂️ Repository Structure
+## ⚡ Community Ports
 
-This is a **monorepo** containing two independent implementations of v2ray-finder:
-
-| Directory | Language | Description |
-|-----------|----------|-------------|
-| *(root)* | 🐍 Python | Original Python implementation — PyPI package, CLI, GUI |
-| [`dotnet/`](dotnet/) | ⚡ .NET / C# | .NET port — contributed by the community |
-
-## ⚡ .NET Port
-A community .NET/C# port is available at [v2ray-finder-dotnet](https://github.com/rkarimabadi/v2ray-finder-dotnet) — contributed by [@rkarimabadi](https://github.com/rkarimabadi).
-
+A community .NET/C# port is available at [v2ray-finder-dotnet](https://github.com/rkarimabadi/v2ray-finder-dotnet) — contributed by [@rkarimabadi](https://github.com/rkarimabadi).\
 Each implementation is self-contained. You can use either one independently.
 
 ---
 
-## 🐍 Python — Quick Start
+## 🚀 What's New in v0.7.0
+
+🛡️ **Structured error model** — `FetchResult.structured_error` with `category` / `kind` / `message` hierarchy (V1-D2)  
+🔄 **xray Layer-3 port-contention retry** — auto-retry on a fresh OS port when xray fails to bind (V1-D4)  
+🖥️ **GUI fully migrated to Pipeline** — Stop button, real progress bar, Score/Grade/Latency columns, Failed Sources panel (V1-A2)  
 
 ```python
 from v2ray_finder import Pipeline, StopController
@@ -44,31 +39,21 @@ for score in result.scores[:5]:
     print(score.grade, score.config[:80])
 ```
 
+> **Full docs:** [README.en.md](README.en.md) | **فارسی:** [README.fa.md](README.fa.md) | **Changelog:** [CHANGELOG.md](CHANGELOG.md)
+
+---
+
+## 📦 Quick Install
+
 ```bash
 pip install v2ray-finder                # core
 pip install "v2ray-finder[async]"       # + httpx for concurrent fetch
 pip install "v2ray-finder[all]"         # everything
 ```
 
-> **Full Python docs:** [README.en.md](README.en.md) | **فارسی:** [README.fa.md](README.fa.md) | **Changelog:** [CHANGELOG.md](CHANGELOG.md)
-
 ---
 
-## ⚡ .NET — Quick Start
-
-See [`dotnet/README.md`](dotnet/README.md) for installation and usage.
-
----
-
-## 🚀 What's New in v0.7.0 (Python)
-
-🛡️ **Structured error model** — `FetchResult.structured_error` with `category` / `kind` / `message` hierarchy (V1-D2)  
-🔄 **xray Layer-3 port-contention retry** — auto-retry on a fresh OS port when xray fails to bind (V1-D4)  
-🖥️ **GUI fully migrated to Pipeline** — Stop button, real progress bar, Score/Grade/Latency columns, Failed Sources panel (V1-A2)  
-
----
-
-## 🧪 Test Coverage (Python)
+## 🧪 Test Coverage
 
 ~85% across Python 3.8–3.12, Linux, macOS & Windows.
 
