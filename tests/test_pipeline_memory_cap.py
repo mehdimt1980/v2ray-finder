@@ -15,21 +15,21 @@ Covers:
 from __future__ import annotations
 
 import logging
-from typing import Dict, List, Any
+from typing import Any, Dict, List
 
 import pytest
 
 from v2ray_finder.pipeline import (
-    Pipeline,
     _DEFAULT_MAX_CONFIGS_PER_SOURCE,
     _DEFAULT_MAX_TOTAL_CONFIGS,
+    Pipeline,
 )
 from v2ray_finder.sources import SourceEntry, SourceTrust
-
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _make_source(url: str, trust: SourceTrust = SourceTrust.MEDIUM) -> SourceEntry:
     return SourceEntry(url=url, trust=trust)
@@ -42,14 +42,17 @@ def _configs(prefix: str, n: int) -> List[str]:
 
 def _stub(data: Dict[str, List[str]]):
     """Return a _fetch_all_sync replacement that returns *data* directly."""
+
     def _fetch(stop_event, progress_callback):
         return dict(data)
+
     return _fetch
 
 
 # ---------------------------------------------------------------------------
 # Per-source cap
 # ---------------------------------------------------------------------------
+
 
 class TestPerSourceCap:
     def test_per_source_cap_truncates(self):
@@ -85,11 +88,15 @@ class TestPerSourceCap:
     def test_per_source_cap_multiple_sources(self):
         src_a = _make_source("http://src-a")
         src_b = _make_source("http://src-b")
-        p = Pipeline(sources=[src_a, src_b], check_health=False, max_configs_per_source=3)
-        p._fetch_all_sync = _stub({
-            "http://src-a": _configs("a", 10),
-            "http://src-b": _configs("b", 7),
-        })
+        p = Pipeline(
+            sources=[src_a, src_b], check_health=False, max_configs_per_source=3
+        )
+        p._fetch_all_sync = _stub(
+            {
+                "http://src-a": _configs("a", 10),
+                "http://src-b": _configs("b", 7),
+            }
+        )
         result = p.run()
         # Each source capped at 3 → 6 unique configs post-dedup
         assert len(result.configs) == 6
@@ -109,6 +116,7 @@ class TestPerSourceCap:
 # Global cap
 # ---------------------------------------------------------------------------
 
+
 class TestGlobalCap:
     def test_global_cap_truncates_after_dedup(self):
         src_a = _make_source("http://src-a")
@@ -119,10 +127,12 @@ class TestGlobalCap:
             max_configs_per_source=100,
             max_total_configs=5,
         )
-        p._fetch_all_sync = _stub({
-            "http://src-a": _configs("a", 8),
-            "http://src-b": _configs("b", 8),
-        })
+        p._fetch_all_sync = _stub(
+            {
+                "http://src-a": _configs("a", 8),
+                "http://src-b": _configs("b", 8),
+            }
+        )
         result = p.run()
         assert len(result.configs) == 5
 
@@ -182,6 +192,7 @@ class TestGlobalCap:
 # Both caps together
 # ---------------------------------------------------------------------------
 
+
 class TestBothCaps:
     def test_per_source_applied_before_global(self):
         """per-source fires first → global cap sees already-trimmed data."""
@@ -190,13 +201,15 @@ class TestBothCaps:
         p = Pipeline(
             sources=[src_a, src_b],
             check_health=False,
-            max_configs_per_source=4,   # 10→4 and 8→4 per source
-            max_total_configs=6,         # 8 unique after dedup → 6
+            max_configs_per_source=4,  # 10→4 and 8→4 per source
+            max_total_configs=6,  # 8 unique after dedup → 6
         )
-        p._fetch_all_sync = _stub({
-            "http://src-a": _configs("a", 10),
-            "http://src-b": _configs("b", 8),
-        })
+        p._fetch_all_sync = _stub(
+            {
+                "http://src-a": _configs("a", 10),
+                "http://src-b": _configs("b", 8),
+            }
+        )
         result = p.run()
         assert len(result.configs) == 6
         assert result.stats["dropped_per_source"] == (10 - 4) + (8 - 4)
@@ -222,6 +235,7 @@ class TestBothCaps:
 # ---------------------------------------------------------------------------
 # Default constants
 # ---------------------------------------------------------------------------
+
 
 class TestDefaults:
     def test_default_max_configs_per_source(self):
