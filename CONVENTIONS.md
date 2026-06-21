@@ -87,65 +87,45 @@ Each actionable item has a ready-to-paste aider prompt directly beneath it.
 
 ## 1. Critical Issues (would fail in production)
 
-### [ ] V1-C1. Per-server source attribution in pipeline is wrong
+### [x] V1-C1. Per-server source attribution in pipeline is wrong
 `pipeline.py::Pipeline._run_health` attributes EVERY healthy server to the
 *first* source URL found in `overlap_map`. This means `source_trust` and
 `overlap_ratio` (two scoring dimensions, 0.15 of total weight) are identical
 for all servers — the C4 fix is structurally defeated inside the Pipeline.
 At scale every config gets the same (often wrong) trust/overlap.
+— Fixed: `_build_config_source_map` builds per-config attribution during fetch;
+tie-breaking uses `(-trust, url)` for deterministic highest-trust-wins;
+unknown configs get `source_trust=0`; `PipelineResult.source_attribution` added.
+Tests in `tests/test_pipeline_source_attribution.py`.
 
-```
-In src/v2ray_finder/pipeline.py, fix the source attribution bug in _run_health. Currently it assigns the first source
-URL from overlap_map to every healthy server. Instead, build a per-config source map during fetch: change
-_fetch_all/_fetch_all_async/_fetch_all_sync to also return, or store on self, a dict mapping each config string to the
-SourceEntry it came from (first source wins on collision). Then in _run_health, look up each h.config in that map to set
-source_url, source_trust (from SourceEntry.trust.value), and overlap_ratio (from overlap_map[source_url]). Add a unit
-test in tests/test_pipeline.py that fetches two sources with different trust levels and asserts each scored server
-carries the trust of its actual originating source.
-```
-
-### [ ] V1-C2. AsyncFetcher / pipeline open a new httpx client per request
+### [x] V1-C2. AsyncFetcher / pipeline open a new httpx client per request
 `pipeline.py::_fetch_all_async._fetch_one` constructs `httpx.AsyncClient(...)`
 inside the per-source coroutine, so connection pooling never happens — with
 100+ sources this opens 100+ TLS sessions and exhausts ephemeral ports.
 `async_fetcher.py` is the documented real fetch path (A3) but `pipeline.py`
 re-implements its own httpx loop instead of using it.
+— Fixed: `pipeline.py` delegates all HTTP fetching to `AsyncFetcher.fetch_many`;
+one shared client per fetcher instance; own httpx loop removed.
 
-```
-In src/v2ray_finder/pipeline.py, refactor _fetch_all_async to create ONE shared httpx.AsyncClient (with
-limits=httpx.Limits(max_connections=self.fetch_concurrency, max_keepalive_connections=self.fetch_concurrency)) and
-reuse it across all source fetches via the existing semaphore. Move client creation outside _fetch_one so the single
-client is passed in. Ensure the client is closed in a finally block. Do not change the public signature of
-_fetch_all_async. Update tests/test_pipeline.py mocks accordingly.
-```
-
-### [ ] V1-C3. No GitHub rate-limit coordination on the async path
+### [x] V1-C3. No GitHub rate-limit coordination on the async path
 `core.py` tracks rate limits via `_check_rate_limit`, but the Pipeline async
 fetch path bypasses `core.py` entirely and never inspects
 `X-RateLimit-Remaining`. At 100+ sources including GitHub raw/API endpoints,
 this triggers 403/429 bans mid-run with no backoff.
+— Fixed: GitHub sources fetched via `fetch_many_async_with_cancel` with shared
+`asyncio.Event`; 403/429 fires the event and cancels remaining GitHub tasks;
+`rate_limit_delay=0.1s` between GitHub requests; `github_token` param wired.
 
-```
-In src/v2ray_finder/pipeline.py, add GitHub rate-limit awareness to _fetch_all_async. After each response, if the host
-is api.github.com or raw.githubusercontent.com and the response has X-RateLimit-Remaining, log a warning when remaining
-< 10% of limit, and if status is 403/429 with a Retry-After or X-RateLimit-Reset header, skip remaining GitHub-host
-sources for this run rather than hammering them. Add a Pipeline.__init__ param github_token: Optional[str] = None that,
-when set, adds the Authorization header to GitHub-host requests only. Add tests covering: 429 short-circuits GitHub
-sources, non-GitHub sources continue, token header applied only to github hosts.
-```
-
-### [ ] V1-C4. Unbounded memory on 10k+ configs (no streaming)
+### [x] V1-C4. Unbounded memory on 10k+ configs (no streaming)
 `Pipeline.run` holds `servers_by_source`, `configs`, `health_dicts`, and
 `scores` simultaneously. With 10k+ configs across 100+ sources the raw text
 plus parsed lists plus ServerHealth plus ServerScore objects all live at once.
 There is no cap between fetch and dedup, so a single huge source can OOM.
-
-```
-In src/v2ray_finder/pipeline.py, add a per-source config cap and a global pre-dedup cap. Add Pipeline.__init__ params
-max_configs_per_source: int = 5000 and max_total_configs: Optional[int] = 50000. In _parse_configs callers, truncate
-each source's parsed list to max_configs_per_source. After dedup, before health checks, truncate to max_total_configs if
-set. Log how many were dropped. Add tests asserting both caps are enforced.
-```
+— Fixed: `max_configs_per_source` (default 5 000) truncates each source after
+parse; `max_total_configs` (default 50 000, pass `None` to disable) truncates
+after dedup; both limits logged via `logger.warning`; drop counts surfaced in
+`PipelineResult.stats["dropped_per_source"]` and `stats["dropped_global"]`.
+Tests in `tests/test_pipeline_memory_cap.py`.
 
 ---
 
@@ -184,7 +164,7 @@ stated v1.0.0 requirements.
 
 ```
 In src/v2ray_finder/gui/main_window.py, rewrite WorkerThread to run v2ray_finder.pipeline.Pipeline. Pass a
-StopController and connect its event to a Stop button. Emit a new progress(stage:str, current:int, total:int,
+StopController and connect its event to a Stop button. Emit a new progress(stage:str, current:int, total:str,
 message:str) signal from Pipeline's progress_callback (marshal via the worker thread, not directly to widgets). Emit
 finished(result: PipelineResult). Add GUI controls for check_health, check_http_probe, check_google_204,
 min_quality_score, fetch_concurrency, and limit. In MainWindow.on_fetch_finished, populate the table from result.scores
