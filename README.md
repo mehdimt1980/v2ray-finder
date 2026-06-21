@@ -26,6 +26,9 @@ This is a **monorepo** containing two independent implementations of v2ray-finde
 | *(root)* | 🐍 Python | Original Python implementation — PyPI package, CLI, GUI |
 | [`dotnet/`](dotnet/) | ⚡ .NET / C# | .NET port — contributed by the community |
 
+## ⚡ .NET Port
+A community .NET/C# port is available at [v2ray-finder-dotnet](https://github.com/rkarimabadi/v2ray-finder-dotnet) — contributed by [@rkarimabadi](https://github.com/rkarimabadi).
+
 Each implementation is self-contained. You can use either one independently.
 
 ---
