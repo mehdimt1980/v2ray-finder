@@ -508,9 +508,7 @@ class AsyncFetcher:
                     return await self._fetch_with_aiohttp(session, url)
 
                 tasks = [
-                    asyncio.ensure_future(
-                        _guarded(i, url, _fetch_fn=_fetch_aio)
-                    )
+                    asyncio.ensure_future(_guarded(i, url, _fetch_fn=_fetch_aio))
                     for i, url in enumerate(urls)
                 ]
                 try:
@@ -532,9 +530,7 @@ class AsyncFetcher:
                     return await self._fetch_with_httpx(client, url)
 
                 tasks = [
-                    asyncio.ensure_future(
-                        _guarded(i, url, _fetch_fn=_fetch_httpx)
-                    )
+                    asyncio.ensure_future(_guarded(i, url, _fetch_fn=_fetch_httpx))
                     for i, url in enumerate(urls)
                 ]
                 try:

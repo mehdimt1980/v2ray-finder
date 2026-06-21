@@ -673,6 +673,7 @@ class Pipeline:
         The shared ``asyncio.Event`` is created inside the coroutine so it
         lives in the correct event loop.
         """
+
         async def _run() -> List[FetchResult]:
             cancel_event = asyncio.Event()
             return await fetcher.fetch_many_async_with_cancel(
