@@ -1,7 +1,7 @@
 """Pipeline orchestrator for v2ray-finder.
 
 Provides a single :class:`Pipeline` entry point that owns the full
-discovery \u2192 fetch \u2192 dedup \u2192 health \u2192 score \u2192 output chain.
+discovery → fetch → dedup → health → score → output chain.
 
 Progress callback protocol
 --------------------------
@@ -50,9 +50,16 @@ Source attribution (V1-C1)
 --------------------------
 Each config is attributed to the **highest-trust** source that contained it.
 When the same config appears in multiple sources the source with the
-highest ``SourceTrust`` value wins (first-wins among equals).  This means
-``source_trust`` and ``overlap_ratio`` in every health/score dict always
-reflect the real originating source, not an arbitrary one.
+highest ``SourceTrust`` value wins; among equal-trust sources the
+lexicographically smallest URL wins (deterministic, stable across runs).
+This means ``source_trust`` and ``overlap_ratio`` in every health/score dict
+always reflect the real originating source, not an arbitrary one.
+
+Configs that survive dedup but are absent from ``servers_by_source`` (e.g.
+injected by a test stub that bypasses the fetch stage) receive
+``source_url=""`` and ``source_trust=0`` so the scorer does not silently
+reward them with a positive trust value.  A WARNING is emitted once per run
+for the first such config.
 
 Unified error model (V1-D2)
 ---------------------------
@@ -116,6 +123,7 @@ import json
 import logging
 import re
 import threading
+from collections import defaultdict
 from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, List, Optional
 from urllib.parse import urlparse
@@ -200,6 +208,53 @@ class PipelineResult:
     def top_configs(self) -> List[str]:
         return [s.config for s in self.scores]
 
+    # V1-C1: source attribution summary -----------------------------------
+
+    @property
+    def source_attribution(self) -> Dict[str, Any]:
+        """V1-C1: per-source config count and trust distribution.
+
+        Returns a dict::
+
+            {
+              "by_source": {
+                  "<url>": {
+                      "config_count": int,
+                      "source_trust": int,
+                  },
+                  ...
+              },
+              "trust_distribution": {
+                  0: int,   # count of configs with unknown trust
+                  1: int,   # LOW
+                  2: int,   # MEDIUM
+                  3: int,   # HIGH
+                  ...
+              },
+              "unattributed_count": int,  # configs with source_url=""
+            }
+        """
+        by_source: Dict[str, Dict[str, Any]] = {}
+        trust_dist: Dict[int, int] = defaultdict(int)
+        unattributed = 0
+
+        for d in self.health_dicts:
+            url = d.get("source_url", "")
+            trust = d.get("source_trust", 0)
+            if not url:
+                unattributed += 1
+            else:
+                if url not in by_source:
+                    by_source[url] = {"config_count": 0, "source_trust": trust}
+                by_source[url]["config_count"] += 1
+            trust_dist[trust] += 1
+
+        return {
+            "by_source": by_source,
+            "trust_distribution": dict(trust_dist),
+            "unattributed_count": unattributed,
+        }
+
     # V3-A1: serialisation -------------------------------------------------
 
     def to_dict(self) -> Dict[str, Any]:
@@ -207,17 +262,15 @@ class PipelineResult:
 
         Keys
         ----
-        stats    -- pipeline run statistics (fetched, deduped, healthy, ...).
-                    Includes ``layer3_cache`` when Layer 3 ran (V1-Q4).
-                    ``errors`` is now a ``Dict[str, dict]`` with structured
-                    error payloads (V1-D2).
-        servers  -- list of :meth:`~scorer.ServerScore.to_dict` dicts,
-                    ordered by score (best first).
-        configs  -- raw config strings in score order (convenience duplicate).
+        stats             -- pipeline run statistics.
+        source_attribution -- V1-C1 per-source config count + trust summary.
+        servers           -- list of :meth:`~scorer.ServerScore.to_dict` dicts.
+        configs           -- raw config strings in score order.
         """
         servers = [s.to_dict() for s in self.scores]
         return {
             "stats": self.stats,
+            "source_attribution": self.source_attribution,
             "servers": servers,
             "configs": [s["config"] for s in servers] if servers else self.configs,
         }
@@ -230,20 +283,7 @@ class PipelineResult:
 
     @property
     def failed_sources(self) -> Dict[str, dict]:
-        """V1-D2: sources that failed during fetch.
-
-        Returns ``Dict[str, dict]`` where each value is a structured error
-        payload from the ``V2RayFinderError`` hierarchy::
-
-            {
-              "error_type": str,   # e.g. "timeout_error"
-              "message":    str,
-              "details":    dict,
-            }
-
-        For the legacy plain-string view use
-        :attr:`failed_source_messages`.
-        """
+        """V1-D2: sources that failed during fetch."""
         errors = self.stats.get("errors")
         if isinstance(errors, dict):
             return {
@@ -255,12 +295,7 @@ class PipelineResult:
 
     @property
     def failed_source_messages(self) -> Dict[str, str]:
-        """V1-D2: legacy ``Dict[str, str]`` view of fetch errors.
-
-        Returns the ``message`` field from each structured error, or the
-        raw string value for entries not yet migrated to the structured
-        format.
-        """
+        """V1-D2: legacy ``Dict[str, str]`` view of fetch errors."""
         errors = self.stats.get("errors")
         if not isinstance(errors, dict):
             return {}
@@ -279,7 +314,7 @@ class PipelineResult:
 
 
 class Pipeline:
-    """Full discovery \u2192 fetch \u2192 dedup \u2192 health \u2192 score pipeline."""
+    """Full discovery → fetch → dedup → health → score pipeline."""
 
     def __init__(
         self,
@@ -388,7 +423,6 @@ class Pipeline:
 
         for url in list(servers_by_source.keys()):
             val = servers_by_source[url]
-            # V1-D2: accept both structured dicts and legacy strings as errors
             if isinstance(val, (str, dict)) and not isinstance(val, list):
                 stats["errors"][url] = (
                     val
@@ -431,6 +465,7 @@ class Pipeline:
             result.stats = stats
             return result
 
+        # V1-C1: build per-config source map BEFORE health stage
         config_source_map = self._build_config_source_map(servers_by_source)
 
         # Stage 3: Health checks
@@ -458,7 +493,7 @@ class Pipeline:
             return result
 
         # Stage 4: Score
-        self._emit(progress_callback, "score", 0, 1, "Scoring servers\u2026")
+        self._emit(progress_callback, "score", 0, 1, "Scoring servers…")
         result.scores = score_servers(
             result.health_dicts,
             overlap_map=overlap_map,
@@ -478,12 +513,19 @@ class Pipeline:
         self,
         servers_by_source: Dict[str, List[str]],
     ) -> Dict[str, str]:
-        """Return config \u2192 source_url with highest-trust-wins semantics."""
+        """Return config → source_url with highest-trust-wins semantics.
+
+        Tie-breaking rule (V1-C1 fix): when two sources share identical
+        trust, the lexicographically *smallest* URL wins.  This makes the
+        result deterministic across runs regardless of dict insertion order.
+
+        Sort key: ``(-trust, url)`` — descending trust, then ascending URL.
+        ``setdefault`` keeps the first winner; subsequent sources are ignored.
+        """
         config_source: Dict[str, str] = {}
         for url in sorted(
             servers_by_source.keys(),
-            key=lambda u: self._source_trust_map.get(u, 1),
-            reverse=True,
+            key=lambda u: (-self._source_trust_map.get(u, 1), u),
         ):
             for cfg in servers_by_source[url]:
                 config_source.setdefault(cfg, url)
@@ -496,7 +538,16 @@ class Pipeline:
         overlap_map: Dict[str, float],
     ) -> Dict[str, Any]:
         src_url = config_source_map.get(config, "")
-        src_trust = self._source_trust_map.get(src_url, 1)
+        # V1-C1 fix: unknown configs get trust=0, not 1 (MEDIUM), so the
+        # scorer does not silently reward them with a positive trust score.
+        if src_url:
+            src_trust = self._source_trust_map.get(src_url, 1)
+        else:
+            src_trust = 0
+            logger.warning(
+                "[pipeline] config not found in any source, attribution unknown: %s…",
+                config[:60],
+            )
         proto = config.split("://")[0].lower() if "://" in config else "unknown"
         return {
             "config": config,
@@ -529,7 +580,7 @@ class Pipeline:
         non_github_urls = [s.url for s in self.sources if not _is_github_url(s.url)]
         total = len(self.sources)
 
-        self._emit(progress_callback, "fetch", 0, total, "Starting fetch\u2026")
+        self._emit(progress_callback, "fetch", 0, total, "Starting fetch…")
 
         base_headers = {"User-Agent": "v2ray-finder/1.0"}
         github_headers = dict(base_headers)
@@ -566,7 +617,7 @@ class Pipeline:
                     "fetch",
                     completed,
                     total,
-                    f"Cache hit {completed}/{total}\u2026",
+                    f"Cache hit {completed}/{total}…",
                 )
             else:
                 urls_to_fetch_ng.append(url)
@@ -599,7 +650,7 @@ class Pipeline:
                     "fetch",
                     completed,
                     total,
-                    f"Fetched {completed}/{total} sources\u2026",
+                    f"Fetched {completed}/{total} sources…",
                 )
 
         # ----------------------------------------------------------------
@@ -616,15 +667,12 @@ class Pipeline:
                     "fetch",
                     completed,
                     total,
-                    f"Cache hit {completed}/{total}\u2026",
+                    f"Cache hit {completed}/{total}…",
                 )
             else:
                 urls_to_fetch_gh.append(url)
 
         if urls_to_fetch_gh and not stop_event.is_set():
-            # V1-C2: one AsyncFetcher \u2192 one shared connection pool for all GitHub URLs
-            # V1-C3: rate_limit_delay spreads requests; fetch_many_async_with_cancel
-            #        fires a shared cancel_event on first 403/429, aborting remaining tasks
             github_fetcher = AsyncFetcher(
                 max_concurrent=min(self.fetch_concurrency, 5),
                 timeout=float(self.fetch_timeout),
@@ -655,7 +703,7 @@ class Pipeline:
                     "fetch",
                     completed,
                     total,
-                    f"Fetched {completed}/{total} sources\u2026",
+                    f"Fetched {completed}/{total} sources…",
                 )
 
         self._emit(progress_callback, "fetch", total, total, "Fetch complete.")
@@ -666,13 +714,7 @@ class Pipeline:
         fetcher: AsyncFetcher,
         urls: List[str],
     ) -> List[FetchResult]:
-        """Run GitHub URL fetches using ``fetch_many_async_with_cancel``.
-
-        Wraps the coroutine in ``asyncio.run`` (or uses the running loop via
-        a thread-pool when called from within an already-running event loop).
-        The shared ``asyncio.Event`` is created inside the coroutine so it
-        lives in the correct event loop.
-        """
+        """Run GitHub URL fetches using ``fetch_many_async_with_cancel``."""
 
         async def _run() -> List[FetchResult]:
             cancel_event = asyncio.Event()
@@ -702,7 +744,7 @@ class Pipeline:
                 servers_by_source[fr.url] = parsed
                 logger.debug("[pipeline] %s: %d configs.", fr.url, len(parsed))
         else:
-            logger.warning("[pipeline] %s: fetch failed \u2014 %s.", fr.url, fr.error)
+            logger.warning("[pipeline] %s: fetch failed — %s.", fr.url, fr.error)
 
     # ------------------------------------------------------------------
     # Stage 3: Health
@@ -741,7 +783,7 @@ class Pipeline:
                 batch_start,
                 total,
                 f"Health checking "
-                f"{batch_start + 1}\u2013{min(batch_start + self.health_batch_size, total)}\u2026",
+                f"{batch_start + 1}–{min(batch_start + self.health_batch_size, total)}…",
             )
             try:
                 all_health.extend(checker.check_batch(batch))
@@ -757,7 +799,15 @@ class Pipeline:
         result_dicts: List[Dict[str, Any]] = []
         for h in healthy:
             src_url = config_source_map.get(h.config, "")
-            src_trust = self._source_trust_map.get(src_url, 1)
+            # V1-C1 fix: unknown configs get trust=0, not 1 (MEDIUM)
+            if src_url:
+                src_trust = self._source_trust_map.get(src_url, 1)
+            else:
+                src_trust = 0
+                logger.warning(
+                    "[pipeline] healthy config not found in any source: %s…",
+                    h.config[:60],
+                )
             proto = (
                 h.config.split("://")[0].lower()
                 if "://" in h.config
