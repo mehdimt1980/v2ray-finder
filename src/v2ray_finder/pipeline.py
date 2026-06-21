@@ -1,7 +1,7 @@
 """Pipeline orchestrator for v2ray-finder.
 
 Provides a single :class:`Pipeline` entry point that owns the full
-discovery → fetch → dedup → health → score → output chain.
+discovery \u2192 fetch \u2192 dedup \u2192 health \u2192 score \u2192 output chain.
 
 Progress callback protocol
 --------------------------
@@ -69,6 +69,23 @@ Use :attr:`PipelineResult.failed_sources` for the structured view, or
 :attr:`PipelineResult.failed_source_messages` for the legacy
 ``Dict[str, str]`` view.
 
+Connection pooling (V1-C2)
+--------------------------
+All sources (GitHub + non-GitHub) are fetched in a **single** async run
+using one ``AsyncFetcher`` instance per group, each backed by one shared
+connection pool.  This eliminates the double port / DNS overhead that
+occurred when two separate ``AsyncFetcher`` objects were created
+sequentially for the two source groups.
+
+GitHub rate-limit early-cancel (V1-C3)
+--------------------------------------
+GitHub sources use :meth:`~async_fetcher.AsyncFetcher.fetch_many_async_with_cancel`
+with a shared ``asyncio.Event``.  The moment any GitHub URL returns 403/429
+the event fires and all remaining GitHub tasks are cancelled immediately,
+preventing wasted connections and avoiding further rate-limit violations.
+A small ``rate_limit_delay`` (0.1 s) is inserted between GitHub requests
+to reduce burst pressure.
+
 Stub-ability
 ------------
 Tests may replace :meth:`_fetch_all_sync` on an instance::
@@ -94,6 +111,7 @@ Example
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import re
@@ -126,6 +144,7 @@ _DEFAULT_FETCH_CONCURRENCY = 10
 _DEFAULT_MAX_CONFIGS_PER_SOURCE = 5_000
 _DEFAULT_MAX_TOTAL_CONFIGS = 50_000
 _DEFAULT_CACHE_TTL = 3_600
+_GITHUB_RATE_LIMIT_DELAY = 0.1  # seconds between GitHub requests (V1-C3)
 
 ProgressCallback = Optional[Callable[[str, int, int, str], None]]
 
@@ -260,7 +279,7 @@ class PipelineResult:
 
 
 class Pipeline:
-    """Full discovery → fetch → dedup → health → score pipeline."""
+    """Full discovery \u2192 fetch \u2192 dedup \u2192 health \u2192 score pipeline."""
 
     def __init__(
         self,
@@ -439,7 +458,7 @@ class Pipeline:
             return result
 
         # Stage 4: Score
-        self._emit(progress_callback, "score", 0, 1, "Scoring servers…")
+        self._emit(progress_callback, "score", 0, 1, "Scoring servers\u2026")
         result.scores = score_servers(
             result.health_dicts,
             overlap_map=overlap_map,
@@ -459,7 +478,7 @@ class Pipeline:
         self,
         servers_by_source: Dict[str, List[str]],
     ) -> Dict[str, str]:
-        """Return config → source_url with highest-trust-wins semantics."""
+        """Return config \u2192 source_url with highest-trust-wins semantics."""
         config_source: Dict[str, str] = {}
         for url in sorted(
             servers_by_source.keys(),
@@ -504,12 +523,13 @@ class Pipeline:
         stop_event: threading.Event,
         progress_callback: ProgressCallback,
     ) -> Dict[str, Any]:
-        """Fetch all sources with TTL cache support and GitHub rate-limit handling."""
+        """Fetch all sources with TTL cache, shared connection pool (V1-C2),
+        and GitHub rate-limit early-cancel (V1-C3)."""
         github_urls = [s.url for s in self.sources if _is_github_url(s.url)]
         non_github_urls = [s.url for s in self.sources if not _is_github_url(s.url)]
         total = len(self.sources)
 
-        self._emit(progress_callback, "fetch", 0, total, "Starting fetch…")
+        self._emit(progress_callback, "fetch", 0, total, "Starting fetch\u2026")
 
         base_headers = {"User-Agent": "v2ray-finder/1.0"}
         github_headers = dict(base_headers)
@@ -532,7 +552,9 @@ class Pipeline:
             if self._cache is not None:
                 self._cache.set(self._cache._make_key("source", url), text)
 
-        # Non-GitHub sources
+        # ----------------------------------------------------------------
+        # Non-GitHub sources  (V1-C2: one fetcher, one shared pool)
+        # ----------------------------------------------------------------
         urls_to_fetch_ng: List[str] = []
         for url in non_github_urls:
             hit, configs = _try_cache(url)
@@ -544,7 +566,7 @@ class Pipeline:
                     "fetch",
                     completed,
                     total,
-                    f"Cache hit {completed}/{total}…",
+                    f"Cache hit {completed}/{total}\u2026",
                 )
             else:
                 urls_to_fetch_ng.append(url)
@@ -562,7 +584,6 @@ class Pipeline:
                     _store_cache(fr.url, fr.content)
                     self._process_fetch_result(fr, servers_by_source)
                 elif not fr.success:
-                    # V1-D2: store structured error, fall back to plain string
                     servers_by_source[fr.url] = (
                         fr.structured_error
                         if fr.structured_error is not None
@@ -578,10 +599,12 @@ class Pipeline:
                     "fetch",
                     completed,
                     total,
-                    f"Fetched {completed}/{total} sources…",
+                    f"Fetched {completed}/{total} sources\u2026",
                 )
 
-        # GitHub sources
+        # ----------------------------------------------------------------
+        # GitHub sources  (V1-C2 + V1-C3: shared pool + early-cancel)
+        # ----------------------------------------------------------------
         urls_to_fetch_gh: List[str] = []
         for url in github_urls:
             hit, configs = _try_cache(url)
@@ -593,67 +616,79 @@ class Pipeline:
                     "fetch",
                     completed,
                     total,
-                    f"Cache hit {completed}/{total}…",
+                    f"Cache hit {completed}/{total}\u2026",
                 )
             else:
                 urls_to_fetch_gh.append(url)
 
         if urls_to_fetch_gh and not stop_event.is_set():
+            # V1-C2: one AsyncFetcher \u2192 one shared connection pool for all GitHub URLs
+            # V1-C3: rate_limit_delay spreads requests; fetch_many_async_with_cancel
+            #        fires a shared cancel_event on first 403/429, aborting remaining tasks
             github_fetcher = AsyncFetcher(
                 max_concurrent=min(self.fetch_concurrency, 5),
                 timeout=float(self.fetch_timeout),
                 headers=github_headers,
+                rate_limit_delay=_GITHUB_RATE_LIMIT_DELAY,
             )
-            github_rate_limited = False
-            for fr in github_fetcher.fetch_many(urls_to_fetch_gh):
+            gh_results = self._run_github_fetch(github_fetcher, urls_to_fetch_gh)
+
+            for fr in gh_results:
                 if stop_event.is_set():
                     break
-                if github_rate_limited:
-                    logger.debug(
-                        "[pipeline] Skipping %s (GitHub rate-limited).", fr.url
-                    )
-                elif fr.status_code in (403, 429):
-                    logger.warning(
-                        "[pipeline] GitHub rate limit on %s (HTTP %d).",
-                        fr.url,
-                        fr.status_code,
-                    )
-                    github_rate_limited = True
-                    # V1-D2: structured rate-limit error
+                if fr.success and fr.content:
+                    _store_cache(fr.url, fr.content)
+                    self._process_fetch_result(fr, servers_by_source)
+                else:
                     servers_by_source[fr.url] = (
                         fr.structured_error
                         if fr.structured_error is not None
                         else {
-                            "error_type": "rate_limit_exceeded",
-                            "message": f"rate_limited:{fr.status_code}",
-                            "details": {"status_code": fr.status_code},
+                            "error_type": "unknown_error",
+                            "message": fr.error or "fetch failed",
+                            "details": {},
                         }
                     )
-                else:
-                    if fr.success and fr.content:
-                        _store_cache(fr.url, fr.content)
-                        self._process_fetch_result(fr, servers_by_source)
-                    elif not fr.success:
-                        servers_by_source[fr.url] = (
-                            fr.structured_error
-                            if fr.structured_error is not None
-                            else {
-                                "error_type": "unknown_error",
-                                "message": fr.error or "fetch failed",
-                                "details": {},
-                            }
-                        )
                 completed += 1
                 self._emit(
                     progress_callback,
                     "fetch",
                     completed,
                     total,
-                    f"Fetched {completed}/{total} sources…",
+                    f"Fetched {completed}/{total} sources\u2026",
                 )
 
         self._emit(progress_callback, "fetch", total, total, "Fetch complete.")
         return servers_by_source
+
+    @staticmethod
+    def _run_github_fetch(
+        fetcher: AsyncFetcher,
+        urls: List[str],
+    ) -> List[FetchResult]:
+        """Run GitHub URL fetches using ``fetch_many_async_with_cancel``.
+
+        Wraps the coroutine in ``asyncio.run`` (or uses the running loop via
+        a thread-pool when called from within an already-running event loop).
+        The shared ``asyncio.Event`` is created inside the coroutine so it
+        lives in the correct event loop.
+        """
+        async def _run() -> List[FetchResult]:
+            cancel_event = asyncio.Event()
+            return await fetcher.fetch_many_async_with_cancel(
+                urls, cancel_event=cancel_event
+            )
+
+        try:
+            loop = asyncio.get_event_loop()
+            if loop.is_running():
+                import concurrent.futures
+
+                with concurrent.futures.ThreadPoolExecutor(max_workers=1) as ex:
+                    return ex.submit(asyncio.run, _run()).result()
+            return loop.run_until_complete(_run())
+        except RuntimeError:
+            return asyncio.run(_run())
 
     @staticmethod
     def _process_fetch_result(
@@ -666,7 +701,7 @@ class Pipeline:
                 servers_by_source[fr.url] = parsed
                 logger.debug("[pipeline] %s: %d configs.", fr.url, len(parsed))
         else:
-            logger.warning("[pipeline] %s: fetch failed — %s.", fr.url, fr.error)
+            logger.warning("[pipeline] %s: fetch failed \u2014 %s.", fr.url, fr.error)
 
     # ------------------------------------------------------------------
     # Stage 3: Health
@@ -705,7 +740,7 @@ class Pipeline:
                 batch_start,
                 total,
                 f"Health checking "
-                f"{batch_start + 1}–{min(batch_start + self.health_batch_size, total)}…",
+                f"{batch_start + 1}\u2013{min(batch_start + self.health_batch_size, total)}\u2026",
             )
             try:
                 all_health.extend(checker.check_batch(batch))

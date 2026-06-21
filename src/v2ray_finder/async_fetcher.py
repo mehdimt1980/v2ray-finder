@@ -123,6 +123,23 @@ class AsyncFetcher:
 
     Automatically falls back to httpx if aiohttp is not available,
     and to sync requests if neither is available.
+
+    Parameters
+    ----------
+    max_concurrent : int
+        Maximum number of simultaneous in-flight requests (semaphore cap).
+    timeout : float
+        Per-request timeout in seconds.
+    max_retries : int
+        Number of retry attempts for transient errors.
+    retry_delay : float
+        Base delay (seconds) for exponential back-off between retries.
+    headers : dict, optional
+        Default HTTP headers sent with every request.
+    rate_limit_delay : float
+        Extra sleep (seconds) inserted *before* each request inside
+        ``fetch_many_async_with_cancel``.  Useful for GitHub sources where
+        tight concurrent bursts trigger 429s.  Default: 0 (no extra delay).
     """
 
     def __init__(
@@ -132,12 +149,14 @@ class AsyncFetcher:
         max_retries: int = 3,
         retry_delay: float = 1.0,
         headers: Optional[Dict[str, str]] = None,
+        rate_limit_delay: float = 0.0,
     ):
         self.max_concurrent = max_concurrent
         self.timeout = timeout
         self.max_retries = max_retries
         self.retry_delay = retry_delay
         self.headers = headers or {}
+        self.rate_limit_delay = rate_limit_delay
 
         if AIOHTTP_AVAILABLE:
             self.backend = "aiohttp"
@@ -370,7 +389,7 @@ class AsyncFetcher:
         )
 
     # ------------------------------------------------------------------
-    # fetch_many_async
+    # fetch_many_async  (unchanged public API)
     # ------------------------------------------------------------------
 
     async def fetch_many_async(self, urls: List[str]) -> List[FetchResult]:
@@ -406,6 +425,136 @@ class AsyncFetcher:
                 "Install with: pip install 'v2ray-finder[async]'. "
                 "Use fetch_many() for automatic sync fallback."
             )
+
+    # ------------------------------------------------------------------
+    # V1-C3: fetch_many_async_with_cancel
+    # ------------------------------------------------------------------
+
+    async def fetch_many_async_with_cancel(
+        self,
+        urls: List[str],
+        cancel_event: Optional[asyncio.Event] = None,
+    ) -> List[FetchResult]:
+        """Fetch *urls* concurrently with early-cancel support.
+
+        Unlike :meth:`fetch_many_async`, this coroutine:
+
+        * Respects a shared ``cancel_event`` (``asyncio.Event``) — the moment
+          the event is set, all pending tasks are cancelled immediately.
+        * Inserts ``self.rate_limit_delay`` seconds of sleep before each
+          request (semaphore-guarded), reducing burst pressure on
+          rate-limited hosts (e.g. GitHub raw URLs).
+        * Sets *cancel_event* itself when it receives a 403/429 response,
+          so sibling tasks stop immediately without waiting for the full
+          gather to finish.
+
+        Parameters
+        ----------
+        urls:
+            List of URLs to fetch.
+        cancel_event:
+            Shared ``asyncio.Event``.  Pass the same event to multiple
+            ``fetch_many_async_with_cancel`` calls if you want one group
+            to cancel the other on rate-limit.  A fresh event is created
+            internally when *None* is given.
+
+        Returns
+        -------
+        List of :class:`FetchResult` in the same order as *urls*.
+        Cancelled tasks produce a ``FetchResult`` with ``success=False``
+        and ``error='cancelled'``.
+        """
+        if not urls:
+            return []
+
+        if cancel_event is None:
+            cancel_event = asyncio.Event()
+
+        semaphore = asyncio.Semaphore(self.max_concurrent)
+        results: List[Optional[FetchResult]] = [None] * len(urls)
+
+        async def _guarded(idx: int, url: str, **fetch_kwargs) -> None:
+            if cancel_event.is_set():
+                results[idx] = _cancelled_result(url)
+                return
+            async with semaphore:
+                if cancel_event.is_set():
+                    results[idx] = _cancelled_result(url)
+                    return
+                if self.rate_limit_delay > 0:
+                    await asyncio.sleep(self.rate_limit_delay)
+                fr = await fetch_kwargs["_fetch_fn"](url)
+                # Fire cancel_event if rate-limited so siblings stop fast
+                if fr.status_code in (403, 429):
+                    logger.warning(
+                        "[async_fetcher] Rate limit on %s (HTTP %d) — "
+                        "cancelling remaining tasks.",
+                        url,
+                        fr.status_code,
+                    )
+                    cancel_event.set()
+                results[idx] = fr
+
+        if self.backend == "aiohttp":
+            timeout_obj = aiohttp.ClientTimeout(total=self.timeout)
+            connector = aiohttp.TCPConnector(limit=self.max_concurrent)
+            async with aiohttp.ClientSession(
+                headers=self.headers,
+                timeout=timeout_obj,
+                connector=connector,
+            ) as session:
+
+                async def _fetch_aio(url: str) -> FetchResult:
+                    return await self._fetch_with_aiohttp(session, url)
+
+                tasks = [
+                    asyncio.ensure_future(
+                        _guarded(i, url, _fetch_fn=_fetch_aio)
+                    )
+                    for i, url in enumerate(urls)
+                ]
+                try:
+                    await asyncio.gather(*tasks, return_exceptions=True)
+                finally:
+                    for t in tasks:
+                        if not t.done():
+                            t.cancel()
+
+        elif self.backend == "httpx":
+            limits = httpx.Limits(max_connections=self.max_concurrent)
+            async with httpx.AsyncClient(
+                headers=self.headers,
+                timeout=self.timeout,
+                limits=limits,
+            ) as client:
+
+                async def _fetch_httpx(url: str) -> FetchResult:
+                    return await self._fetch_with_httpx(client, url)
+
+                tasks = [
+                    asyncio.ensure_future(
+                        _guarded(i, url, _fetch_fn=_fetch_httpx)
+                    )
+                    for i, url in enumerate(urls)
+                ]
+                try:
+                    await asyncio.gather(*tasks, return_exceptions=True)
+                finally:
+                    for t in tasks:
+                        if not t.done():
+                            t.cancel()
+
+        else:
+            raise RuntimeError(
+                "fetch_many_async_with_cancel() requires aiohttp or httpx."
+            )
+
+        # Fill any slots that never got a result (task cancelled before writing)
+        for i, url in enumerate(urls):
+            if results[i] is None:
+                results[i] = _cancelled_result(url)
+
+        return results  # type: ignore[return-value]
 
     @staticmethod
     def _handle_gather_results(
@@ -532,6 +681,29 @@ class AsyncFetcher:
                     return loop.run_until_complete(self.fetch_many_async(urls))
             except RuntimeError:
                 return asyncio.run(self.fetch_many_async(urls))
+
+
+# ---------------------------------------------------------------------------
+# Internal helpers
+# ---------------------------------------------------------------------------
+
+
+def _cancelled_result(url: str) -> FetchResult:
+    """Produce a FetchResult representing a task cancelled due to rate-limit."""
+    msg, se = _rate_limit_error(url, 429)
+    return FetchResult(
+        url=url,
+        content=None,
+        status_code=None,
+        success=False,
+        error="cancelled",
+        elapsed_ms=0.0,
+        structured_error={
+            "error_type": "rate_limit_exceeded",
+            "message": "Request cancelled — upstream rate limit detected.",
+            "details": {"reason": "sibling_rate_limited"},
+        },
+    )
 
 
 # ---------------------------------------------------------------------------
