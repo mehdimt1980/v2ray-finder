@@ -57,7 +57,12 @@ jobs:
       - name: Install Buildozer
         run: |
           python -m pip install --upgrade pip wheel setuptools
-          python -m pip install buildozer cython
+          # python-for-android / Kivy Android builds are still most reliable on
+          # the classic Cython line. Avoid accidentally pulling a breaking
+          # major Cython release on fresh GitHub runners.
+          python -m pip install "cython<3.0" buildozer
+          buildozer --version
+          python -m pip freeze | grep -E "buildozer|Cython|python-for-android" || true
 
       - name: Cache Buildozer and Gradle
         uses: actions/cache@v4
@@ -73,7 +78,17 @@ jobs:
 
       - name: Build debug APK
         run: |
-          buildozer android debug
+          buildozer -v android debug
+
+      - name: Upload Buildozer logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: buildozer-failure-logs
+          path: |
+            .buildozer/**/*.log
+            .buildozer/android/platform/**/*.log
+          if-no-files-found: ignore
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
