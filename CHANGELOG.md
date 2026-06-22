@@ -9,6 +9,78 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [1.0.0] — 2026-06-22
+
+First stable release. All V1 sprint items resolved. Production-ready at scale
+(100+ sources, 10k+ configs).
+
+### Added
+
+- **Pipeline orchestrator** (`pipeline.py`) — single `Pipeline` class owning the
+  full discovery → fetch → dedup → health-check → score chain with
+  `StopController` cancellation, `progress_callback`, memory caps
+  (`max_configs_per_source`, `max_total_configs`), and `clear_caches()`.
+- **Per-config source attribution** (`V1-C1`) — `_build_config_source_map`
+  builds per-config attribution during fetch; highest-trust-wins tie-breaking;
+  `PipelineResult.source_attribution` added.
+- **GitHub rate-limit coordination** (`V1-C3`) — 403/429 short-circuits
+  remaining GitHub sources via shared `asyncio.Event`; `rate_limit_delay=0.1s`
+  between GitHub requests; `github_token` param wired through.
+- **Memory caps** (`V1-C4`) — `max_configs_per_source` (5 000) and
+  `max_total_configs` (50 000) prevent OOM; drop counts in
+  `PipelineResult.stats["dropped_per_source"]` and `stats["dropped_global"]`.
+- **CLI Pipeline migration** (`V1-A1`) — `cli.py` and `cli_rich.py` fully
+  wired to `Pipeline`; flags `--check-health`, `--xray-check`, `--xray-binary`,
+  `--min-quality`, `--health-timeout`, `--limit`, `-o`, `--stats-only`,
+  `--prompt-token`; `StopController` wired to Ctrl+C (exit 130).
+- **GUI Pipeline migration** (`V1-A2`) — `WorkerThread` runs
+  `Pipeline.run(stop_event=…, progress_callback=…)`; 7-column sortable result
+  table; `PipelineOptionsWidget`; stats bar; Failed Sources panel; all updates
+  signal-only (thread-safe).
+- **Public API surface** (`V1-A3`) — `__init__.py` defines explicit `__all__`;
+  `find_servers()` top-level convenience function; module docstring with
+  quick-start examples.
+- **Structured result serialisation** (`V1-A4`) — `ServerScore.to_dict()` /
+  `to_json()`; `PipelineResult.to_dict()` / `to_json()`;
+  `PipelineResult.failed_sources` property.
+- **`FetchResult.structured_error`** (`V1-D2`) — machine-readable error payload
+  (`category` / `kind` / `message` / `retryable`) across all three fetch
+  backends; `PipelineResult.failed_source_messages` backward-compat view.
+- **xray Layer-3 port-contention retry** (`V1-D4`) — `check_one()` retries
+  once with a fresh OS-assigned port; `RealHealthResult.retried` flag;
+  `_try_start_xray()` helper guarantees resource cleanup.
+- **`py.typed` marker** (`V1-D3`) — downstream `mypy` now picks up inline
+  type hints; `pyproject.toml` mypy overrides for `pipeline`, `scorer`,
+  `cache`, `async_fetcher`.
+- **Deterministic score tie-breaking** (`V1-Q3`) — composite sort key
+  (total desc → latency_ms asc → config asc) in `score_servers` /
+  `sort_by_score`; reproducible order across runs.
+- **Cache stats + clear hook** (`V1-Q4`) — `PipelineResult.stats["layer3_cache"]`
+  populated when `check_google_204=True`; `Pipeline.clear_caches()` added.
+- **`AsyncFetcher` as sole HTTP path** (`V1-A3 / V1-D1`) — `pipeline.py`
+  delegates all fetching to `AsyncFetcher.fetch_many`; own httpx loop removed;
+  connection pooling and backoff unified.
+
+### Changed
+
+- `pyproject.toml` version bumped `0.7.0 → 1.0.0`; Development Status
+  classifier updated to `5 - Production/Stable`.
+- `Pipeline.run()` stats dict includes `errors`, `dropped_per_source`,
+  `dropped_global`, and `layer3_cache` keys.
+- `_make_unchecked_dict` now extracts `protocol` from config string.
+- `score_servers` / `sort_by_score` / `sort_by_quality` all use `_sort_key`
+  composite comparator.
+
+### Tests
+
+- 30 test files; all V1 sprint items have dedicated test modules:
+  `test_pipeline_source_attribution.py`, `test_pipeline_memory_cap.py`,
+  `test_pipeline_error_model.py`, `test_pipeline_cache_stats.py`,
+  `test_xray_retry.py`, `test_stop_mechanism.py`, `test_gui.py`,
+  `test_cli_pipeline.py`.
+
+---
+
 ## [0.7.0] — 2026-06-18
 
 ### Added (V1 Sprint — quality & stability)
