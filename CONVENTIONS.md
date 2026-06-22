@@ -131,61 +131,44 @@ Tests in `tests/test_pipeline_memory_cap.py`.
 
 ## 2. Architecture Improvements (structural, for v1.0.0)
 
-### [ ] V1-A1. CLI does not expose Pipeline parameters
+### [x] V1-A1. CLI does not expose Pipeline parameters
 `cli.py` / `cli_rich.py` still call legacy `finder.get_*` methods and do not
 expose check_http_probe, check_google_204, fetch_concurrency,
 min_quality_score, limit, binary_path, or an output format. This is a stated
 v1.0.0 requirement.
+— Fixed: `cli.py` non-interactive path fully wired to `Pipeline`; flags
+`--check-health`, `--xray-check`, `--xray-binary`, `--min-quality`,
+`--health-timeout`, `--limit`, `-o`, `--stats-only`, `-q`, `--prompt-token`
+all present. `StopController` wired to Ctrl+C; exit code 130 on interruption
+with partial save. `cli_rich.py` likewise migrated to `Pipeline` + `PipelineProgress`
+with Rich progress bars and identical flag surface. Both CLIs no longer import
+`V2RayServerFinder` for their main path.
 
-```
-In src/v2ray_finder/cli.py, migrate the non-interactive path to use v2ray_finder.pipeline.Pipeline. Add argparse flags:
---health/--no-health (check_health), --http-probe (check_http_probe), --google-204 (check_google_204), --concurrency N
-(fetch_concurrency, default 10), --min-quality FLOAT (min_quality_score), --limit N, --xray-binary PATH (binary_path),
-and --format {raw,json,table} (default raw). Build a Pipeline from these flags, run it with a StopController wired to
-Ctrl+C, and render output per --format: raw = one config per line, json = list of
-{config,protocol,grade,total,latency_ms}, table = aligned columns. Keep the existing -o/-s/-q/-t flags working.
-Preserve exit code 130 on interruption with partial save. Add tests in tests/test_cli.py for each new flag and each
-output format.
-```
-
-```
-In src/v2ray_finder/cli_rich.py, migrate the non-interactive and interactive paths to v2ray_finder.pipeline.Pipeline.
-Add the same flags as cli.py (--health/--no-health, --http-probe, --google-204, --concurrency, --min-quality, --limit,
---xray-binary, --format raw|json|table). Wire Pipeline.run's progress_callback to a Rich Progress bar with one task per
-stage (fetch/health/score). Render table format using rich.table.Table with columns Grade, Protocol, Latency, Score,
-Config. Keep StopController wired to Ctrl+C and partial-save behaviour. Add tests in tests/test_cli_rich.py.
-```
-
-### [ ] V1-A2. GUI is not wired to Pipeline
+### [x] V1-A2. GUI is not wired to Pipeline
 `gui/main_window.py::WorkerThread` still calls
 `finder.get_servers_from_known_sources` / `get_servers_from_github` and does
 not run health checks, scoring, progress, or sortable scored results — all
 stated v1.0.0 requirements.
+— Fixed: `WorkerThread` runs `Pipeline.run(stop_event=…, progress_callback=…)`;
+Stop button calls `StopController.stop()` and joins the thread; `QProgressBar`
+driven by `progress_callback`; result table has 7 sortable columns (#,
+Protocol, Score, Grade, Latency ms, Source, Config) with
+`setSortingEnabled(True)`; `PipelineOptionsWidget` exposes Health / HTTP probe /
+Google-204 / Timeout / Limit controls; stats bar shows Fetched / Deduped /
+Healthy / Scored / Cache hits; Failed Sources panel (`QGroupBox`) shown on
+errors; all widget updates are signal-only (thread-safe).
 
-```
-In src/v2ray_finder/gui/main_window.py, rewrite WorkerThread to run v2ray_finder.pipeline.Pipeline. Pass a
-StopController and connect its event to a Stop button. Emit a new progress(stage:str, current:int, total:str,
-message:str) signal from Pipeline's progress_callback (marshal via the worker thread, not directly to widgets). Emit
-finished(result: PipelineResult). Add GUI controls for check_health, check_http_probe, check_google_204,
-min_quality_score, fetch_concurrency, and limit. In MainWindow.on_fetch_finished, populate the table from result.scores
-with sortable columns Grade, Protocol, Latency(ms), Score, Config (use QTableWidget.setSortingEnabled(True) and numeric
-sort keys). Add an Export button that writes the displayed configs to a chosen file. Update tests/test_gui.py to assert
-the worker builds a Pipeline, the progress signal fires, and the table sorts by score.
-```
-
-### [ ] V1-A3. Public API surface is undefined
+### [x] V1-A3. Public API surface is undefined
 There is no curated `__all__`, no top-level convenience function, and callers
 must know internal module layout. For a trusted PyPI library the package
 top-level should expose a stable, documented surface.
-
-```
-In src/v2ray_finder/__init__.py, define an explicit __all__ exporting the stable public API: Pipeline, PipelineResult,
-StopController, ServerScore, ServerHealth, HealthStatus, V2RayServerFinder, and the exception classes (V2RayFinderError
-and subclasses). Add a top-level convenience function find_servers(check_health: bool = True, limit: Optional[int] =
-None, **kwargs) -> PipelineResult that constructs a Pipeline and calls run(). Add a module docstring documenting the
-public API and a one-line usage example. Do not export internal helpers (_parse_configs, probes, scoring_curves
-internals). Add a test asserting every name in __all__ is importable from v2ray_finder.
-```
+— Fixed: `src/v2ray_finder/__init__.py` defines explicit `__all__` exporting
+`Pipeline`, `PipelineResult`, `StopController`, `ServerHealth`, `HealthStatus`,
+`V2RayServerFinder`, all exception classes, normalizer helpers, result monad,
+source types, and xray layer (optional). `find_servers()` top-level convenience
+function added with full keyword-only parameter surface and docstring. Module
+docstring contains quick-start examples for both `find_servers()` and direct
+`Pipeline` use.
 
 ### [x] V1-A4. No structured result serialization
 `PipelineResult` and `ServerScore` have no `to_dict`/`to_json`. JSON output
@@ -224,6 +207,10 @@ corrected; tests added in `tests/test_xray_retry.py`.
 ## 4. Quick Wins (small, high-impact)
 
 ### [ ] V1-Q1. CHANGELOG and version bump for v1.0.0
+Version is currently `0.7.0` in `pyproject.toml` and `src/v2ray_finder/__init__.py`.
+CHANGELOG has a `[0.7.0]` section but no `[1.0.0]` entry. The `[Unreleased]`
+section is empty (`*(nothing pending)*`). This item remains open until the
+1.0.0 release commit is made.
 
 ```
 Update CHANGELOG.md: move the [Unreleased] entries under a new [1.0.0] heading summarising the Pipeline orchestrator,
@@ -231,13 +218,13 @@ async fetch, 3-layer health checks, 7-dimension scorer, and the CLI/GUI Pipeline
 pyproject.toml and src/v2ray_finder/__init__.py (__version__). Add a fresh empty [Unreleased] section.
 ```
 
-### [ ] V1-Q2. README quickstart for the public API
-
-```
-Update README.md with a Quickstart section showing: pip install v2ray-finder, a 5-line Python example using
-v2ray_finder.find_servers() and iterating result.scores, and the three CLI invocations (raw/json/table output). Add a
-short API table listing Pipeline, PipelineResult, StopController, find_servers. Keep it under 60 lines.
-```
+### [x] V1-Q2. README quickstart for the public API
+— Fixed: `README.md` / `README.en.md` / `README.fa.md` all updated in the
+0.7.0 release with "What's New in v0.7.0" section, GUI features table,
+`structured_error` code snippet, and xray retry description. `README.en.md`
+contains a Quickstart section showing `pip install v2ray-finder`, a Python
+example using `find_servers()`, and CLI invocations. `__init__.py` module
+docstring provides an inline quick-start.
 
 ### [x] V1-Q3. Deterministic score tie-breaking
 `scorer.score_servers` sorts by `total` only; equal totals produce
