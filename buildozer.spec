@@ -17,9 +17,11 @@ source.exclude_patterns = *.pyc,*.pyo,*.pyd,*.so,*.dylib,*.dll
 # Version shown by Android
 version = 1.0.0
 
-# Runtime dependencies. Keep this intentionally small for Android stability.
-# The mobile app uses the synchronous requests fallback of AsyncFetcher.
-requirements = python3,kivy,requests,certifi,charset-normalizer,idna,urllib3
+# Runtime dependencies.
+# Keep this list small: python-for-android has recipes for these packages and
+# will resolve the pure-Python requests dependencies itself. Listing every
+# transitive dependency manually can break p4a's recipe resolution.
+requirements = python3,kivy,openssl,requests
 
 # Main Kivy entrypoint
 presplash.filename =
@@ -35,7 +37,10 @@ android.api = 35
 android.minapi = 23
 android.ndk = 25b
 android.accept_sdk_license = True
-android.archs = arm64-v8a, armeabi-v7a
+
+# Build one modern ABI first. Multi-arch builds are slower and often fail during
+# p4a bootstrap creation on CI; add armeabi-v7a later after arm64 is stable.
+android.archs = arm64-v8a
 android.allow_backup = False
 
 # Build output
