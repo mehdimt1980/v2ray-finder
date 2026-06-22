@@ -1,0 +1,105 @@
+name: Build Android APK
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "main.py"
+      - "buildozer.spec"
+      - "src/**"
+      - ".github/workflows/android-apk.yml"
+  push:
+    branches:
+      - feature/android-kivy-ui
+
+jobs:
+  build-apk:
+    name: Build debug APK
+    runs-on: ubuntu-22.04
+    timeout-minutes: 90
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Install Linux build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            autoconf \
+            automake \
+            build-essential \
+            ccache \
+            git \
+            libffi-dev \
+            libltdl-dev \
+            libssl-dev \
+            libtool \
+            openjdk-17-jdk \
+            pkg-config \
+            python3-pip \
+            python3-setuptools \
+            unzip \
+            zip \
+            zlib1g-dev
+
+      - name: Install Buildozer
+        run: |
+          python -m pip install --upgrade pip wheel setuptools
+          # python-for-android / Kivy Android builds are still most reliable on
+          # the classic Cython line. Avoid accidentally pulling a breaking
+          # major Cython release on fresh GitHub runners.
+          python -m pip install "cython<3.0" buildozer
+          buildozer --version
+          python -m pip freeze | grep -E "buildozer|Cython|python-for-android" || true
+
+      - name: Cache Gradle only
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ runner.os }}-${{ hashFiles('buildozer.spec') }}
+          restore-keys: |
+            gradle-${{ runner.os }}-
+
+      - name: Clean stale Buildozer state
+        run: |
+          # Avoid reusing cached CPython 3.14 / p4a partial builds from previous
+          # failed attempts after switching the Android Python recipe to 3.11.9.
+          rm -rf .buildozer
+          rm -rf ~/.buildozer/android/platform/build-*
+
+      - name: Build debug APK
+        run: |
+          set -o pipefail
+          buildozer -v android debug 2>&1 | tee buildozer-build.log
+
+      - name: Upload Buildozer logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: buildozer-failure-logs
+          path: |
+            buildozer-build.log
+            .buildozer/**/*.log
+            .buildozer/android/platform/**/*.log
+          if-no-files-found: ignore
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: v2ray-finder-debug-apk
+          path: bin/*.apk
+          if-no-files-found: error
