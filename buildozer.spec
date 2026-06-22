@@ -18,10 +18,10 @@ source.exclude_patterns = *.pyc,*.pyo,*.pyd,*.so,*.dylib,*.dll
 version = 1.0.0
 
 # Runtime dependencies.
-# Keep this list small: python-for-android has recipes for these packages and
-# will resolve the pure-Python requests dependencies itself. Listing every
-# transitive dependency manually can break p4a's recipe resolution.
-requirements = python3,kivy,openssl,requests
+# Pin both python3 and hostpython3. Newer python-for-android defaults may build
+# CPython 3.14, whose remote-debugging source currently fails on this Android
+# CI toolchain. Python 3.11.9 avoids that code path and is stable for Kivy.
+requirements = python3==3.11.9,hostpython3==3.11.9,kivy,openssl,requests
 
 # Main Kivy entrypoint
 presplash.filename =
