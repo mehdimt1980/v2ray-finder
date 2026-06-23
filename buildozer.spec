@@ -6,7 +6,6 @@ package.domain = org.mehdimt
 
 source.dir = .
 source.include_exts = py,kv,txt,md,toml,json
-source.include_patterns = main.py,v2ray_finder/**,README*.md,LICENSE,NOTICE
 source.exclude_dirs = .git,.github,tests,docs,htmlcov,build,dist,.venv,venv,__pycache__,src
 source.exclude_patterns = *.pyc,*.pyo,*.pyd,*.so,*.dylib,*.dll
 
