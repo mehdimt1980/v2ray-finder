@@ -71,39 +71,48 @@ jobs:
           restore-keys: |
             gradle-${{ runner.os }}-
 
-      - name: Verify source layout
+      - name: Create Android staging project
         run: |
+          rm -rf android_build
+          mkdir -p android_build
+          cp main.py android_build/main.py
+          cp buildozer.spec android_build/buildozer.spec
+          cp -R v2ray_finder android_build/v2ray_finder
+          cp README.md LICENSE NOTICE pyproject.toml android_build/ 2>/dev/null || true
+          find android_build -type d -name __pycache__ -prune -exec rm -rf {} +
           python - <<'PY'
           from pathlib import Path
-          required = [Path('main.py'), Path('v2ray_finder/__init__.py'), Path('v2ray_finder/pipeline.py')]
+          root = Path('android_build')
+          required = [root / 'main.py', root / 'v2ray_finder/__init__.py', root / 'v2ray_finder/pipeline.py']
           missing = [str(p) for p in required if not p.exists()]
           if missing:
-              raise SystemExit('Missing required source files: ' + ', '.join(missing))
-          package_files = sorted(str(p) for p in Path('v2ray_finder').rglob('*.py'))
-          print('Root package files:', len(package_files))
-          print('\n'.join(package_files[:30]))
+              raise SystemExit('Missing staged source files: ' + ', '.join(missing))
+          package_files = sorted(str(p.relative_to(root)) for p in (root / 'v2ray_finder').rglob('*.py'))
+          print('Android staging package files:', len(package_files))
+          print('\n'.join(package_files[:50]))
           PY
 
       - name: Clean stale Buildozer state
         run: |
-          rm -rf .buildozer
+          rm -rf android_build/.buildozer
           rm -rf ~/.buildozer/android/platform/build-*
 
       - name: Build debug APK
+        working-directory: android_build
         run: |
           set -o pipefail
-          buildozer -v android debug 2>&1 | tee buildozer-build.log
+          buildozer -v android debug 2>&1 | tee ../buildozer-build.log
 
       - name: Verify APK contains root package
         run: |
-          APK=$(ls -1 bin/*.apk | head -n 1)
+          APK=$(ls -1 android_build/bin/*.apk | head -n 1)
           python - <<'PY'
           import io
           import tarfile
           import zipfile
           from pathlib import Path
 
-          apk = Path(next(Path('bin').glob('*.apk')))
+          apk = Path(next(Path('android_build/bin').glob('*.apk')))
           with zipfile.ZipFile(apk) as zf:
               private = zf.read('assets/private.tar')
           with tarfile.open(fileobj=io.BytesIO(private), mode='r:*') as tf:
@@ -112,7 +121,7 @@ jobs:
           required = {'main.pyc', 'v2ray_finder/__init__.pyc', 'v2ray_finder/pipeline.pyc'}
           missing = sorted(required - set(names))
           print('APK private.tar file count:', len(names))
-          print('\n'.join(names[:100]))
+          print('\n'.join(names[:120]))
           if missing:
               raise SystemExit('APK is missing required packaged files: ' + ', '.join(missing))
           PY
@@ -125,13 +134,13 @@ jobs:
           path: |
             buildozer-build.log
             private-files.txt
-            .buildozer/**/*.log
-            .buildozer/android/platform/**/*.log
+            android_build/.buildozer/**/*.log
+            android_build/.buildozer/android/platform/**/*.log
           if-no-files-found: ignore
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: v2ray-finder-debug-apk
-          path: bin/*.apk
+          path: android_build/bin/*.apk
           if-no-files-found: error
