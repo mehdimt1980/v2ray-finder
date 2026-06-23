@@ -1,67 +1,61 @@
 # Android APK build guide
 
-This branch adds a mobile Android frontend for `v2ray-finder` using Kivy and Buildozer.
+The Android app is now built with a native Android Gradle project and Chaquopy.
+Buildozer/Kivy was removed from the Android build path because it only packaged
+`main.pyc` and did not reliably include the `v2ray_finder` package.
 
-## What is included
+## Current Android architecture
 
-- `main.py` — touch-first mobile UI for Android and desktop testing.
-- `buildozer.spec` — Android packaging configuration.
-- `.github/workflows/android-apk.yml` — GitHub Actions workflow that builds a debug APK and uploads it as an artifact.
+```text
+v2ray_finder/                  # Core Python engine
+android_app/
+  settings.gradle
+  build.gradle
+  app/
+    build.gradle               # Android + Chaquopy config
+    src/main/AndroidManifest.xml
+    src/main/java/.../MainActivity.java
+    src/main/python/android_bridge.py
+```
 
-## Mobile feature set
+The GitHub Actions workflow copies the root `v2ray_finder/` package into:
 
-The first Android release supports:
+```text
+android_app/app/src/main/python/v2ray_finder/
+```
 
-- fetching public V2Ray/Xray config links through the existing `Pipeline`
-- optional TCP health checking
-- score and grade display
-- fetched / unique / healthy / scored statistics
-- stop button with `StopController`
-- copy all results to clipboard
-- save results to the app data directory
-
-Layer-3 xray / Google-204 probing is intentionally disabled in the Android UI for now. Running the native xray binary inside an APK needs a separate Android-specific packaging strategy.
+Then Gradle and Chaquopy package the Python bridge and the real engine into the APK.
 
 ## Build APK on GitHub
 
-1. Push this branch to GitHub.
-2. Open the repository on GitHub.
-3. Go to **Actions**.
-4. Select **Build Android APK**.
-5. Click **Run workflow**.
-6. When the workflow finishes, download the artifact named `v2ray-finder-debug-apk`.
+1. Open the repository on GitHub.
+2. Go to **Actions**.
+3. Select **Build Android APK**.
+4. Click **Run workflow**.
+5. Download the artifact named `v2ray-finder-chaquopy-debug-apk`.
 
-The workflow builds a debug APK from `buildozer.spec` and uploads `bin/*.apk`.
+## What the Android app supports
 
-## Build locally on Linux or WSL
+- Native Android UI
+- GitHub token input
+- Limit and timeout controls
+- Optional TCP health check
+- Running the real `v2ray_finder.Pipeline`
+- Score and grade display
+- Result copy to clipboard
 
-Install Buildozer:
+Layer-3 xray / Google-204 probing is still disabled for Android. Bundling and running the native xray binary on Android needs a separate platform-specific implementation.
 
-```bash
-python -m pip install --upgrade pip wheel setuptools
-python -m pip install buildozer cython
-```
+## Local build
 
-Then run:
-
-```bash
-buildozer android debug
-```
-
-The APK will be created in the `bin/` directory.
-
-## Test the UI on desktop
-
-Install Kivy and run:
+Install Java 17 and Gradle, then run:
 
 ```bash
-python -m pip install kivy requests
-python main.py
+gradle -p android_app :app:assembleDebug
 ```
 
-## Important notes
+The APK will be created under:
 
-- The APK needs the Android `INTERNET` permission.
-- Keep the first mobile runs small, for example limit `100` or `200`, because Android devices are slower than desktop machines.
-- Health checking can be slow because it opens TCP connections to many servers.
-- If the APK build fails because of Android SDK/NDK download issues, rerun the workflow once; Buildozer downloads a large toolchain on the first run.
+```text
+android_app/app/build/outputs/apk/debug/
+```
