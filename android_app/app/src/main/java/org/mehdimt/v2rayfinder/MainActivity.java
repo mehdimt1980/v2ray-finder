@@ -30,12 +30,15 @@ import java.util.List;
 import java.util.Locale;
 
 public class MainActivity extends Activity {
-    private final int bg = Color.rgb(8, 17, 31);
-    private final int surface = Color.rgb(20, 29, 47);
-    private final int surface2 = Color.rgb(30, 42, 65);
-    private final int text = Color.rgb(236, 243, 255);
-    private final int muted = Color.rgb(156, 173, 198);
-    private final int accent = Color.rgb(48, 135, 246);
+    private final int bg = Color.rgb(7, 12, 27);
+    private final int surface = Color.rgb(19, 29, 51);
+    private final int surface2 = Color.rgb(33, 47, 82);
+    private final int surface3 = Color.rgb(24, 39, 71);
+    private final int text = Color.rgb(241, 246, 255);
+    private final int muted = Color.rgb(160, 178, 205);
+    private final int accent = Color.rgb(17, 145, 255);
+    private final int success = Color.rgb(80, 220, 170);
+    private final int warning = Color.rgb(255, 190, 80);
     private final int danger = Color.rgb(232, 70, 88);
 
     private EditText tokenInput;
@@ -56,6 +59,8 @@ public class MainActivity extends Activity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        getWindow().setStatusBarColor(bg);
+        getWindow().setNavigationBarColor(bg);
         setContentView(buildUi());
     }
 
@@ -63,35 +68,40 @@ public class MainActivity extends Activity {
         ScrollView scroll = new ScrollView(this);
         scroll.setFillViewport(true);
         scroll.setBackgroundColor(bg);
+        scroll.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
 
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
         root.setPadding(dp(16), dp(18), dp(16), dp(18));
         root.setGravity(Gravity.CENTER_HORIZONTAL);
+        root.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
         scroll.addView(root);
 
-        LinearLayout header = card();
+        LinearLayout header = card(surface3, 22);
         header.setOrientation(LinearLayout.VERTICAL);
-        TextView title = label("V2Ray Finder", 30, text, true);
-        TextView subtitle = label("Real v2ray_finder engine • Android", 14, muted, false);
+        TextView title = label("V2Ray Finder", 30, text, true, false);
+        TextView subtitle = label("یابنده هوشمند کانفیگ‌های V2Ray برای کاربران ایران", 14, muted, false, true);
+        TextView hint = label("اسکن، ارزیابی سلامت و کپی سریع سرورها", 12, muted, false, true);
         header.addView(title);
         header.addView(subtitle);
+        header.addView(hint);
         root.addView(header, matchWrap());
 
-        LinearLayout controls = card();
+        LinearLayout controls = card(surface, 22);
         controls.setOrientation(LinearLayout.VERTICAL);
         controls.setPadding(dp(14), dp(14), dp(14), dp(14));
 
-        tokenInput = input("GitHub token optional", true);
-        controls.addView(tokenInput, matchHeight(52));
+        tokenInput = input("توکن گیت‌هاب (اختیاری)", true, true);
+        controls.addView(tokenInput, matchHeight(54));
 
         LinearLayout row = new LinearLayout(this);
         row.setOrientation(LinearLayout.HORIZONTAL);
-        row.setPadding(0, dp(10), 0, dp(10));
-        limitInput = input("Limit", false);
+        row.setPadding(0, dp(10), 0, dp(8));
+        row.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
+        limitInput = input("تعداد نتایج", false, false);
         limitInput.setText("200");
         limitInput.setInputType(InputType.TYPE_CLASS_NUMBER);
-        timeoutInput = input("Timeout", false);
+        timeoutInput = input("مهلت اتصال", false, false);
         timeoutInput.setText("5");
         timeoutInput.setInputType(InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL);
         row.addView(limitInput, weight());
@@ -100,16 +110,19 @@ public class MainActivity extends Activity {
         controls.addView(row);
 
         healthBox = new CheckBox(this);
-        healthBox.setText("TCP health check");
+        healthBox.setText("بررسی سلامت TCP");
         healthBox.setTextColor(text);
         healthBox.setTextSize(14);
+        healthBox.setGravity(Gravity.RIGHT | Gravity.CENTER_VERTICAL);
+        healthBox.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
         controls.addView(healthBox);
 
         LinearLayout buttons = new LinearLayout(this);
         buttons.setOrientation(LinearLayout.HORIZONTAL);
         buttons.setPadding(0, dp(10), 0, 0);
-        startButton = button("Start Scan", accent);
-        copyButton = button("Copy", surface2);
+        buttons.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
+        startButton = button("شروع اسکن", accent);
+        copyButton = button("کپی همه", surface2);
         copyButton.setEnabled(false);
         startButton.setOnClickListener(v -> startScan());
         copyButton.setOnClickListener(v -> copyResults());
@@ -122,25 +135,27 @@ public class MainActivity extends Activity {
         LinearLayout stats = new LinearLayout(this);
         stats.setOrientation(LinearLayout.HORIZONTAL);
         stats.setPadding(0, dp(12), 0, dp(12));
-        fetchedText = statCard("Fetched", stats);
-        uniqueText = statCard("Unique", stats);
-        healthyText = statCard("Healthy", stats);
-        scoredText = statCard("Scored", stats);
+        stats.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
+        fetchedText = statCard("دریافتی", stats);
+        uniqueText = statCard("یکتا", stats);
+        healthyText = statCard("سالم", stats);
+        scoredText = statCard("رتبه‌بندی", stats);
         root.addView(stats, matchWrap());
 
-        LinearLayout statusCard = card();
+        LinearLayout statusCard = card(surface, 18);
         statusCard.setOrientation(LinearLayout.VERTICAL);
-        statusText = label("Ready. Use a low limit first on Android.", 14, text, false);
+        statusText = label("آماده است. برای شروع، تعداد ۲۰۰ انتخاب خوبی است.", 14, text, false, true);
         progressBar = new ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal);
         progressBar.setMax(100);
         progressBar.setProgress(0);
         statusCard.addView(statusText);
-        statusCard.addView(progressBar, matchHeight(18));
+        statusCard.addView(progressBar, matchHeight(14));
         root.addView(statusCard, matchWrap());
 
         resultList = new LinearLayout(this);
         resultList.setOrientation(LinearLayout.VERTICAL);
         resultList.setPadding(0, dp(12), 0, 0);
+        resultList.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
         root.addView(resultList, matchWrap());
 
         return scroll;
@@ -151,7 +166,7 @@ public class MainActivity extends Activity {
         resultList.removeAllViews();
         setStats("0", "0", "0", "0");
         setBusy(true);
-        statusText.setText("Starting Python engine...");
+        statusText.setText("در حال راه‌اندازی موتور پایتون...");
         progressBar.setIndeterminate(true);
 
         int limit = parseInt(limitInput.getText().toString(), 200);
@@ -195,20 +210,23 @@ public class MainActivity extends Activity {
             JSONArray items = payload.optJSONArray("items");
             resultList.removeAllViews();
             if (items == null || items.length() == 0) {
-                resultList.addView(resultRow("No scored results", "Try disabling health check or increasing the limit."));
+                resultList.addView(resultRow("نتیجه‌ای پیدا نشد", "بررسی سلامت را خاموش کن یا تعداد نتایج را بیشتر کن.", "", false));
             } else {
-                for (int i = 0; i < Math.min(items.length(), 100); i++) {
+                int shown = Math.min(items.length(), 100);
+                resultList.addView(sectionTitle("بهترین کانفیگ‌ها — نمایش " + shown + " مورد اول"));
+                for (int i = 0; i < shown; i++) {
                     JSONObject item = items.getJSONObject(i);
-                    String line1 = String.format(Locale.US, "#%d  %s  •  %s  •  %.2f",
-                            i + 1,
-                            item.optString("protocol", "?").toUpperCase(Locale.US),
-                            item.optString("grade", "?"),
-                            item.optDouble("total", 0.0));
-                    String line2 = item.optString("config", "");
-                    resultList.addView(resultRow(line1, line2));
+                    String protocol = item.optString("protocol", "?").toUpperCase(Locale.US);
+                    String grade = item.optString("grade", "?");
+                    double score = item.optDouble("total", 0.0);
+                    String latency = item.isNull("latency_ms") ? "نامشخص" : String.format(Locale.US, "%.0f ms", item.optDouble("latency_ms", 0.0));
+                    String title = "#" + (i + 1) + "  " + protocol + "  •  کیفیت " + grade + "  •  امتیاز " + String.format(Locale.US, "%.2f", score);
+                    String meta = "تاخیر: " + latency;
+                    String config = item.optString("config", "");
+                    resultList.addView(resultRow(title, meta, config, true));
                 }
             }
-            statusText.setText("Done. " + latestConfigs.size() + " configs ready.");
+            statusText.setText("تمام شد. " + latestConfigs.size() + " کانفیگ آماده است.");
             copyButton.setEnabled(!latestConfigs.isEmpty());
         } catch (Exception ex) {
             showError(ex);
@@ -218,19 +236,26 @@ public class MainActivity extends Activity {
     }
 
     private void showError(Exception ex) {
-        statusText.setText("Error: " + ex.getMessage());
-        resultList.addView(resultRow("Python error", String.valueOf(ex)));
+        statusText.setText("خطا: " + ex.getMessage());
+        resultList.addView(resultRow("خطای موتور پایتون", String.valueOf(ex), "", false));
         setBusy(false);
     }
 
     private void copyResults() {
         ClipboardManager cm = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
         cm.setPrimaryClip(ClipData.newPlainText("v2ray configs", String.join("\n", latestConfigs)));
-        statusText.setText("Copied " + latestConfigs.size() + " configs.");
+        statusText.setText(latestConfigs.size() + " کانفیگ کپی شد.");
+    }
+
+    private void copyOne(String config) {
+        ClipboardManager cm = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
+        cm.setPrimaryClip(ClipData.newPlainText("v2ray config", config));
+        statusText.setText("یک کانفیگ کپی شد.");
     }
 
     private void setBusy(boolean busy) {
         startButton.setEnabled(!busy);
+        startButton.setText(busy ? "در حال اسکن..." : "شروع اسکن");
         progressBar.setIndeterminate(busy);
         if (!busy) progressBar.setProgress(100);
     }
@@ -242,12 +267,13 @@ public class MainActivity extends Activity {
         scoredText.setText(scored);
     }
 
-    private LinearLayout card() {
+    private LinearLayout card(int color, int radius) {
         LinearLayout layout = new LinearLayout(this);
         layout.setPadding(dp(14), dp(14), dp(14), dp(14));
+        layout.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
         GradientDrawable bgDrawable = new GradientDrawable();
-        bgDrawable.setColor(surface);
-        bgDrawable.setCornerRadius(dp(18));
+        bgDrawable.setColor(color);
+        bgDrawable.setCornerRadius(dp(radius));
         layout.setBackground(bgDrawable);
         LinearLayout.LayoutParams lp = matchWrap();
         lp.setMargins(0, 0, 0, dp(12));
@@ -255,17 +281,18 @@ public class MainActivity extends Activity {
         return layout;
     }
 
-    private TextView label(String value, int size, int color, boolean bold) {
+    private TextView label(String value, int size, int color, boolean bold, boolean rtl) {
         TextView tv = new TextView(this);
         tv.setText(value);
         tv.setTextSize(size);
         tv.setTextColor(color);
-        tv.setGravity(Gravity.START);
+        tv.setGravity(rtl ? Gravity.RIGHT : Gravity.LEFT);
+        tv.setTextDirection(rtl ? View.TEXT_DIRECTION_RTL : View.TEXT_DIRECTION_LTR);
         if (bold) tv.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
         return tv;
     }
 
-    private EditText input(String hint, boolean password) {
+    private EditText input(String hint, boolean password, boolean rtl) {
         EditText input = new EditText(this);
         input.setHint(hint);
         input.setHintTextColor(muted);
@@ -273,10 +300,12 @@ public class MainActivity extends Activity {
         input.setSingleLine(true);
         input.setTextSize(14);
         input.setPadding(dp(12), 0, dp(12), 0);
+        input.setGravity(rtl ? Gravity.RIGHT | Gravity.CENTER_VERTICAL : Gravity.LEFT | Gravity.CENTER_VERTICAL);
+        input.setTextDirection(rtl ? View.TEXT_DIRECTION_RTL : View.TEXT_DIRECTION_LTR);
         input.setInputType(password ? (InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD) : InputType.TYPE_CLASS_TEXT);
         GradientDrawable bgDrawable = new GradientDrawable();
         bgDrawable.setColor(surface2);
-        bgDrawable.setCornerRadius(dp(12));
+        bgDrawable.setCornerRadius(dp(14));
         input.setBackground(bgDrawable);
         return input;
     }
@@ -284,12 +313,13 @@ public class MainActivity extends Activity {
     private Button button(String title, int color) {
         Button btn = new Button(this);
         btn.setText(title);
+        btn.setAllCaps(false);
         btn.setTextColor(text);
         btn.setTextSize(14);
         btn.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
         GradientDrawable bgDrawable = new GradientDrawable();
         bgDrawable.setColor(color);
-        bgDrawable.setCornerRadius(dp(12));
+        bgDrawable.setCornerRadius(dp(14));
         btn.setBackground(bgDrawable);
         return btn;
     }
@@ -298,13 +328,14 @@ public class MainActivity extends Activity {
         LinearLayout card = new LinearLayout(this);
         card.setOrientation(LinearLayout.VERTICAL);
         card.setPadding(dp(10), dp(8), dp(10), dp(8));
+        card.setGravity(Gravity.RIGHT);
         GradientDrawable bgDrawable = new GradientDrawable();
         bgDrawable.setColor(surface);
-        bgDrawable.setCornerRadius(dp(14));
+        bgDrawable.setCornerRadius(dp(16));
         card.setBackground(bgDrawable);
 
-        TextView top = label(title.toUpperCase(Locale.US), 10, muted, false);
-        TextView value = label("0", 20, text, true);
+        TextView top = label(title, 10, muted, false, true);
+        TextView value = label("0", 20, text, true, false);
         card.addView(top);
         card.addView(value);
         LinearLayout.LayoutParams lp = weight();
@@ -313,14 +344,36 @@ public class MainActivity extends Activity {
         return value;
     }
 
-    private View resultRow(String line1, String line2) {
-        LinearLayout row = card();
+    private View sectionTitle(String value) {
+        TextView tv = label(value, 15, text, true, true);
+        tv.setPadding(dp(2), 0, dp(2), dp(10));
+        return tv;
+    }
+
+    private View resultRow(String line1, String line2, String config, boolean canCopy) {
+        LinearLayout row = card(surface, 18);
         row.setOrientation(LinearLayout.VERTICAL);
-        TextView a = label(line1, 14, text, true);
-        TextView b = label(line2, 11, muted, false);
-        b.setMaxLines(3);
+
+        TextView a = label(line1, 14, text, true, true);
+        TextView b = label(line2, 12, muted, false, true);
         row.addView(a);
         row.addView(b);
+
+        if (config != null && !config.isEmpty()) {
+            TextView cfg = label(config, 10, muted, false, false);
+            cfg.setTypeface(Typeface.MONOSPACE);
+            cfg.setMaxLines(3);
+            cfg.setPadding(0, dp(8), 0, dp(4));
+            row.addView(cfg);
+        }
+
+        if (canCopy && config != null && !config.isEmpty()) {
+            Button copy = button("کپی این کانفیگ", surface2);
+            copy.setOnClickListener(v -> copyOne(config));
+            LinearLayout.LayoutParams lp = matchHeight(42);
+            lp.setMargins(0, dp(8), 0, 0);
+            row.addView(copy, lp);
+        }
         return row;
     }
 
