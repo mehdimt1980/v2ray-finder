@@ -37,9 +37,6 @@ public class MainActivity extends Activity {
     private final int text = Color.rgb(241, 246, 255);
     private final int muted = Color.rgb(160, 178, 205);
     private final int accent = Color.rgb(17, 145, 255);
-    private final int success = Color.rgb(80, 220, 170);
-    private final int warning = Color.rgb(255, 190, 80);
-    private final int danger = Color.rgb(232, 70, 88);
 
     private EditText tokenInput;
     private EditText limitInput;
@@ -96,18 +93,24 @@ public class MainActivity extends Activity {
 
         LinearLayout row = new LinearLayout(this);
         row.setOrientation(LinearLayout.HORIZONTAL);
-        row.setPadding(0, dp(10), 0, dp(8));
+        row.setPadding(0, dp(12), 0, dp(8));
         row.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
-        limitInput = input("تعداد نتایج", false, false);
+
+        limitInput = input("۲۰۰", false, false);
         limitInput.setText("200");
         limitInput.setInputType(InputType.TYPE_CLASS_NUMBER);
-        timeoutInput = input("مهلت اتصال", false, false);
+        timeoutInput = input("۵", false, false);
         timeoutInput.setText("5");
         timeoutInput.setInputType(InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL);
-        row.addView(limitInput, weight());
+
+        row.addView(inputGroup("تعداد کانفیگ‌ها", "حداکثر تعداد برای بررسی", limitInput), weight());
         row.addView(space(dp(10), 1));
-        row.addView(timeoutInput, weight());
+        row.addView(inputGroup("مهلت اتصال", "ثانیه برای هر سرور", timeoutInput), weight());
         controls.addView(row);
+
+        TextView help = label("پیشنهاد: ۲۰۰ کانفیگ و ۵ ثانیه برای شروع مناسب است.", 12, muted, false, true);
+        help.setPadding(0, 0, 0, dp(6));
+        controls.addView(help);
 
         healthBox = new CheckBox(this);
         healthBox.setText("بررسی سلامت TCP");
@@ -290,6 +293,21 @@ public class MainActivity extends Activity {
         tv.setTextDirection(rtl ? View.TEXT_DIRECTION_RTL : View.TEXT_DIRECTION_LTR);
         if (bold) tv.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
         return tv;
+    }
+
+    private LinearLayout inputGroup(String title, String description, EditText input) {
+        LinearLayout group = new LinearLayout(this);
+        group.setOrientation(LinearLayout.VERTICAL);
+        group.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
+
+        TextView titleView = label(title, 13, text, true, true);
+        TextView descView = label(description, 10, muted, false, true);
+        descView.setPadding(0, 0, 0, dp(6));
+
+        group.addView(titleView);
+        group.addView(descView);
+        group.addView(input, matchHeight(46));
+        return group;
     }
 
     private EditText input(String hint, boolean password, boolean rtl) {
