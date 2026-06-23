@@ -82,7 +82,9 @@ jobs:
           missing = [str(p) for p in required if not p.exists()]
           if missing:
               raise SystemExit('Missing staged files: ' + ', '.join(missing))
-          print('Android staged package files:', len(list(Path('v2ray_finder').rglob('*.py'))))
+          files = sorted(str(p) for p in Path('v2ray_finder').rglob('*.py'))
+          print('Android staged package files:', len(files))
+          print('\n'.join(files[:20]))
           PY
 
       - name: Clean stale Buildozer state
@@ -98,9 +100,25 @@ jobs:
       - name: Verify APK contains app package
         run: |
           APK=$(ls -1 bin/*.apk | head -n 1)
-          unzip -p "$APK" assets/private.tar > private.tar
-          tar -tf private.tar | tee private-files.txt
-          grep -E "v2ray_finder/(pipeline|__init__)\.pyc?$" private-files.txt
+          python - <<'PY'
+          import io
+          import tarfile
+          import zipfile
+          from pathlib import Path
+
+          apk = Path(next(Path('bin').glob('*.apk')))
+          with zipfile.ZipFile(apk) as zf:
+              private = zf.read('assets/private.tar')
+          with tarfile.open(fileobj=io.BytesIO(private), mode='r:*') as tf:
+              names = sorted(m.name.lstrip('./') for m in tf.getmembers())
+          Path('private-files.txt').write_text('\n'.join(names) + '\n', encoding='utf-8')
+          required = {'main.pyc', 'v2ray_finder/__init__.pyc', 'v2ray_finder/pipeline.pyc'}
+          missing = sorted(required - set(names))
+          print('APK private.tar file count:', len(names))
+          print('\n'.join(names[:80]))
+          if missing:
+              raise SystemExit('APK is missing required packaged files: ' + ', '.join(missing))
+          PY
 
       - name: Upload Buildozer logs on failure
         if: failure()
