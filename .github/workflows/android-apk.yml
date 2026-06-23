@@ -27,6 +27,20 @@ jobs:
           distribution: temurin
           java-version: "17"
 
+      - name: Set up Python 3.11 for Chaquopy
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Expose python3.11 command
+        run: |
+          set -euxo pipefail
+          mkdir -p "$RUNNER_TEMP/python-bin"
+          ln -sf "$(command -v python)" "$RUNNER_TEMP/python-bin/python3.11"
+          echo "$RUNNER_TEMP/python-bin" >> "$GITHUB_PATH"
+          python --version
+          "$RUNNER_TEMP/python-bin/python3.11" --version
+
       - name: Set up Gradle 8.9
         run: |
           set -euxo pipefail
@@ -49,7 +63,7 @@ jobs:
           rm -rf android_app/app/src/main/python/v2ray_finder
           cp -R v2ray_finder android_app/app/src/main/python/v2ray_finder
           find android_app/app/src/main/python -type d -name __pycache__ -prune -exec rm -rf {} +
-          python3 - <<'PY'
+          python3.11 - <<'PY'
           from pathlib import Path
           root = Path('android_app/app/src/main/python')
           required = [root / 'android_bridge.py', root / 'v2ray_finder/__init__.py', root / 'v2ray_finder/pipeline.py']
@@ -69,7 +83,7 @@ jobs:
       - name: Verify APK contains Chaquopy payload
         run: |
           APK=$(ls -1 android_app/app/build/outputs/apk/debug/*.apk | head -n 1)
-          python3 - <<'PY'
+          python3.11 - <<'PY'
           import io
           import zipfile
           from pathlib import Path
