@@ -4,8 +4,7 @@ on:
   workflow_dispatch:
   pull_request:
     paths:
-      - "main.py"
-      - "buildozer.spec"
+      - "android_app/**"
       - "v2ray_finder/**"
       - ".github/workflows/android-apk.yml"
   push:
@@ -16,16 +15,11 @@ jobs:
   build-apk:
     name: Build debug APK
     runs-on: ubuntu-22.04
-    timeout-minutes: 90
+    timeout-minutes: 60
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
 
       - name: Set up Java
         uses: actions/setup-java@v4
@@ -33,114 +27,96 @@ jobs:
           distribution: temurin
           java-version: "17"
 
-      - name: Install Linux build dependencies
+      - name: Set up Gradle 8.9
         run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            autoconf \
-            automake \
-            build-essential \
-            ccache \
-            git \
-            libffi-dev \
-            libltdl-dev \
-            libssl-dev \
-            libtool \
-            openjdk-17-jdk \
-            pkg-config \
-            python3-pip \
-            python3-setuptools \
-            unzip \
-            zip \
-            zlib1g-dev
+          set -euxo pipefail
+          curl -sSLo gradle.zip https://services.gradle.org/distributions/gradle-8.9-bin.zip
+          unzip -q gradle.zip -d "$RUNNER_TEMP/gradle"
+          echo "$RUNNER_TEMP/gradle/gradle-8.9/bin" >> "$GITHUB_PATH"
 
-      - name: Install Buildozer
-        run: |
-          python -m pip install --upgrade pip wheel setuptools
-          python -m pip install "cython<3.0" buildozer
-          buildozer --version
-          python -m pip freeze | grep -E "buildozer|Cython|python-for-android" || true
-
-      - name: Cache Gradle only
+      - name: Cache Gradle
         uses: actions/cache@v4
         with:
           path: |
             ~/.gradle/caches
             ~/.gradle/wrapper
-          key: gradle-${{ runner.os }}-${{ hashFiles('buildozer.spec') }}
+          key: gradle-chaquopy-${{ runner.os }}-${{ hashFiles('android_app/**/*.gradle') }}
           restore-keys: |
-            gradle-${{ runner.os }}-
+            gradle-chaquopy-${{ runner.os }}-
 
-      - name: Create Android staging project
+      - name: Stage Python package for Chaquopy
         run: |
-          rm -rf android_build
-          mkdir -p android_build
-          cp main.py android_build/main.py
-          cp buildozer.spec android_build/buildozer.spec
-          cp -R v2ray_finder android_build/v2ray_finder
-          cp README.md LICENSE NOTICE pyproject.toml android_build/ 2>/dev/null || true
-          find android_build -type d -name __pycache__ -prune -exec rm -rf {} +
-          python - <<'PY'
+          rm -rf android_app/app/src/main/python/v2ray_finder
+          cp -R v2ray_finder android_app/app/src/main/python/v2ray_finder
+          find android_app/app/src/main/python -type d -name __pycache__ -prune -exec rm -rf {} +
+          python3 - <<'PY'
           from pathlib import Path
-          root = Path('android_build')
-          required = [root / 'main.py', root / 'v2ray_finder/__init__.py', root / 'v2ray_finder/pipeline.py']
+          root = Path('android_app/app/src/main/python')
+          required = [root / 'android_bridge.py', root / 'v2ray_finder/__init__.py', root / 'v2ray_finder/pipeline.py']
           missing = [str(p) for p in required if not p.exists()]
           if missing:
-              raise SystemExit('Missing staged source files: ' + ', '.join(missing))
-          package_files = sorted(str(p.relative_to(root)) for p in (root / 'v2ray_finder').rglob('*.py'))
-          print('Android staging package files:', len(package_files))
-          print('\n'.join(package_files[:50]))
+              raise SystemExit('Missing Python files for Android: ' + ', '.join(missing))
+          files = sorted(str(p.relative_to(root)) for p in root.rglob('*.py'))
+          print('Python files staged for Chaquopy:', len(files))
+          print('\n'.join(files[:80]))
           PY
 
-      - name: Clean stale Buildozer state
-        run: |
-          rm -rf android_build/.buildozer
-          rm -rf ~/.buildozer/android/platform/build-*
-
       - name: Build debug APK
-        working-directory: android_build
         run: |
           set -o pipefail
-          buildozer -v android debug 2>&1 | tee ../buildozer-build.log
+          gradle -p android_app :app:assembleDebug --stacktrace 2>&1 | tee android-gradle-build.log
 
-      - name: Verify APK contains root package
+      - name: Verify APK contains Chaquopy payload
         run: |
-          APK=$(ls -1 android_build/bin/*.apk | head -n 1)
-          python - <<'PY'
+          APK=$(ls -1 android_app/app/build/outputs/apk/debug/*.apk | head -n 1)
+          python3 - <<'PY'
           import io
-          import tarfile
           import zipfile
           from pathlib import Path
 
-          apk = Path(next(Path('android_build/bin').glob('*.apk')))
+          apk = Path(next(Path('android_app/app/build/outputs/apk/debug').glob('*.apk')))
           with zipfile.ZipFile(apk) as zf:
-              private = zf.read('assets/private.tar')
-          with tarfile.open(fileobj=io.BytesIO(private), mode='r:*') as tf:
-              names = sorted(m.name.lstrip('./') for m in tf.getmembers())
-          Path('private-files.txt').write_text('\n'.join(names) + '\n', encoding='utf-8')
-          required = {'main.pyc', 'v2ray_finder/__init__.pyc', 'v2ray_finder/pipeline.pyc'}
-          missing = sorted(required - set(names))
-          print('APK private.tar file count:', len(names))
-          print('\n'.join(names[:120]))
-          if missing:
-              raise SystemExit('APK is missing required packaged files: ' + ', '.join(missing))
+              names = sorted(zf.namelist())
+              Path('apk-files.txt').write_text('\n'.join(names) + '\n', encoding='utf-8')
+              chaquopy_files = [n for n in names if 'chaquopy' in n.lower()]
+              print('APK file count:', len(names))
+              print('Chaquopy top-level files:', len(chaquopy_files))
+              print('\n'.join(chaquopy_files[:80]))
+              if not chaquopy_files:
+                  raise SystemExit('APK does not contain Chaquopy files')
+
+              found_python = False
+              for name in names:
+                  if name.endswith('.zip') and 'chaquopy' in name.lower():
+                      data = zf.read(name)
+                      try:
+                          with zipfile.ZipFile(io.BytesIO(data)) as inner:
+                              inner_names = sorted(inner.namelist())
+                              if any('android_bridge' in x or 'v2ray_finder' in x for x in inner_names):
+                                  found_python = True
+                                  Path('chaquopy-python-files.txt').write_text('\n'.join(inner_names) + '\n', encoding='utf-8')
+                                  print('Found Python app code in', name)
+                                  print('\n'.join([x for x in inner_names if 'android_bridge' in x or 'v2ray_finder' in x][:80]))
+                      except zipfile.BadZipFile:
+                          pass
+              if not found_python:
+                  raise SystemExit('Could not find android_bridge/v2ray_finder inside Chaquopy payload')
           PY
 
-      - name: Upload Buildozer logs on failure
+      - name: Upload build logs on failure
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: buildozer-failure-logs
+          name: android-build-failure-logs
           path: |
-            buildozer-build.log
-            private-files.txt
-            android_build/.buildozer/**/*.log
-            android_build/.buildozer/android/platform/**/*.log
+            android-gradle-build.log
+            apk-files.txt
+            chaquopy-python-files.txt
           if-no-files-found: ignore
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: v2ray-finder-debug-apk
-          path: android_build/bin/*.apk
+          name: v2ray-finder-chaquopy-debug-apk
+          path: android_app/app/build/outputs/apk/debug/*.apk
           if-no-files-found: error
