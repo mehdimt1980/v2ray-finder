@@ -2,251 +2,209 @@
 
 [![PyPI version](https://badge.fury.io/py/v2ray-finder.svg)](https://badge.fury.io/py/v2ray-finder)
 [![Python Versions](https://img.shields.io/pypi/pyversions/v2ray-finder.svg)](https://pypi.org/project/v2ray-finder/)
-[![Tests](https://github.com/alisadeghiaghili/v2ray-finder/workflows/Tests/badge.svg)](https://github.com/alisadeghiaghili/v2ray-finder/actions)
-[![Code Quality](https://github.com/alisadeghiaghili/v2ray-finder/workflows/Code%20Quality/badge.svg)](https://github.com/alisadeghiaghili/v2ray-finder/actions)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
-[![GitHub Stars](https://img.shields.io/github/stars/alisadeghiaghili/v2ray-finder?style=flat)](https://github.com/alisadeghiaghili/v2ray-finder/stargazers)
 
-[فارسی](README.fa.md) | [English](README.en.md) | **Deutsch** (diese Seite) | [📋 CHANGELOG](CHANGELOG.md)
-
----
-
-Ein **hochperformantes Werkzeug** zum **Abrufen, Aggregieren, Validieren und Überprüfen öffentlicher V2Ray-Serverkonfigurationen** von GitHub und kuratierten Quellen.
-
-Ziel ist es, eine saubere, deduplizierte Liste von `vmess://`-, `vless://`-, `trojan://`-, `ss://`- und `ssr://`-Links bereitzustellen.
-
-**Mit Liebe für ewige Freiheit gebaut ❤️**
+[فارسی](README.fa.md) | [English](README.en.md) | **Deutsch** | [📋 CHANGELOG](CHANGELOG.md)
 
 ---
 
-## ⚡ Community-Portierungen
+`v2ray-finder` ist ein schnelles Python-Werkzeug zum Abrufen, Aggregieren, Deduplizieren, Validieren, Health-Checking und Bewerten öffentlicher V2Ray/Xray-Konfigurationen aus GitHub und kuratierten Subscription-Quellen.
 
-Eine Community-.NET/C#-Portierung ist verfügbar unter [v2ray-finder-dotnet](https://github.com/rkarimabadi/v2ray-finder-dotnet) — beigetragen von [@rkarimabadi](https://github.com/rkarimabadi).\
-Jede Implementierung ist eigenständig. Sie können beide unabhängig voneinander verwenden.
+Das Tool erzeugt saubere Listen mit:
 
----
+```text
+vmess://
+vless://
+trojan://
+ss://
+ssr://
+```
 
-## 🚀 Neu in v0.2.1
-
-### 🐛 Ctrl+C & Graceful Stop — Komplette Überarbeitung
-
-⌨️ **Ctrl+C funktioniert jetzt überall** — alle Fetch-Layer fangen KeyboardInterrupt ab und speichern Teilergebnisse  
-🔒 **Thread-sicherer StopController** — `threading.Event` ersetzt einfache Boolean-Flag  
-🏥 **Batch Health Checking** — `health_batch_size` Parameter, Stop wird zwischen jedem Batch geprüft  
-🧪 **Vollständige Testabdeckung** für Stop-Mechanismus in CLI, Rich CLI und Core  
-🔧 **Python 3.8 Kompatibilitäts-Fixes** — `ExitStack` ersetzt geklammerte `with`-Syntax  
-📦 **Windows EXE Builds** — `cli_entry.py` und `cli_rich_entry.py` für PyInstaller hinzugefügt  
-
-> Alle Details in [📋 CHANGELOG.md](CHANGELOG.md)
+Das Repository enthält inzwischen zusätzlich eine funktionierende Android-APK-Implementierung.
 
 ---
 
-## 🚀 v0.2.0 — Großes Performance & Zuverlässigkeits-Release
+## Hauptfunktionen
 
-⚡ **Asynchrones HTTP** — 10-50x schnellere gleichzeitige Downloads  
-💾 **Intelligentes Caching** — 80-95% weniger API-Aufrufe  
-🛡️ **Verbesserte Fehlerbehandlung** — Result-Typ + Exception-Hierarchie  
-🔒 **Sichere Token-Verwaltung** — Umgebungsvariablen + `from_env()`  
-🧪 **78% Testabdeckung** — Python 3.8–3.12, Linux, macOS & Windows  
-📈 **Rate-Limit-Verfolgung** — GitHub-API-Nutzung überwachen  
-🏥 **Gesundheitsprüfung** — TCP, Latenz und Qualitätsbewertung  
-⌨️ **Interaktive Token-Eingabe** — Sichere maskierte Eingabe mit `--prompt-token`  
-⛔ **Graceful Interruption** — Ctrl+C speichert Teilergebnisse  
-
----
-
-## 🎯 Funktionen
-
-### Kernfunktionen
-- 🔍 GitHub-Repository-Suche + kuratierte Quellen
-- 🚀 Drei Schnittstellen: Python API, CLI (einfach & rich), GUI (PySide6)
-- 📦 Deduplizierte und saubere Ausgabe
-- 🌐 Unterstützt: vmess, vless, trojan, shadowsocks, ssr
-- 💾 Export in Textdateien
-- 📊 Statistiken nach Protokoll
-
-### Leistung
-- ⚡ Async HTTP: 10-50x schneller
-- 💾 Intelligentes Caching: 80-95% weniger API-Aufrufe
-- ✅ Gesundheitsprüfung: TCP, Latenz, Konfigurationsvalidierung
-- 🎯 Qualitätsbewertung: 0–100 basierend auf Latenz
-- 🔄 Wiederholungslogik: Exponentielles Backoff
-- ⛔ Graceful Interruption: Ctrl+C speichert Teilergebnisse
-
-### Entwicklererfahrung
-- 🛡️ `Result[T, E]`-Typ für explizite Fehlerbehandlung
-- 📈 `get_rate_limit_info()` für API-Überwachung
-- 🔒 Token-Validierung und Sicherheitswarnungen
-- ⌨️ Interaktive Token-Eingabe mit maskierter Eingabe
-- 🧪 78% Testabdeckung auf Linux, macOS und Windows
-- ✅ CI/CD: Automatisiertes Testing und Deployment
+- Echtes Python-Core-Paket: `v2ray_finder/`
+- Pipeline-Engine: Discovery → Fetch → Dedup → Health → Score
+- Asynchrones Fetching mit `httpx`
+- TCP-Health-Check und Latenzbewertung
+- CLI, Rich CLI und PySide6-Desktop-GUI
+- Native Android-App mit Chaquopy
+- Persische / RTL Android-Oberfläche für iranische Nutzer
+- GitHub-Actions-Workflow zum Erstellen einer Debug-APK
 
 ---
 
-## 📋 Voraussetzungen
+## Android APK
 
-- Python ≥ 3.8
-- Internetverbindung
-- Optional: aiohttp/httpx, diskcache, PySide6
+Die Android-App wurde nach mehreren Tests neu aufgebaut.
+
+### Was wurde geändert?
+
+Der erste mobile Ansatz nutzte Kivy + Buildozer. Die APK konnte zwar erstellt werden, aber Buildozer verpackte nur `main.pyc` und nahm das echte `v2ray_finder`-Paket nicht zuverlässig in die APK auf. Deshalb wurde der Android-Build auf eine robustere Architektur umgestellt:
+
+```text
+Native Android UI + Gradle + Chaquopy + echtes Python-Paket
+```
+
+Der alte Buildozer/Kivy-Pfad ist nicht mehr der Hauptweg für die APK-Erstellung.
+
+### Aktuelle Android-Architektur
+
+```text
+v2ray_finder/                       # echte Python-Core-Engine
+android_app/
+  settings.gradle
+  build.gradle
+  app/
+    build.gradle                    # Android- und Chaquopy-Konfiguration
+    src/main/AndroidManifest.xml
+    src/main/java/org/mehdimt/v2rayfinder/MainActivity.java
+    src/main/python/android_bridge.py
+```
+
+Der GitHub-Actions-Workflow kopiert das Root-Paket `v2ray_finder/` nach:
+
+```text
+android_app/app/src/main/python/v2ray_finder/
+```
+
+Anschließend packt Chaquopy den Python-Bridge-Code, die echte `Pipeline` und die Python-Abhängigkeiten in die APK.
+
+### Android-UI-Funktionen
+
+- Native Android-Oberfläche
+- Persisch und rechts-nach-links
+- Optionales GitHub-Token-Feld
+- Steuerung von Ergebnislimit und Timeout
+- Optionaler TCP-Health-Check
+- Statistiken: Fetched / Unique / Healthy / Scored
+- Ergebnis-Karten mit Rang, Protokoll, Qualität, Score und Latenz
+- Alle Konfigurationen kopieren
+- Einzelne Konfiguration pro Karte kopieren
+
+### Android-Python-Abhängigkeiten
+
+Das Android-Modul installiert:
+
+```gradle
+install "requests>=2.31.0"
+install "httpx>=0.24.0"
+```
+
+`httpx` wird benötigt, weil die echte `Pipeline` asynchrones Source-Fetching nutzt.
+
+### APK mit GitHub Actions bauen
+
+1. In GitHub zu **Actions** gehen.
+2. **Build Android APK** auswählen.
+3. **Run workflow** auf dem Branch `main` ausführen.
+4. Das Artifact herunterladen:
+
+```text
+v2ray-finder-chaquopy-debug-apk
+```
+
+### Lokaler Android-Build
+
+```bash
+gradle -p android_app :app:assembleDebug
+```
+
+Die Debug-APK wird hier erzeugt:
+
+```text
+android_app/app/build/outputs/apk/debug/
+```
+
+### Android-Einschränkung
+
+Layer-3 xray / Google-204 Real-World-Probing ist in der Android-App noch nicht aktiviert. Das Bündeln und Ausführen einer nativen xray-Binärdatei in einer APK benötigt eine separate Android-spezifische Implementierung.
 
 ---
 
-## 📦 Installation
+## Python-Installation
 
 ```bash
 pip install v2ray-finder
-pip install "v2ray-finder[async]"     # 10-50x schneller!
-pip install "v2ray-finder[cache]"     # 80-95% weniger API-Aufrufe!
-pip install "v2ray-finder[gui]"       # GUI (PySide6)
-pip install "v2ray-finder[cli-rich]"  # Schöne Terminal-UI
-pip install "v2ray-finder[all]"       # Alles (empfohlen)
+pip install "v2ray-finder[async]"
+pip install "v2ray-finder[all]"
 ```
 
 ### Aus dem Quellcode
 
 ```bash
-git clone https://github.com/alisadeghiaghili/v2ray-finder.git
+git clone https://github.com/mehdimt1980/v2ray-finder.git
 cd v2ray-finder
+python -m venv .venv
+source .venv/bin/activate
 pip install -e ".[all,dev]"
 ```
 
 ---
 
-## 🔒 Token-Sicherheit
-
-**Wichtig:** Token niemals direkt im Code übergeben.
-
-```bash
-export GITHUB_TOKEN="ghp_ihr_token_hier"
-```
+## Python-API
 
 ```python
-from v2ray_finder import V2RayServerFinder
+from v2ray_finder import Pipeline
 
-finder = V2RayServerFinder()          # Liest GITHUB_TOKEN automatisch
-finder = V2RayServerFinder.from_env() # Explizit
-```
-
-**Rate-Limits:** Ohne Token: 60/Stunde — Mit Token: 5000/Stunde
-
----
-
-## 📚 Python-API
-
-```python
-from v2ray_finder import V2RayServerFinder
-
-finder = V2RayServerFinder()
-
-servers = finder.get_all_servers()
-print(f"Gefundene Server: {len(servers)}")
-
-servers = finder.get_all_servers(use_github_search=True)
-
-count, filename = finder.save_to_file(
-    filename="v2ray_servers.txt",
-    limit=200,
-    use_github_search=True,
-)
-print(f"{count} Server in {filename} gespeichert")
-```
-
-### Fehlerbehandlung 🛡️
-
-```python
-from v2ray_finder import V2RayServerFinder, RateLimitError, NetworkError
-
-# Methode 1: Result-Typ
-result = finder.search_repos(keywords=["v2ray"])
-if result.is_ok():
-    repos = result.unwrap()
-else:
-    print(result.error)
-
-# Methode 2: Exception-Modus
-finder = V2RayServerFinder(raise_errors=True)
-try:
-    repos = finder.search_repos_or_empty()
-except RateLimitError as e:
-    print(f"Rate-Limit: {e}")
-```
-
-### Gesundheitsprüfung 🏥
-
-```python
-servers = finder.get_servers_with_health(
+pipeline = Pipeline(
     check_health=True,
-    health_timeout=5.0,
-    min_quality_score=60.0,
-    filter_unhealthy=True,
+    check_http_probe=False,
+    check_google_204=False,
+    limit=200,
 )
-for s in servers[:10]:
-    print(f"{s['protocol']:8s} | Qualität: {s['quality_score']:5.1f} | {s['latency_ms']:6.1f}ms")
+result = pipeline.run()
+
+print(result.stats)
+for score in result.scores[:10]:
+    print(score.grade, f"{score.total:.2f}", score.config[:80])
 ```
 
 ---
 
-## ⚡ CLI
+## CLI
 
 ```bash
-export GITHUB_TOKEN="ghp_ihr_token_hier"
-
-v2ray-finder                           # Interaktive TUI
-v2ray-finder -o servers.txt            # Schnell speichern
-v2ray-finder -s -l 200 -o servers.txt  # GitHub-Suche + Limit
-v2ray-finder --stats-only              # Nur Statistiken
-v2ray-finder --prompt-token -s         # Sichere Token-Eingabe
+v2ray-finder -o servers.txt
+v2ray-finder -c --min-quality 60 -o healthy_servers.txt
 ```
+
+Rich CLI:
 
 ```bash
 pip install "v2ray-finder[cli-rich]"
 v2ray-finder-rich
-v2ray-finder-rich --prompt-token
 ```
 
 ---
 
-## 🖥️ GUI
+## Desktop-GUI
 
 ```bash
 pip install "v2ray-finder[gui]"
 v2ray-finder-gui
 ```
 
+Die Desktop-GUI verwendet dieselbe `Pipeline`-Engine wie CLI und Android-Bridge.
+
 ---
 
-## 🤝 Mitwirken
+## Repository-Struktur
 
-```bash
-pytest tests/ -v
-black . && isort . && flake8 src/
+```text
+v2ray_finder/       # Root-Python-Paket; für Android-Kompatibilität aus src/ verschoben
+android_app/        # native Android-App + Chaquopy
+src/                # nur Legacy-Kompatibilitätsplatzhalter
+docs/               # Build-Hinweise
 ```
 
 ---
 
-## 📝 Lizenz
+## Lizenz
 
 Apache License 2.0 © 2026 Ali Sadeghi Aghili
 
-Dieses Projekt steht unter der **Apache License 2.0**. Jede abgeleitete Arbeit,
-Portierung oder Weiterverteilung muss die Datei [`NOTICE`](NOTICE) beibehalten
-und den ursprünglichen Autor nennen. Vollständiger Text in [`LICENSE`](LICENSE).
-
----
-
-## 🔗 Links
-
-- [Repository](https://github.com/alisadeghiaghili/v2ray-finder)
-- [PyPI](https://pypi.org/project/v2ray-finder)
-- [Issues](https://github.com/alisadeghiaghili/v2ray-finder/issues)
-- [Änderungsprotokoll](CHANGELOG.md)
-
----
-
-## 🙏 Danksagungen
-
-- [ebrasha/free-v2ray-public-list](https://github.com/ebrasha/free-v2ray-public-list)
-- [barry-far/V2ray-Config](https://github.com/barry-far/V2ray-Config)
-- [Epodonios/v2ray-configs](https://github.com/Epodonios/v2ray-configs)
-
-Und allen Entwicklern, die freie Konfigurationen veröffentlichen. ❤️
+Dieses Projekt steht unter der **Apache License 2.0**. Jede abgeleitete Arbeit, Portierung oder Weiterverteilung muss die Datei [`NOTICE`](NOTICE) beibehalten und den ursprünglichen Autor nennen. Details siehe [`LICENSE`](LICENSE).
