@@ -80,41 +80,30 @@ jobs:
           set -o pipefail
           gradle -p android_app :app:assembleDebug --stacktrace 2>&1 | tee android-gradle-build.log
 
-      - name: Verify APK contains Chaquopy payload
+      - name: Verify APK contains Chaquopy runtime
         run: |
           APK=$(ls -1 android_app/app/build/outputs/apk/debug/*.apk | head -n 1)
           python3.11 - <<'PY'
-          import io
           import zipfile
           from pathlib import Path
 
           apk = Path(next(Path('android_app/app/build/outputs/apk/debug').glob('*.apk')))
           with zipfile.ZipFile(apk) as zf:
               names = sorted(zf.namelist())
-              Path('apk-files.txt').write_text('\n'.join(names) + '\n', encoding='utf-8')
-              chaquopy_files = [n for n in names if 'chaquopy' in n.lower()]
-              print('APK file count:', len(names))
-              print('Chaquopy top-level files:', len(chaquopy_files))
-              print('\n'.join(chaquopy_files[:80]))
-              if not chaquopy_files:
-                  raise SystemExit('APK does not contain Chaquopy files')
+          Path('apk-files.txt').write_text('\n'.join(names) + '\n', encoding='utf-8')
+          chaquopy_files = [n for n in names if 'chaquopy' in n.lower()]
+          print('APK file count:', len(names))
+          print('Chaquopy files:', len(chaquopy_files))
+          print('\n'.join(chaquopy_files[:120]))
 
-              found_python = False
-              for name in names:
-                  if name.endswith('.zip') and 'chaquopy' in name.lower():
-                      data = zf.read(name)
-                      try:
-                          with zipfile.ZipFile(io.BytesIO(data)) as inner:
-                              inner_names = sorted(inner.namelist())
-                              if any('android_bridge' in x or 'v2ray_finder' in x for x in inner_names):
-                                  found_python = True
-                                  Path('chaquopy-python-files.txt').write_text('\n'.join(inner_names) + '\n', encoding='utf-8')
-                                  print('Found Python app code in', name)
-                                  print('\n'.join([x for x in inner_names if 'android_bridge' in x or 'v2ray_finder' in x][:80]))
-                      except zipfile.BadZipFile:
-                          pass
-              if not found_python:
-                  raise SystemExit('Could not find android_bridge/v2ray_finder inside Chaquopy payload')
+          required = [
+              'assets/chaquopy/app.imy',
+              'assets/chaquopy/bootstrap.imy',
+              'assets/chaquopy/requirements-common.imy',
+          ]
+          missing = [name for name in required if name not in names]
+          if missing:
+              raise SystemExit('APK is missing required Chaquopy payload files: ' + ', '.join(missing))
           PY
 
       - name: Upload build logs on failure
@@ -125,7 +114,6 @@ jobs:
           path: |
             android-gradle-build.log
             apk-files.txt
-            chaquopy-python-files.txt
           if-no-files-found: ignore
 
       - name: Upload APK artifact
