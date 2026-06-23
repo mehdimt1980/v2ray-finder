@@ -6,7 +6,7 @@ on:
       version_name:
         description: "Release version name, for example 1.0.0"
         required: true
-        default: "1.0.0"
+        default: "1.0.1"
       create_github_release:
         description: "Create a GitHub Release and upload the signed APK"
         required: true
