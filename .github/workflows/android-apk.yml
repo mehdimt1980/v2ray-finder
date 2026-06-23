@@ -57,9 +57,6 @@ jobs:
       - name: Install Buildozer
         run: |
           python -m pip install --upgrade pip wheel setuptools
-          # python-for-android / Kivy Android builds are still most reliable on
-          # the classic Cython line. Avoid accidentally pulling a breaking
-          # major Cython release on fresh GitHub runners.
           python -m pip install "cython<3.0" buildozer
           buildozer --version
           python -m pip freeze | grep -E "buildozer|Cython|python-for-android" || true
@@ -74,10 +71,22 @@ jobs:
           restore-keys: |
             gradle-${{ runner.os }}-
 
+      - name: Prepare app sources
+        run: |
+          rm -rf v2ray_finder
+          cp -R src/v2ray_finder ./v2ray_finder
+          find v2ray_finder -type d -name __pycache__ -prune -exec rm -rf {} +
+          python - <<'PY'
+          from pathlib import Path
+          required = [Path('main.py'), Path('v2ray_finder/__init__.py'), Path('v2ray_finder/pipeline.py')]
+          missing = [str(p) for p in required if not p.exists()]
+          if missing:
+              raise SystemExit('Missing staged files: ' + ', '.join(missing))
+          print('Android staged package files:', len(list(Path('v2ray_finder').rglob('*.py'))))
+          PY
+
       - name: Clean stale Buildozer state
         run: |
-          # Avoid reusing cached CPython 3.14 / p4a partial builds from previous
-          # failed attempts after switching the Android Python recipe to 3.11.9.
           rm -rf .buildozer
           rm -rf ~/.buildozer/android/platform/build-*
 
@@ -86,6 +95,13 @@ jobs:
           set -o pipefail
           buildozer -v android debug 2>&1 | tee buildozer-build.log
 
+      - name: Verify APK contains app package
+        run: |
+          APK=$(ls -1 bin/*.apk | head -n 1)
+          unzip -p "$APK" assets/private.tar > private.tar
+          tar -tf private.tar | tee private-files.txt
+          grep -E "v2ray_finder/(pipeline|__init__)\.pyc?$" private-files.txt
+
       - name: Upload Buildozer logs on failure
         if: failure()
         uses: actions/upload-artifact@v4
@@ -93,6 +109,7 @@ jobs:
           name: buildozer-failure-logs
           path: |
             buildozer-build.log
+            private-files.txt
             .buildozer/**/*.log
             .buildozer/android/platform/**/*.log
           if-no-files-found: ignore
