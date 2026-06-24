@@ -1,10 +1,7 @@
 #!/usr/bin/env python3
 """Download and stage Xray for the Android app build.
 
-The Android app runs xray only for the optional Layer-3 Google-204 check.
-We stage the official XTLS/Xray-core Android arm64 binary as a native library
-named ``libxray.so`` so Android extracts it to an executable nativeLibraryDir.
-
+The Android app uses xray only for the optional Layer-3 Google-204 check.
 No binary is committed to the repository; CI downloads it during the build.
 """
 
@@ -14,14 +11,15 @@ import json
 import os
 import shutil
 import stat
-import sys
 import tempfile
 import urllib.request
 import zipfile
 from pathlib import Path
 
 REPO_API = "https://api.github.com/repos/XTLS/Xray-core/releases"
-DEFAULT_TARGET = Path("android_app/app/src/main/jniLibs/arm64-v8a/libxray.so")
+NATIVE_TARGET = Path("android_app/app/src/main/jniLibs/arm64-v8a/libxray.so")
+LEGACY_ASSET_TARGET = Path("android_app/app/src/main/assets/xray/arm64-v8a/xray")
+JAVA_ACTIVITY = Path("android_app/app/src/main/java/org/mehdimt/v2rayfinder/DefaultHealthActivity.java")
 
 
 def _request_json(url: str) -> dict:
@@ -33,99 +31,116 @@ def _request_json(url: str) -> dict:
     if token:
         headers["Authorization"] = f"Bearer {token}"
     req = urllib.request.Request(url, headers=headers)
-    with urllib.request.urlopen(req, timeout=30) as resp:  # noqa: S310 - GitHub API URL is fixed.
+    with urllib.request.urlopen(req, timeout=30) as resp:  # noqa: S310 - fixed GitHub API URL.
         return json.loads(resp.read().decode("utf-8"))
 
 
 def _download(url: str, dest: Path) -> None:
-    headers = {"User-Agent": "v2ray-finder-android-build/1.0"}
-    req = urllib.request.Request(url, headers=headers)
+    req = urllib.request.Request(url, headers={"User-Agent": "v2ray-finder-android-build/1.0"})
     with urllib.request.urlopen(req, timeout=120) as resp, dest.open("wb") as fh:  # noqa: S310
         shutil.copyfileobj(resp, fh)
 
 
-def _asset_score(name: str) -> tuple[int, int, int]:
-    low = name.lower()
-    return (
-        1 if "arm64-v8a" in low else 0,
-        1 if "android" in low else 0,
-        1 if low.endswith(".zip") else 0,
-    )
-
-
 def _select_android_arm64_asset(release: dict) -> dict:
-    assets = release.get("assets") or []
-    candidates: list[dict] = []
-    for asset in assets:
+    candidates = []
+    for asset in release.get("assets") or []:
         name = str(asset.get("name") or "")
         low = name.lower()
-        if not low.endswith(".zip"):
-            continue
-        if "android" not in low:
-            continue
-        if "arm64" not in low:
-            continue
-        candidates.append(asset)
-
+        if low.endswith(".zip") and "android" in low and "arm64" in low:
+            candidates.append(asset)
     if not candidates:
-        names = "\n".join(str(a.get("name")) for a in assets)
-        raise SystemExit(
-            "Could not find an Xray Android arm64 zip asset in the selected release.\n"
-            f"Available assets:\n{names}"
-        )
-
-    candidates.sort(key=lambda a: _asset_score(str(a.get("name") or "")), reverse=True)
+        names = "\n".join(str(a.get("name")) for a in release.get("assets") or [])
+        raise SystemExit("No Android arm64 Xray zip asset found. Available assets:\n" + names)
+    candidates.sort(
+        key=lambda a: (
+            "arm64-v8a" in str(a.get("name", "")).lower(),
+            "android" in str(a.get("name", "")).lower(),
+        ),
+        reverse=True,
+    )
     return candidates[0]
 
 
-def _find_xray_binary(extract_dir: Path) -> Path:
-    matches = []
-    for path in extract_dir.rglob("*"):
-        if not path.is_file():
-            continue
-        name = path.name.lower()
-        if name == "xray" or name == "xray.exe":
-            matches.append(path)
+def _find_binary(extract_dir: Path) -> Path:
+    matches = [p for p in extract_dir.rglob("*") if p.is_file() and p.name.lower() in {"xray", "xray.exe"}]
     if not matches:
         files = "\n".join(str(p.relative_to(extract_dir)) for p in extract_dir.rglob("*") if p.is_file())
-        raise SystemExit(f"Downloaded Xray archive did not contain an xray binary. Files:\n{files}")
+        raise SystemExit("Xray archive did not contain an xray binary. Files:\n" + files)
     matches.sort(key=lambda p: len(str(p)))
     return matches[0]
 
 
+def _copy_executable(src: Path, dest: Path) -> None:
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(src, dest)
+    dest.chmod(dest.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
+    print(f"Staged: {dest} ({dest.stat().st_size} bytes)")
+
+
+def _patch_android_activity() -> None:
+    if not JAVA_ACTIVITY.exists():
+        print(f"Java activity not found, skipping patch: {JAVA_ACTIVITY}")
+        return
+    text = JAVA_ACTIVITY.read_text(encoding="utf-8")
+
+    text = text.replace(
+        "import java.io.FileOutputStream;\nimport java.io.InputStream;\n",
+        "",
+    )
+    text = text.replace(
+        "چند کانفیگ برتر با xray و Google-204 واقعاً تست می‌شوند",
+        "۲۰۰ کانفیگ برتر با xray و Google-204 واقعاً تست می‌شوند",
+    )
+    text = text.replace(
+        'py.getModule("android_bridge").callAttr("set_real_check", enabled, xrayBinaryPath, 10);',
+        'py.getModule("android_bridge").callAttr("set_real_check", enabled, xrayBinaryPath, 200);',
+    )
+
+    start = text.find("    private String prepareXrayBinary() {")
+    end = text.find("\n    private int dpLocal", start)
+    if start == -1 or end == -1:
+        raise SystemExit("Could not locate prepareXrayBinary method for patching.")
+
+    new_method = """    private String prepareXrayBinary() {
+        File nativeLib = new File(getApplicationInfo().nativeLibraryDir, \"libxray.so\");
+        if (nativeLib.isFile()) {
+            return nativeLib.getAbsolutePath();
+        }
+        return \"\";
+    }
+"""
+    text = text[:start] + new_method + text[end:]
+    JAVA_ACTIVITY.write_text(text, encoding="utf-8")
+    print("Patched DefaultHealthActivity to use nativeLibraryDir/libxray.so")
+
+
 def main() -> int:
     tag = os.environ.get("XRAY_RELEASE_TAG", "latest").strip() or "latest"
-    target = Path(os.environ.get("XRAY_ANDROID_TARGET", str(DEFAULT_TARGET)))
-
     release_url = f"{REPO_API}/latest" if tag == "latest" else f"{REPO_API}/tags/{tag}"
-    print(f"Fetching Xray release metadata: {release_url}")
     release = _request_json(release_url)
     asset = _select_android_arm64_asset(release)
     asset_name = asset["name"]
     download_url = asset["browser_download_url"]
     print(f"Selected Xray asset: {asset_name}")
-    print(f"Release tag: {release.get('tag_name', tag)}")
 
     with tempfile.TemporaryDirectory(prefix="xray-android-") as tmp:
         tmpdir = Path(tmp)
         zip_path = tmpdir / asset_name
-        print(f"Downloading Xray asset to {zip_path}")
         _download(download_url, zip_path)
-        if zip_path.stat().st_size <= 0:
-            raise SystemExit("Downloaded Xray archive is empty.")
-
         extract_dir = tmpdir / "extract"
         extract_dir.mkdir()
         with zipfile.ZipFile(zip_path) as zf:
             zf.extractall(extract_dir)
+        binary = _find_binary(extract_dir)
+        _copy_executable(binary, NATIVE_TARGET)
+        _copy_executable(binary, LEGACY_ASSET_TARGET)
+        extra_target = os.environ.get("XRAY_ANDROID_TARGET")
+        if extra_target:
+            extra = Path(extra_target)
+            if extra not in {NATIVE_TARGET, LEGACY_ASSET_TARGET}:
+                _copy_executable(binary, extra)
 
-        binary = _find_xray_binary(extract_dir)
-        target.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(binary, target)
-        target.chmod(target.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
-
-    print(f"Staged Xray binary: {target}")
-    print(f"Size: {target.stat().st_size} bytes")
+    _patch_android_activity()
     return 0
 
 
