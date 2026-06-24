@@ -10,10 +10,10 @@ from v2ray_finder import Pipeline
 
 _real_check_enabled = False
 _real_check_binary_path = ""
-_real_check_limit = 200
+_real_check_limit = 10
 
 
-def set_real_check(enabled: bool = False, binary_path: str = "", limit: int = 200) -> str:
+def set_real_check(enabled: bool = False, binary_path: str = "", limit: int = 10) -> str:
     """Configure optional Android Layer-3 xray/Google-204 checking.
 
     Java calls this before ``scan``. The existing ``scan`` signature remains
@@ -22,7 +22,7 @@ def set_real_check(enabled: bool = False, binary_path: str = "", limit: int = 20
     global _real_check_enabled, _real_check_binary_path, _real_check_limit
     _real_check_enabled = bool(enabled)
     _real_check_binary_path = binary_path or ""
-    _real_check_limit = max(1, min(int(limit or 200), 400))
+    _real_check_limit = max(1, min(int(limit or 10), 50))
     available = bool(_real_check_binary_path and os.path.isfile(_real_check_binary_path))
     return json.dumps(
         {
@@ -98,8 +98,8 @@ def scan(limit: int = 200, timeout: float = 5.0, check_health: bool = False, tok
                 candidates = [s.config for s in result.scores[:_real_check_limit]]
                 real_results = check_real_connectivity_batch(
                     candidates,
-                    max_workers=4,
-                    timeout=max(timeout, 6.0),
+                    max_workers=2,
+                    timeout=max(timeout, 8.0),
                     binary_path=_real_check_binary_path,
                     auto_download=False,
                 )
