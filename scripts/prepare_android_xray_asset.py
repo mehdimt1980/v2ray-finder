@@ -20,6 +20,7 @@ REPO_API = "https://api.github.com/repos/XTLS/Xray-core/releases"
 NATIVE_TARGET = Path("android_app/app/src/main/jniLibs/arm64-v8a/libxray.so")
 LEGACY_ASSET_TARGET = Path("android_app/app/src/main/assets/xray/arm64-v8a/xray")
 JAVA_ACTIVITY = Path("android_app/app/src/main/java/org/mehdimt/v2rayfinder/DefaultHealthActivity.java")
+BUILD_GRADLE = Path("android_app/app/build.gradle")
 
 
 def _request_json(url: str) -> dict:
@@ -82,11 +83,7 @@ def _patch_android_activity() -> None:
         print(f"Java activity not found, skipping patch: {JAVA_ACTIVITY}")
         return
     text = JAVA_ACTIVITY.read_text(encoding="utf-8")
-
-    text = text.replace(
-        "import java.io.FileOutputStream;\nimport java.io.InputStream;\n",
-        "",
-    )
+    text = text.replace("import java.io.FileOutputStream;\nimport java.io.InputStream;\n", "")
     text = text.replace(
         "چند کانفیگ برتر با xray و Google-204 واقعاً تست می‌شوند",
         "۲۰۰ کانفیگ برتر با xray و Google-204 واقعاً تست می‌شوند",
@@ -100,7 +97,6 @@ def _patch_android_activity() -> None:
     end = text.find("\n    private int dpLocal", start)
     if start == -1 or end == -1:
         raise SystemExit("Could not locate prepareXrayBinary method for patching.")
-
     new_method = """    private String prepareXrayBinary() {
         File nativeLib = new File(getApplicationInfo().nativeLibraryDir, \"libxray.so\");
         if (nativeLib.isFile()) {
@@ -112,6 +108,23 @@ def _patch_android_activity() -> None:
     text = text[:start] + new_method + text[end:]
     JAVA_ACTIVITY.write_text(text, encoding="utf-8")
     print("Patched DefaultHealthActivity to use nativeLibraryDir/libxray.so")
+
+
+def _patch_build_gradle() -> None:
+    if not BUILD_GRADLE.exists():
+        print(f"Gradle file not found, skipping patch: {BUILD_GRADLE}")
+        return
+    text = BUILD_GRADLE.read_text(encoding="utf-8")
+    text = text.replace('versionCode 9', 'versionCode 10')
+    text = text.replace('versionName "1.0.8"', 'versionName "1.0.9"')
+    if 'doNotStrip "**/libxray.so"' not in text:
+        marker = "    signingConfigs {"
+        block = "    packagingOptions {\n        doNotStrip \"**/libxray.so\"\n    }\n\n"
+        if marker not in text:
+            raise SystemExit("Could not locate signingConfigs marker in build.gradle")
+        text = text.replace(marker, block + marker, 1)
+    BUILD_GRADLE.write_text(text, encoding="utf-8")
+    print("Patched build.gradle: version 1.0.9 and doNotStrip for libxray.so")
 
 
 def main() -> int:
@@ -141,6 +154,7 @@ def main() -> int:
                 _copy_executable(binary, extra)
 
     _patch_android_activity()
+    _patch_build_gradle()
     return 0
 
 
