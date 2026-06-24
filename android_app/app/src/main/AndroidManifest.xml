@@ -11,7 +11,7 @@
         android:roundIcon="@drawable/ic_launcher"
         android:resizeableActivity="true">
         <activity
-            android:name=".MainActivity"
+            android:name=".DefaultHealthActivity"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
