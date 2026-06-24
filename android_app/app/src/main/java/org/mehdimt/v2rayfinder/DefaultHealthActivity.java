@@ -125,7 +125,7 @@ public class DefaultHealthActivity extends MainActivity {
         boolean enabled = realCheckBox != null && realCheckBox.isChecked() && !xrayBinaryPath.isEmpty();
         try {
             Python py = Python.getInstance();
-            py.getModule("android_bridge").callAttr("set_real_check", enabled, xrayBinaryPath, 50);
+            py.getModule("android_bridge").callAttr("set_real_check", enabled, xrayBinaryPath, 200);
         } catch (Exception ignored) {
             // The normal scan can still run without the optional xray mode.
         }
