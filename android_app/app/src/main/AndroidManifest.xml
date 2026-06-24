@@ -9,6 +9,7 @@
         android:label="V2Ray Finder"
         android:icon="@drawable/ic_launcher"
         android:roundIcon="@drawable/ic_launcher"
+        android:extractNativeLibs="true"
         android:resizeableActivity="true">
         <activity
             android:name=".DefaultHealthActivity"
