@@ -3,7 +3,10 @@
 Supported URI schemes: vmess, vless, trojan, ss (Shadowsocks).
 
 The generated config uses a SOCKS5 inbound on 127.0.0.1:<socks_port>
-and routes normal traffic through the proxy outbound.
+and routes all traffic through the selected proxy outbound.  The Android
+Layer-3 probe intentionally avoids geoip/geosite routing rules because those
+rules require external data files which are not bundled with the minimal xray
+binary used by the app.
 """
 
 from __future__ import annotations
@@ -76,28 +79,18 @@ def _socks_inbound(local_port: int) -> Dict:
 
 
 def _base_config(outbound: Dict, local_port: int) -> Dict:
-    """Return a complete minimal xray config.
+    """Return a minimal xray config for a one-shot connectivity probe.
 
-    Important: routing rules below reference both ``proxy`` and ``direct`` tags,
-    so both outbounds must exist.  Earlier builds referenced ``direct`` without
-    defining it, which can make xray fail before opening the local SOCKS port.
+    Do not add geoip/geosite routing here.  The Android build bundles only the
+    xray binary, not geoip.dat/geosite.dat, so rules such as ``geoip:private``
+    can prevent xray from starting and therefore stop the SOCKS5 port from
+    opening.
     """
     outbound = dict(outbound)
     outbound.setdefault("tag", "proxy")
     return {
         "inbounds": [_socks_inbound(local_port)],
-        "outbounds": [
-            outbound,
-            {"tag": "direct", "protocol": "freedom"},
-            {"tag": "block", "protocol": "blackhole"},
-        ],
-        "routing": {
-            "domainStrategy": "IPIfNonMatch",
-            "rules": [
-                {"type": "field", "outboundTag": "direct", "ip": ["geoip:private"]},
-                {"type": "field", "outboundTag": "proxy", "network": "tcp,udp"},
-            ],
-        },
+        "outbounds": [outbound],
     }
 
 
