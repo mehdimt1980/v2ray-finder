@@ -2,7 +2,9 @@ package org.mehdimt.v2rayfinder;
 
 import android.app.Activity;
 import android.os.Bundle;
+import android.text.Editable;
 import android.text.InputType;
+import android.text.TextWatcher;
 import android.view.Gravity;
 import android.view.View;
 import android.widget.Button;
@@ -31,6 +33,8 @@ import java.util.Locale;
 
 public class MainActivity extends Activity {
     private static final int PAGE_SIZE = 10;
+    private static final String FILTER_ALL = "ALL";
+    private static final String[] PROTOCOL_FILTERS = {FILTER_ALL, "VLESS", "VMESS", "TROJAN", "SHADOWSOCKS"};
 
     private final int bg = Color.rgb(7, 12, 27);
     private final int surface = Color.rgb(19, 29, 51);
@@ -40,13 +44,17 @@ public class MainActivity extends Activity {
     private final int muted = Color.rgb(160, 178, 205);
     private final int accent = Color.rgb(17, 145, 255);
     private final int warning = Color.rgb(255, 184, 77);
+    private final int danger = Color.rgb(214, 76, 76);
 
     private EditText tokenInput;
     private EditText limitInput;
     private EditText timeoutInput;
+    private EditText searchInput;
     private CheckBox healthBox;
     private Button startButton;
+    private Button stopButton;
     private Button copyButton;
+    private Button protocolButton;
     private ProgressBar progressBar;
     private TextView statusText;
     private TextView fetchedText;
@@ -58,6 +66,11 @@ public class MainActivity extends Activity {
     private JSONArray currentItems = new JSONArray();
     private JSONArray currentFailedSources = new JSONArray();
     private int currentPage = 0;
+    private String currentProtocolFilter = FILTER_ALL;
+    private String searchTerm = "";
+    private int scanGeneration = 0;
+    private boolean scanCancelled = false;
+    private boolean running = false;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -114,29 +127,57 @@ public class MainActivity extends Activity {
         row.addView(inputGroup("مهلت اتصال", "ثانیه برای هر سرور", timeoutInput), weight());
         controls.addView(row);
 
-        TextView help = label("پیشنهاد: ۲۰۰ کانفیگ و ۵ ثانیه برای شروع مناسب است.", 12, muted, false, true);
+        TextView help = label("پیشنهاد: بررسی سلامت را روشن نگه دار تا کانفیگ‌های خراب کمتر نمایش داده شوند.", 12, muted, false, true);
         help.setPadding(0, 0, 0, dp(6));
         controls.addView(help);
 
         healthBox = new CheckBox(this);
         healthBox.setText("بررسی سلامت TCP");
+        healthBox.setChecked(true);
         healthBox.setTextColor(text);
         healthBox.setTextSize(14);
         healthBox.setGravity(Gravity.RIGHT | Gravity.CENTER_VERTICAL);
         healthBox.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
         controls.addView(healthBox);
 
+        TextView filterTitle = label("فیلتر و جستجوی نتایج", 13, text, true, true);
+        filterTitle.setPadding(0, dp(8), 0, dp(6));
+        controls.addView(filterTitle);
+
+        searchInput = input("جستجو در کانفیگ، منبع یا پروتکل", false, true);
+        searchInput.addTextChangedListener(new TextWatcher() {
+            @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) { }
+            @Override public void onTextChanged(CharSequence s, int start, int before, int count) {
+                searchTerm = s == null ? "" : s.toString().trim();
+                currentPage = 0;
+                if (currentItems.length() > 0) renderCurrentPage();
+            }
+            @Override public void afterTextChanged(Editable s) { }
+        });
+        controls.addView(searchInput, matchHeight(52));
+
+        protocolButton = button("فیلتر پروتکل: همه", surface2);
+        protocolButton.setOnClickListener(v -> cycleProtocolFilter());
+        LinearLayout.LayoutParams protoLp = matchHeight(44);
+        protoLp.setMargins(0, dp(8), 0, 0);
+        controls.addView(protocolButton, protoLp);
+
         LinearLayout buttons = new LinearLayout(this);
         buttons.setOrientation(LinearLayout.HORIZONTAL);
         buttons.setPadding(0, dp(10), 0, 0);
         buttons.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
         startButton = button("شروع اسکن", accent);
+        stopButton = button("توقف", danger);
         copyButton = button("کپی همه", surface2);
+        stopButton.setEnabled(false);
         copyButton.setEnabled(false);
         startButton.setOnClickListener(v -> startScan());
+        stopButton.setOnClickListener(v -> stopScan());
         copyButton.setOnClickListener(v -> copyResults());
         buttons.addView(startButton, weight());
-        buttons.addView(space(dp(10), 1));
+        buttons.addView(space(dp(8), 1));
+        buttons.addView(stopButton, weight());
+        buttons.addView(space(dp(8), 1));
         buttons.addView(copyButton, weight());
         controls.addView(buttons);
         root.addView(controls, matchWrap());
@@ -153,7 +194,7 @@ public class MainActivity extends Activity {
 
         LinearLayout statusCard = card(surface, 18);
         statusCard.setOrientation(LinearLayout.VERTICAL);
-        statusText = label("آماده است. برای شروع، تعداد ۲۰۰ انتخاب خوبی است.", 14, text, false, true);
+        statusText = label("آماده است. بررسی سلامت به‌صورت پیش‌فرض روشن است.", 14, text, false, true);
         progressBar = new ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal);
         progressBar.setMax(100);
         progressBar.setProgress(0);
@@ -177,6 +218,8 @@ public class MainActivity extends Activity {
         currentPage = 0;
         resultList.removeAllViews();
         setStats("0", "0", "0", "0");
+        scanCancelled = false;
+        final int runId = ++scanGeneration;
         setBusy(true);
         statusText.setText("در حال راه‌اندازی موتور پایتون...");
         progressBar.setIndeterminate(true);
@@ -192,11 +235,27 @@ public class MainActivity extends Activity {
                 PyObject bridge = py.getModule("android_bridge");
                 String json = bridge.callAttr("scan", limit, timeout, health, token).toString();
                 JSONObject payload = new JSONObject(json);
-                runOnUiThread(() -> showResults(payload));
+                runOnUiThread(() -> {
+                    if (scanCancelled || runId != scanGeneration) return;
+                    showResults(payload);
+                });
             } catch (Exception ex) {
-                runOnUiThread(() -> showError(ex));
+                runOnUiThread(() -> {
+                    if (scanCancelled || runId != scanGeneration) return;
+                    showError(ex);
+                });
             }
         }).start();
+    }
+
+    private void stopScan() {
+        if (!running) return;
+        scanCancelled = true;
+        scanGeneration++;
+        setBusy(false);
+        progressBar.setIndeterminate(false);
+        progressBar.setProgress(0);
+        statusText.setText("اسکن متوقف شد. اگر موتور در پس‌زمینه تمام شود، نتیجه‌ی آن نادیده گرفته می‌شود.");
     }
 
     private void showResults(JSONObject payload) {
@@ -232,7 +291,7 @@ public class MainActivity extends Activity {
                 done += " " + currentFailedSources.length() + " منبع ناموفق هم ثبت شد.";
             }
             statusText.setText(done);
-            copyButton.setEnabled(!latestConfigs.isEmpty());
+            copyButton.setEnabled(!collectFilteredConfigs().isEmpty());
         } catch (Exception ex) {
             showError(ex);
             return;
@@ -242,13 +301,24 @@ public class MainActivity extends Activity {
 
     private void renderCurrentPage() {
         resultList.removeAllViews();
-        int totalItems = currentItems.length();
+        JSONArray filtered = filteredItems();
+        int rawTotal = currentItems.length();
+        int totalItems = filtered.length();
         int pageCount = Math.max(1, (int) Math.ceil(totalItems / (double) PAGE_SIZE));
         if (currentPage < 0) currentPage = 0;
         if (currentPage >= pageCount) currentPage = pageCount - 1;
 
-        if (totalItems == 0) {
+        copyButton.setEnabled(!running && !collectFilteredConfigs().isEmpty());
+
+        if (rawTotal == 0) {
             resultList.addView(resultRow("نتیجه‌ای پیدا نشد", "بررسی سلامت را خاموش کن یا تعداد نتایج را بیشتر کن.", "", false));
+            renderFailedSourcesIfNeeded(true);
+            return;
+        }
+
+        if (totalItems == 0) {
+            resultList.addView(resultRow("نتیجه‌ای مطابق فیلتر پیدا نشد", "فیلتر پروتکل یا متن جستجو را تغییر بده.", "", false));
+            resultList.addView(infoRow("فیلتر فعلی", filterSummary(rawTotal, totalItems)));
             renderFailedSourcesIfNeeded(true);
             return;
         }
@@ -258,17 +328,22 @@ public class MainActivity extends Activity {
 
         resultList.addView(sectionTitle("بهترین کانفیگ‌ها — صفحه " + (currentPage + 1) + " از " + pageCount));
         resultList.addView(infoRow("نمایش صفحه‌ای", "کانفیگ‌های " + (start + 1) + " تا " + end + " از " + totalItems + " مورد"));
+        if (isFilterActive()) {
+            resultList.addView(infoRow("فیلتر فعال", filterSummary(rawTotal, totalItems)));
+        }
         resultList.addView(pagerRow(pageCount));
 
         for (int i = start; i < end; i++) {
             try {
-                JSONObject item = currentItems.getJSONObject(i);
+                JSONObject item = filtered.getJSONObject(i);
                 String protocol = item.optString("protocol", "?").toUpperCase(Locale.US);
                 String grade = item.optString("grade", "?");
                 double score = item.optDouble("total", 0.0);
                 String latency = item.isNull("latency_ms") ? "نامشخص" : String.format(Locale.US, "%.0f ms", item.optDouble("latency_ms", 0.0));
+                String source = item.optString("source", "");
                 String title = "#" + (i + 1) + "  " + protocol + "  •  کیفیت " + grade + "  •  امتیاز " + String.format(Locale.US, "%.2f", score);
                 String meta = "تاخیر: " + latency;
+                if (source != null && !source.trim().isEmpty()) meta += "  •  منبع: " + shortUrl(source);
                 String config = item.optString("config", "");
                 resultList.addView(resultRow(title, meta, config, true));
             } catch (Exception ignored) {
@@ -278,7 +353,69 @@ public class MainActivity extends Activity {
 
         resultList.addView(pagerRow(pageCount));
         renderFailedSourcesIfNeeded(currentPage == pageCount - 1);
-        statusText.setText("صفحه " + (currentPage + 1) + " از " + pageCount + " — " + latestConfigs.size() + " کانفیگ آماده است.");
+        statusText.setText("صفحه " + (currentPage + 1) + " از " + pageCount + " — " + totalItems + " کانفیگ مطابق فیلتر.");
+    }
+
+    private JSONArray filteredItems() {
+        JSONArray out = new JSONArray();
+        String q = searchTerm == null ? "" : searchTerm.trim().toLowerCase(Locale.US);
+        for (int i = 0; i < currentItems.length(); i++) {
+            try {
+                JSONObject item = currentItems.getJSONObject(i);
+                String protocol = item.optString("protocol", "").toUpperCase(Locale.US);
+                if (!FILTER_ALL.equals(currentProtocolFilter) && !currentProtocolFilter.equals(protocol)) continue;
+                if (!q.isEmpty()) {
+                    String config = item.optString("config", "").toLowerCase(Locale.US);
+                    String source = item.optString("source", "").toLowerCase(Locale.US);
+                    String grade = item.optString("grade", "").toLowerCase(Locale.US);
+                    String protocolLower = protocol.toLowerCase(Locale.US);
+                    if (!config.contains(q) && !source.contains(q) && !grade.contains(q) && !protocolLower.contains(q)) continue;
+                }
+                out.put(item);
+            } catch (Exception ignored) {
+                // Skip malformed item.
+            }
+        }
+        return out;
+    }
+
+    private List<String> collectFilteredConfigs() {
+        List<String> configs = new ArrayList<>();
+        JSONArray filtered = filteredItems();
+        for (int i = 0; i < filtered.length(); i++) {
+            try {
+                String config = filtered.getJSONObject(i).optString("config", "");
+                if (!config.isEmpty()) configs.add(config);
+            } catch (Exception ignored) {
+                // Skip malformed item.
+            }
+        }
+        if (configs.isEmpty() && currentItems.length() == 0) configs.addAll(latestConfigs);
+        return configs;
+    }
+
+    private boolean isFilterActive() {
+        return !FILTER_ALL.equals(currentProtocolFilter) || (searchTerm != null && !searchTerm.trim().isEmpty());
+    }
+
+    private String filterSummary(int rawTotal, int filteredTotal) {
+        String protocol = FILTER_ALL.equals(currentProtocolFilter) ? "همه" : currentProtocolFilter.toLowerCase(Locale.US);
+        String q = searchTerm == null || searchTerm.trim().isEmpty() ? "بدون جستجو" : searchTerm.trim();
+        return "پروتکل: " + protocol + " — جستجو: " + q + " — نتیجه: " + filteredTotal + " از " + rawTotal;
+    }
+
+    private void cycleProtocolFilter() {
+        int index = 0;
+        for (int i = 0; i < PROTOCOL_FILTERS.length; i++) {
+            if (PROTOCOL_FILTERS[i].equals(currentProtocolFilter)) {
+                index = i;
+                break;
+            }
+        }
+        currentProtocolFilter = PROTOCOL_FILTERS[(index + 1) % PROTOCOL_FILTERS.length];
+        protocolButton.setText("فیلتر پروتکل: " + (FILTER_ALL.equals(currentProtocolFilter) ? "همه" : currentProtocolFilter.toLowerCase(Locale.US)));
+        currentPage = 0;
+        if (currentItems.length() > 0) renderCurrentPage();
     }
 
     private void renderFailedSourcesIfNeeded(boolean shouldShow) {
@@ -343,9 +480,10 @@ public class MainActivity extends Activity {
     }
 
     private void copyResults() {
+        List<String> configs = collectFilteredConfigs();
         ClipboardManager cm = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
-        cm.setPrimaryClip(ClipData.newPlainText("v2ray configs", String.join("\n", latestConfigs)));
-        statusText.setText(latestConfigs.size() + " کانفیگ کپی شد.");
+        cm.setPrimaryClip(ClipData.newPlainText("v2ray configs", String.join("\n", configs)));
+        statusText.setText(configs.size() + " کانفیگ کپی شد.");
     }
 
     private void copyOne(String config) {
@@ -355,10 +493,19 @@ public class MainActivity extends Activity {
     }
 
     private void setBusy(boolean busy) {
+        running = busy;
         startButton.setEnabled(!busy);
+        stopButton.setEnabled(busy);
+        copyButton.setEnabled(!busy && !collectFilteredConfigs().isEmpty());
+        tokenInput.setEnabled(!busy);
+        limitInput.setEnabled(!busy);
+        timeoutInput.setEnabled(!busy);
+        healthBox.setEnabled(!busy);
+        searchInput.setEnabled(!busy);
+        protocolButton.setEnabled(!busy);
         startButton.setText(busy ? "در حال اسکن..." : "شروع اسکن");
         progressBar.setIndeterminate(busy);
-        if (!busy) progressBar.setProgress(100);
+        if (!busy && !scanCancelled) progressBar.setProgress(100);
     }
 
     private void setStats(String fetched, String unique, String healthy, String scored) {
