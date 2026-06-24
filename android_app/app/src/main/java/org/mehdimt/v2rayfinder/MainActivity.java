@@ -30,6 +30,8 @@ import java.util.List;
 import java.util.Locale;
 
 public class MainActivity extends Activity {
+    private static final int PAGE_SIZE = 10;
+
     private final int bg = Color.rgb(7, 12, 27);
     private final int surface = Color.rgb(19, 29, 51);
     private final int surface2 = Color.rgb(33, 47, 82);
@@ -53,6 +55,9 @@ public class MainActivity extends Activity {
     private TextView scoredText;
     private LinearLayout resultList;
     private final List<String> latestConfigs = new ArrayList<>();
+    private JSONArray currentItems = new JSONArray();
+    private JSONArray currentFailedSources = new JSONArray();
+    private int currentPage = 0;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -167,6 +172,9 @@ public class MainActivity extends Activity {
 
     private void startScan() {
         latestConfigs.clear();
+        currentItems = new JSONArray();
+        currentFailedSources = new JSONArray();
+        currentPage = 0;
         resultList.removeAllViews();
         setStats("0", "0", "0", "0");
         setBusy(true);
@@ -213,43 +221,15 @@ public class MainActivity extends Activity {
 
             JSONArray items = payload.optJSONArray("items");
             JSONArray failedSources = payload.optJSONArray("failed_sources");
-            int failedCount = failedSources == null ? 0 : failedSources.length();
+            currentItems = items == null ? new JSONArray() : items;
+            currentFailedSources = failedSources == null ? new JSONArray() : failedSources;
+            currentPage = 0;
 
-            resultList.removeAllViews();
-            if (items == null || items.length() == 0) {
-                resultList.addView(resultRow("نتیجه‌ای پیدا نشد", "بررسی سلامت را خاموش کن یا تعداد نتایج را بیشتر کن.", "", false));
-            } else {
-                int shown = Math.min(items.length(), 100);
-                resultList.addView(sectionTitle("بهترین کانفیگ‌ها — نمایش " + shown + " مورد اول"));
-                for (int i = 0; i < shown; i++) {
-                    JSONObject item = items.getJSONObject(i);
-                    String protocol = item.optString("protocol", "?").toUpperCase(Locale.US);
-                    String grade = item.optString("grade", "?");
-                    double score = item.optDouble("total", 0.0);
-                    String latency = item.isNull("latency_ms") ? "نامشخص" : String.format(Locale.US, "%.0f ms", item.optDouble("latency_ms", 0.0));
-                    String title = "#" + (i + 1) + "  " + protocol + "  •  کیفیت " + grade + "  •  امتیاز " + String.format(Locale.US, "%.2f", score);
-                    String meta = "تاخیر: " + latency;
-                    String config = item.optString("config", "");
-                    resultList.addView(resultRow(title, meta, config, true));
-                }
-            }
-
-            if (failedCount > 0) {
-                int shownFailed = Math.min(failedCount, 20);
-                resultList.addView(sectionTitle("منابع ناموفق — " + failedCount + " مورد"));
-                resultList.addView(infoRow("چرا این مهم است؟", "اگر GitHub محدودیت بدهد، یک لینک timeout شود یا منبعی خراب باشد، اینجا دلیلش را می‌بینی."));
-                for (int i = 0; i < shownFailed; i++) {
-                    JSONObject failed = failedSources.getJSONObject(i);
-                    resultList.addView(failedSourceRow(failed));
-                }
-                if (failedCount > shownFailed) {
-                    resultList.addView(infoRow("نمایش محدود", "برای خوانایی، فقط ۲۰ منبع ناموفق اول نشان داده شد."));
-                }
-            }
+            renderCurrentPage();
 
             String done = "تمام شد. " + latestConfigs.size() + " کانفیگ آماده است.";
-            if (failedCount > 0) {
-                done += " " + failedCount + " منبع ناموفق هم ثبت شد.";
+            if (currentFailedSources.length() > 0) {
+                done += " " + currentFailedSources.length() + " منبع ناموفق هم ثبت شد.";
             }
             statusText.setText(done);
             copyButton.setEnabled(!latestConfigs.isEmpty());
@@ -258,6 +238,102 @@ public class MainActivity extends Activity {
             return;
         }
         setBusy(false);
+    }
+
+    private void renderCurrentPage() {
+        resultList.removeAllViews();
+        int totalItems = currentItems.length();
+        int pageCount = Math.max(1, (int) Math.ceil(totalItems / (double) PAGE_SIZE));
+        if (currentPage < 0) currentPage = 0;
+        if (currentPage >= pageCount) currentPage = pageCount - 1;
+
+        if (totalItems == 0) {
+            resultList.addView(resultRow("نتیجه‌ای پیدا نشد", "بررسی سلامت را خاموش کن یا تعداد نتایج را بیشتر کن.", "", false));
+            renderFailedSourcesIfNeeded(true);
+            return;
+        }
+
+        int start = currentPage * PAGE_SIZE;
+        int end = Math.min(start + PAGE_SIZE, totalItems);
+
+        resultList.addView(sectionTitle("بهترین کانفیگ‌ها — صفحه " + (currentPage + 1) + " از " + pageCount));
+        resultList.addView(infoRow("نمایش صفحه‌ای", "کانفیگ‌های " + (start + 1) + " تا " + end + " از " + totalItems + " مورد"));
+        resultList.addView(pagerRow(pageCount));
+
+        for (int i = start; i < end; i++) {
+            try {
+                JSONObject item = currentItems.getJSONObject(i);
+                String protocol = item.optString("protocol", "?").toUpperCase(Locale.US);
+                String grade = item.optString("grade", "?");
+                double score = item.optDouble("total", 0.0);
+                String latency = item.isNull("latency_ms") ? "نامشخص" : String.format(Locale.US, "%.0f ms", item.optDouble("latency_ms", 0.0));
+                String title = "#" + (i + 1) + "  " + protocol + "  •  کیفیت " + grade + "  •  امتیاز " + String.format(Locale.US, "%.2f", score);
+                String meta = "تاخیر: " + latency;
+                String config = item.optString("config", "");
+                resultList.addView(resultRow(title, meta, config, true));
+            } catch (Exception ignored) {
+                // Skip malformed rows without breaking the whole page.
+            }
+        }
+
+        resultList.addView(pagerRow(pageCount));
+        renderFailedSourcesIfNeeded(currentPage == pageCount - 1);
+        statusText.setText("صفحه " + (currentPage + 1) + " از " + pageCount + " — " + latestConfigs.size() + " کانفیگ آماده است.");
+    }
+
+    private void renderFailedSourcesIfNeeded(boolean shouldShow) {
+        int failedCount = currentFailedSources.length();
+        if (!shouldShow || failedCount == 0) return;
+
+        int shownFailed = Math.min(failedCount, 20);
+        resultList.addView(sectionTitle("منابع ناموفق — " + failedCount + " مورد"));
+        resultList.addView(infoRow("چرا این مهم است؟", "اگر GitHub محدودیت بدهد، یک لینک timeout شود یا منبعی خراب باشد، اینجا دلیلش را می‌بینی."));
+        for (int i = 0; i < shownFailed; i++) {
+            try {
+                JSONObject failed = currentFailedSources.getJSONObject(i);
+                resultList.addView(failedSourceRow(failed));
+            } catch (Exception ignored) {
+                // Skip malformed error rows.
+            }
+        }
+        if (failedCount > shownFailed) {
+            resultList.addView(infoRow("نمایش محدود", "برای خوانایی، فقط ۲۰ منبع ناموفق اول نشان داده شد."));
+        }
+    }
+
+    private View pagerRow(int pageCount) {
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setPadding(0, dp(4), 0, dp(10));
+        row.setGravity(Gravity.CENTER_VERTICAL);
+        row.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
+
+        Button next = button("بعدی", accent);
+        Button previous = button("قبلی", surface2);
+        TextView page = label("صفحه " + (currentPage + 1) + " / " + pageCount, 13, text, true, true);
+        page.setGravity(Gravity.CENTER);
+
+        previous.setEnabled(currentPage > 0);
+        next.setEnabled(currentPage < pageCount - 1);
+        previous.setOnClickListener(v -> {
+            if (currentPage > 0) {
+                currentPage--;
+                renderCurrentPage();
+            }
+        });
+        next.setOnClickListener(v -> {
+            if (currentPage < pageCount - 1) {
+                currentPage++;
+                renderCurrentPage();
+            }
+        });
+
+        row.addView(next, weight());
+        row.addView(space(dp(8), 1));
+        row.addView(page, weight());
+        row.addView(space(dp(8), 1));
+        row.addView(previous, weight());
+        return row;
     }
 
     private void showError(Exception ex) {
