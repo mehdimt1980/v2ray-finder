@@ -7,6 +7,8 @@
         android:allowBackup="false"
         android:theme="@style/AppTheme"
         android:label="V2Ray Finder"
+        android:icon="@drawable/ic_launcher"
+        android:roundIcon="@drawable/ic_launcher"
         android:resizeableActivity="true">
         <activity
             android:name=".MainActivity"
