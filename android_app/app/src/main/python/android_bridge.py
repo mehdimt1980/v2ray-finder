@@ -39,10 +39,23 @@ def scan(limit: int = 200, timeout: float = 5.0, check_health: bool = False, tok
             }
         )
 
+    failed_sources: list[dict[str, Any]] = []
+    for url, error in result.failed_sources.items():
+        details = error.get("details") if isinstance(error, dict) else {}
+        failed_sources.append(
+            {
+                "url": url,
+                "error_type": error.get("error_type", "unknown_error") if isinstance(error, dict) else "unknown_error",
+                "message": error.get("message", str(error)) if isinstance(error, dict) else str(error),
+                "details": details if isinstance(details, dict) else {},
+            }
+        )
+
     configs = result.top_configs if result.scores else result.configs
     payload = {
         "stats": result.stats,
         "configs": configs[:limit],
         "items": items,
+        "failed_sources": failed_sources,
     }
     return json.dumps(payload, ensure_ascii=False)
