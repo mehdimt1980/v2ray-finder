@@ -36,6 +36,7 @@ def scan(limit: int = 200, timeout: float = 5.0, check_health: bool = False, tok
                 "total": float(score.total),
                 "grade": score.grade,
                 "latency_ms": None if score.latency_ms is None else float(score.latency_ms),
+                "source": getattr(score, "source", "") or "",
             }
         )
 
