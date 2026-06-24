@@ -6,6 +6,7 @@ on:
     paths:
       - "android_app/**"
       - "v2ray_finder/**"
+      - "scripts/**"
       - ".github/workflows/android-apk.yml"
   push:
     branches:
@@ -75,12 +76,22 @@ jobs:
           print('\n'.join(files[:80]))
           PY
 
+      - name: Bundle xray binary for Android real checks
+        env:
+          XRAY_ANDROID_TARGET: android_app/app/src/main/assets/xray/arm64-v8a/xray
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set -euxo pipefail
+          python3.11 scripts/prepare_android_xray_asset.py
+          test -s android_app/app/src/main/assets/xray/arm64-v8a/xray
+          ls -lh android_app/app/src/main/assets/xray/arm64-v8a/xray
+
       - name: Build debug APK
         run: |
           set -o pipefail
           gradle -p android_app :app:assembleDebug --stacktrace 2>&1 | tee android-gradle-build.log
 
-      - name: Verify APK contains Chaquopy runtime
+      - name: Verify APK contains Chaquopy runtime and xray asset
         run: |
           APK=$(ls -1 android_app/app/build/outputs/apk/debug/*.apk | head -n 1)
           python3.11 - <<'PY'
@@ -100,10 +111,11 @@ jobs:
               'assets/chaquopy/app.imy',
               'assets/chaquopy/bootstrap.imy',
               'assets/chaquopy/requirements-common.imy',
+              'assets/xray/arm64-v8a/xray',
           ]
           missing = [name for name in required if name not in names]
           if missing:
-              raise SystemExit('APK is missing required Chaquopy payload files: ' + ', '.join(missing))
+              raise SystemExit('APK is missing required payload files: ' + ', '.join(missing))
           PY
 
       - name: Upload build logs on failure
