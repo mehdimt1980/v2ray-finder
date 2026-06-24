@@ -21,6 +21,7 @@ NATIVE_TARGET = Path("android_app/app/src/main/jniLibs/arm64-v8a/libxray.so")
 LEGACY_ASSET_TARGET = Path("android_app/app/src/main/assets/xray/arm64-v8a/xray")
 JAVA_ACTIVITY = Path("android_app/app/src/main/java/org/mehdimt/v2rayfinder/DefaultHealthActivity.java")
 BUILD_GRADLE = Path("android_app/app/build.gradle")
+PY_ROOT = Path("android_app/app/src/main/python")
 
 
 def _request_json(url: str) -> dict:
@@ -127,6 +128,151 @@ def _patch_build_gradle() -> None:
     print("Patched build.gradle: version 1.0.9 and doNotStrip for libxray.so")
 
 
+def _patch_xray_runner() -> None:
+    path = PY_ROOT / "v2ray_finder/xray_runner.py"
+    if not path.exists():
+        print(f"xray_runner.py not found, skipping patch: {path}")
+        return
+    text = path.read_text(encoding="utf-8")
+    text = text.replace(
+        """        self._process = subprocess.Popen(
+            [binary, \"run\", \"-c\", path],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+
+        if not _wait_for_port(self.local_port):
+            self.stop()
+            raise RuntimeError(
+                f\"xray did not open SOCKS5 port {self.local_port} \"
+                f\"within {_STARTUP_TIMEOUT}s.\"
+            )
+""",
+        """        self._process = subprocess.Popen(
+            [binary, \"run\", \"-c\", path],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+
+        if not _wait_for_port(self.local_port):
+            output = self._collect_output()
+            self.stop()
+            detail = f\" Output: {output[:1000]}\" if output else \"\"
+            raise RuntimeError(
+                f\"xray did not open SOCKS5 port {self.local_port} \"
+                f\"within {_STARTUP_TIMEOUT}s.\" + detail
+            )
+""",
+    )
+    marker = "    def stop(self) -> None:\n"
+    if "def _collect_output" not in text:
+        helper = """    def _collect_output(self) -> str:
+        if not self._process:
+            return \"\"
+        try:
+            if self._process.poll() is None:
+                self._process.terminate()
+            out, err = self._process.communicate(timeout=1)
+            return ((out or \"\") + \" \" + (err or \"\")).strip()
+        except Exception as exc:
+            return f\"could not collect process output: {exc}\"
+
+"""
+        text = text.replace(marker, helper + marker, 1)
+    path.write_text(text, encoding="utf-8")
+    print("Patched xray_runner to capture xray startup output")
+
+
+def _patch_reality_adapter() -> None:
+    path = PY_ROOT / "v2ray_finder/xray_config_adapter.py"
+    if not path.exists():
+        print(f"xray_config_adapter.py not found, skipping patch: {path}")
+        return
+    text = path.read_text(encoding="utf-8")
+    old = """    if security in (\"tls\", \"xtls\", \"reality\"):
+        settings[\"security\"] = security
+        sni = qs.get(\"sni\", [\"\"])[0] or (parsed.hostname or \"\")
+        settings[\"tlsSettings\"] = {
+            \"serverName\": sni,
+            \"allowInsecure\": qs.get(\"allowInsecure\", [\"0\"])[0] == \"1\",
+        }
+"""
+    new = """    if security == \"reality\":
+        settings[\"security\"] = \"reality\"
+        sni = qs.get(\"sni\", [\"\"])[0] or (parsed.hostname or \"\")
+        reality = {
+            \"serverName\": sni,
+            \"fingerprint\": qs.get(\"fp\", [\"chrome\"])[0] or \"chrome\",
+            \"publicKey\": qs.get(\"pbk\", [\"\"])[0],
+            \"shortId\": qs.get(\"sid\", [\"\"])[0],
+            \"spiderX\": qs.get(\"spx\", [\"/\"])[0] or \"/\",
+        }
+        settings[\"realitySettings\"] = {k: v for k, v in reality.items() if v != \"\"}
+    elif security in (\"tls\", \"xtls\"):
+        settings[\"security\"] = security
+        sni = qs.get(\"sni\", [\"\"])[0] or (parsed.hostname or \"\")
+        settings[\"tlsSettings\"] = {
+            \"serverName\": sni,
+            \"allowInsecure\": qs.get(\"allowInsecure\", [\"0\"])[0] == \"1\",
+        }
+"""
+    if old not in text:
+        print("Reality adapter block not found; it may already be patched.")
+    else:
+        text = text.replace(old, new, 1)
+        path.write_text(text, encoding="utf-8")
+        print("Patched VLESS/Trojan Reality stream settings")
+
+
+def _patch_android_bridge() -> None:
+    path = PY_ROOT / "android_bridge.py"
+    if not path.exists():
+        print(f"android_bridge.py not found, skipping patch: {path}")
+        return
+    text = path.read_text(encoding="utf-8")
+    text = text.replace("_real_check_limit = 10", "_real_check_limit = 200")
+    text = text.replace("limit: int = 10", "limit: int = 200")
+    text = text.replace("min(int(limit or 10), 50)", "min(int(limit or 200), 200)")
+    text = text.replace("max_workers=2", "max_workers=4")
+    text = text.replace("timeout=max(timeout, 8.0)", "timeout=max(timeout, 6.0)")
+    text = text.replace(
+        """                real_map = {r.config: r for r in real_results}
+                verified_items: list[dict[str, Any]] = []
+""",
+        """                real_map = {r.config: r for r in real_results}
+                error_samples = []
+                for r in real_results:
+                    if not r.google_204_ok:
+                        err = r.error or \"Google-204 did not return OK through proxy\"
+                        error_samples.append(f\"{r.protocol}: {err}\")
+                real_info[\"error_samples\"] = error_samples[:8]
+                verified_items: list[dict[str, Any]] = []
+""",
+    )
+    text = text.replace(
+        """    failed_sources: list[dict[str, Any]] = []
+    for url, error in result.failed_sources.items():
+""",
+        """    failed_sources: list[dict[str, Any]] = []
+    if _real_check_enabled and real_info.get(\"checked\", 0) and real_info.get(\"ok\", 0) == 0:
+        failed_sources.append(
+            {
+                \"url\": \"xray://layer3/google-204\",
+                \"error_type\": \"xray_real_check_failed\",
+                \"message\": real_info.get(\"message\", \"xray real check returned zero working configs\")
+                + \" Samples: \"
+                + \" | \".join(real_info.get(\"error_samples\", [])[:5]),
+                \"details\": real_info,
+            }
+        )
+    for url, error in result.failed_sources.items():
+""",
+    )
+    path.write_text(text, encoding="utf-8")
+    print("Patched android_bridge real-check diagnostics")
+
+
 def main() -> int:
     tag = os.environ.get("XRAY_RELEASE_TAG", "latest").strip() or "latest"
     release_url = f"{REPO_API}/latest" if tag == "latest" else f"{REPO_API}/tags/{tag}"
@@ -155,6 +301,9 @@ def main() -> int:
 
     _patch_android_activity()
     _patch_build_gradle()
+    _patch_xray_runner()
+    _patch_reality_adapter()
+    _patch_android_bridge()
     return 0
 
 
