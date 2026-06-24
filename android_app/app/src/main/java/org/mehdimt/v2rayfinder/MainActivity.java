@@ -37,6 +37,7 @@ public class MainActivity extends Activity {
     private final int text = Color.rgb(241, 246, 255);
     private final int muted = Color.rgb(160, 178, 205);
     private final int accent = Color.rgb(17, 145, 255);
+    private final int warning = Color.rgb(255, 184, 77);
 
     private EditText tokenInput;
     private EditText limitInput;
@@ -211,6 +212,9 @@ public class MainActivity extends Activity {
             }
 
             JSONArray items = payload.optJSONArray("items");
+            JSONArray failedSources = payload.optJSONArray("failed_sources");
+            int failedCount = failedSources == null ? 0 : failedSources.length();
+
             resultList.removeAllViews();
             if (items == null || items.length() == 0) {
                 resultList.addView(resultRow("نتیجه‌ای پیدا نشد", "بررسی سلامت را خاموش کن یا تعداد نتایج را بیشتر کن.", "", false));
@@ -229,7 +233,25 @@ public class MainActivity extends Activity {
                     resultList.addView(resultRow(title, meta, config, true));
                 }
             }
-            statusText.setText("تمام شد. " + latestConfigs.size() + " کانفیگ آماده است.");
+
+            if (failedCount > 0) {
+                int shownFailed = Math.min(failedCount, 20);
+                resultList.addView(sectionTitle("منابع ناموفق — " + failedCount + " مورد"));
+                resultList.addView(infoRow("چرا این مهم است؟", "اگر GitHub محدودیت بدهد، یک لینک timeout شود یا منبعی خراب باشد، اینجا دلیلش را می‌بینی."));
+                for (int i = 0; i < shownFailed; i++) {
+                    JSONObject failed = failedSources.getJSONObject(i);
+                    resultList.addView(failedSourceRow(failed));
+                }
+                if (failedCount > shownFailed) {
+                    resultList.addView(infoRow("نمایش محدود", "برای خوانایی، فقط ۲۰ منبع ناموفق اول نشان داده شد."));
+                }
+            }
+
+            String done = "تمام شد. " + latestConfigs.size() + " کانفیگ آماده است.";
+            if (failedCount > 0) {
+                done += " " + failedCount + " منبع ناموفق هم ثبت شد.";
+            }
+            statusText.setText(done);
             copyButton.setEnabled(!latestConfigs.isEmpty());
         } catch (Exception ex) {
             showError(ex);
@@ -393,6 +415,76 @@ public class MainActivity extends Activity {
             row.addView(copy, lp);
         }
         return row;
+    }
+
+    private View infoRow(String title, String body) {
+        LinearLayout row = card(surface3, 18);
+        row.setOrientation(LinearLayout.VERTICAL);
+        row.addView(label(title, 13, text, true, true));
+        row.addView(label(body, 12, muted, false, true));
+        return row;
+    }
+
+    private View failedSourceRow(JSONObject failed) {
+        LinearLayout row = card(surface3, 18);
+        row.setOrientation(LinearLayout.VERTICAL);
+
+        String errorType = failed.optString("error_type", "unknown_error");
+        String message = failed.optString("message", "خطای نامشخص");
+        String url = failed.optString("url", "");
+        JSONObject details = failed.optJSONObject("details");
+
+        TextView title = label(friendlyErrorType(errorType), 14, warning, true, true);
+        TextView msg = label(shortMessage(message), 12, text, false, true);
+        TextView hint = label(errorHint(errorType), 11, muted, false, true);
+        TextView source = label(shortUrl(url), 10, muted, false, false);
+        source.setTypeface(Typeface.MONOSPACE);
+        source.setMaxLines(2);
+        source.setPadding(0, dp(6), 0, 0);
+
+        row.addView(title);
+        row.addView(msg);
+        row.addView(hint);
+        row.addView(source);
+
+        if (details != null && details.length() > 0) {
+            TextView detailView = label("جزئیات: " + details.toString(), 10, muted, false, false);
+            detailView.setTypeface(Typeface.MONOSPACE);
+            detailView.setMaxLines(2);
+            row.addView(detailView);
+        }
+        return row;
+    }
+
+    private String friendlyErrorType(String errorType) {
+        if (errorType == null) return "خطای نامشخص";
+        if (errorType.contains("rate_limit")) return "محدودیت GitHub / Rate Limit";
+        if (errorType.contains("timeout")) return "پایان مهلت اتصال";
+        if (errorType.contains("network")) return "خطای شبکه";
+        if (errorType.contains("authentication")) return "خطای توکن یا دسترسی";
+        if (errorType.contains("github")) return "خطای GitHub";
+        if (errorType.contains("http")) return "خطای HTTP";
+        return "خطای منبع";
+    }
+
+    private String errorHint(String errorType) {
+        if (errorType == null) return "این منبع فعلاً قابل استفاده نبود.";
+        if (errorType.contains("rate_limit")) return "پیشنهاد: توکن GitHub وارد کن یا کمی بعد دوباره امتحان کن.";
+        if (errorType.contains("timeout")) return "پیشنهاد: مهلت اتصال را بیشتر کن یا بعداً دوباره تست کن.";
+        if (errorType.contains("network")) return "پیشنهاد: اینترنت، DNS یا دسترسی به GitHub را بررسی کن.";
+        if (errorType.contains("authentication")) return "پیشنهاد: توکن GitHub را بررسی یا خالی کن.";
+        return "این خطا فقط روی همین منبع اثر دارد؛ نتایج سالم همچنان قابل استفاده‌اند.";
+    }
+
+    private String shortMessage(String message) {
+        if (message == null || message.trim().isEmpty()) return "پیام خطا موجود نیست.";
+        String m = message.replace('\n', ' ').trim();
+        return m.length() > 140 ? m.substring(0, 140) + "…" : m;
+    }
+
+    private String shortUrl(String url) {
+        if (url == null || url.trim().isEmpty()) return "source: unknown";
+        return url.length() > 120 ? url.substring(0, 120) + "…" : url;
     }
 
     private View space(int width, int height) {
