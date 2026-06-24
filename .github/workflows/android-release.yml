@@ -4,9 +4,9 @@ on:
   workflow_dispatch:
     inputs:
       version_name:
-        description: "Release version name, for example 1.0.0"
+        description: "Release version name, for example 1.0.8"
         required: true
-        default: "1.0.1"
+        default: "1.0.8"
       create_github_release:
         description: "Create a GitHub Release and upload the signed APK"
         required: true
@@ -16,7 +16,7 @@ on:
           - "false"
           - "true"
 permissions:
-  contents: write          
+  contents: write
 
 jobs:
   build-signed-release-apk:
@@ -99,6 +99,16 @@ jobs:
           print('Python files staged for release:', len(list(root.rglob('*.py'))))
           PY
 
+      - name: Bundle xray binary for Android real checks
+        env:
+          XRAY_ANDROID_TARGET: android_app/app/src/main/assets/xray/arm64-v8a/xray
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set -euxo pipefail
+          python3.11 scripts/prepare_android_xray_asset.py
+          test -s android_app/app/src/main/assets/xray/arm64-v8a/xray
+          ls -lh android_app/app/src/main/assets/xray/arm64-v8a/xray
+
       - name: Build signed release APK
         env:
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
@@ -108,10 +118,27 @@ jobs:
           set -o pipefail
           gradle -p android_app :app:assembleRelease --stacktrace 2>&1 | tee android-release-build.log
 
-      - name: Locate and rename APK
+      - name: Locate, verify payload, and rename APK
         run: |
           set -euo pipefail
           APK=$(ls -1 android_app/app/build/outputs/apk/release/*.apk | head -n 1)
+          python3.11 - <<'PY'
+          import zipfile
+          from pathlib import Path
+          apk = Path(next(Path('android_app/app/build/outputs/apk/release').glob('*.apk')))
+          with zipfile.ZipFile(apk) as zf:
+              names = set(zf.namelist())
+          required = {
+              'assets/chaquopy/app.imy',
+              'assets/chaquopy/bootstrap.imy',
+              'assets/chaquopy/requirements-common.imy',
+              'assets/xray/arm64-v8a/xray',
+          }
+          missing = sorted(required - names)
+          if missing:
+              raise SystemExit('Release APK is missing required payload files: ' + ', '.join(missing))
+          print('Release APK payload verified: Chaquopy + xray asset present.')
+          PY
           OUT="v2ray-finder-android-${{ github.event.inputs.version_name }}-signed.apk"
           cp "$APK" "$OUT"
           echo "SIGNED_APK=$OUT" >> "$GITHUB_ENV"
@@ -143,11 +170,13 @@ jobs:
             Features:
             - Persian / RTL native Android UI
             - Real v2ray_finder Pipeline through Chaquopy
-            - TCP health check
+            - TCP health check enabled by default
+            - optional xray / Google-204 real connectivity check for top configs
+            - protocol filter, search, pagination, stop button
             - ranked config cards
             - copy all or single configs
 
-            Note: xray Layer-3 / Google-204 probing is not enabled on Android yet.
+            Note: xray / Google-204 is slower and should be used when you want stricter verification.
           files: ${{ env.SIGNED_APK }}
 
       - name: Upload release build logs on failure
