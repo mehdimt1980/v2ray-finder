@@ -3,16 +3,7 @@
 Supported URI schemes: vmess, vless, trojan, ss (Shadowsocks).
 
 The generated config uses a SOCKS5 inbound on 127.0.0.1:<socks_port>
-and routes all traffic through the specified outbound.
-
-Usage::
-
-    adapter = ConfigAdapter(log_level="none")
-    cfg = adapter.build_config(uri, socks_port=10808)
-
-    # Or as a context manager that writes/cleans up a temp file:
-    with adapter.build_config_file(uri, socks_port=10808) as path:
-        subprocess.run(["xray", "run", "-c", path])
+and routes normal traffic through the proxy outbound.
 """
 
 from __future__ import annotations
@@ -35,13 +26,7 @@ class UnsupportedProtocolError(ValueError):
 
 
 class ConfigAdapter:
-    """Convert proxy URI strings to xray JSON config dicts.
-
-    Args:
-        log_level: Xray log level injected into the generated config under
-                   ``log.loglevel``.  Valid values: "none", "error",
-                   "warning", "info", "debug".  Defaults to "warning".
-    """
+    """Convert proxy URI strings to xray JSON config dicts."""
 
     SUPPORTED = frozenset({"vmess", "vless", "trojan", "ss"})
 
@@ -49,12 +34,7 @@ class ConfigAdapter:
         self.log_level = log_level
 
     def build_config(self, uri: str, socks_port: int = 10808) -> Dict[str, Any]:
-        """Convert *uri* to an xray config dict.
-
-        Raises:
-            UnsupportedProtocolError: if the URI scheme is not supported.
-            ValueError: if the URI cannot be parsed.
-        """
+        """Convert *uri* to an xray config dict."""
         scheme = uri.split("://", 1)[0].lower() if "://" in uri else ""
         if scheme not in self.SUPPORTED:
             raise UnsupportedProtocolError(scheme)
@@ -66,10 +46,7 @@ class ConfigAdapter:
 
     @contextlib.contextmanager
     def build_config_file(self, uri: str, socks_port: int = 10808):
-        """Context manager: yield path to a temporary xray config file.
-
-        The file is automatically deleted on exit.
-        """
+        """Context manager: yield path to a temporary xray config file."""
         cfg = self.build_config(uri, socks_port=socks_port)
         fd, path = tempfile.mkstemp(suffix=".json", prefix="xray_cfg_")
         try:
@@ -99,13 +76,26 @@ def _socks_inbound(local_port: int) -> Dict:
 
 
 def _base_config(outbound: Dict, local_port: int) -> Dict:
+    """Return a complete minimal xray config.
+
+    Important: routing rules below reference both ``proxy`` and ``direct`` tags,
+    so both outbounds must exist.  Earlier builds referenced ``direct`` without
+    defining it, which can make xray fail before opening the local SOCKS port.
+    """
+    outbound = dict(outbound)
+    outbound.setdefault("tag", "proxy")
     return {
         "inbounds": [_socks_inbound(local_port)],
-        "outbounds": [outbound],
+        "outbounds": [
+            outbound,
+            {"tag": "direct", "protocol": "freedom"},
+            {"tag": "block", "protocol": "blackhole"},
+        ],
         "routing": {
             "domainStrategy": "IPIfNonMatch",
             "rules": [
-                {"type": "field", "outboundTag": "direct", "ip": ["geoip:private"]}
+                {"type": "field", "outboundTag": "direct", "ip": ["geoip:private"]},
+                {"type": "field", "outboundTag": "proxy", "network": "tcp,udp"},
             ],
         },
     }
@@ -140,13 +130,26 @@ def _stream_settings_qs(qs: dict, parsed: Any) -> Dict:
     network = qs.get("type", ["tcp"])[0]
     security = qs.get("security", ["none"])[0]
     settings: Dict[str, Any] = {"network": network}
-    if security in ("tls", "xtls", "reality"):
+
+    if security == "reality":
+        settings["security"] = "reality"
+        sni = qs.get("sni", [""])[0] or (parsed.hostname or "")
+        reality = {
+            "serverName": sni,
+            "fingerprint": qs.get("fp", ["chrome"])[0] or "chrome",
+            "publicKey": qs.get("pbk", [""])[0],
+            "shortId": qs.get("sid", [""])[0],
+            "spiderX": qs.get("spx", ["/"])[0] or "/",
+        }
+        settings["realitySettings"] = {k: v for k, v in reality.items() if v != ""}
+    elif security in ("tls", "xtls"):
         settings["security"] = security
         sni = qs.get("sni", [""])[0] or (parsed.hostname or "")
         settings["tlsSettings"] = {
             "serverName": sni,
             "allowInsecure": qs.get("allowInsecure", ["0"])[0] == "1",
         }
+
     if network == "ws":
         settings["wsSettings"] = {
             "path": qs.get("path", ["/"])[0],
