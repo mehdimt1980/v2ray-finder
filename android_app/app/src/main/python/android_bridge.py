@@ -7,13 +7,15 @@ import os
 from typing import Any
 
 from v2ray_finder import Pipeline
+from v2ray_finder.source_performance import build_source_performance
+from v2ray_finder.sources import get_enabled_sources
 
 _real_check_enabled = False
 _real_check_binary_path = ""
-_real_check_limit = 10
+_real_check_limit = 200
 
 
-def set_real_check(enabled: bool = False, binary_path: str = "", limit: int = 10) -> str:
+def set_real_check(enabled: bool = False, binary_path: str = "", limit: int = 200) -> str:
     """Configure optional Android Layer-3 xray/Google-204 checking.
 
     Java calls this before ``scan``. The existing ``scan`` signature remains
@@ -22,7 +24,7 @@ def set_real_check(enabled: bool = False, binary_path: str = "", limit: int = 10
     global _real_check_enabled, _real_check_binary_path, _real_check_limit
     _real_check_enabled = bool(enabled)
     _real_check_binary_path = binary_path or ""
-    _real_check_limit = max(1, min(int(limit or 10), 50))
+    _real_check_limit = max(1, min(int(limit or 200), 200))
     available = bool(_real_check_binary_path and os.path.isfile(_real_check_binary_path))
     return json.dumps(
         {
@@ -54,8 +56,14 @@ def scan(limit: int = 200, timeout: float = 5.0, check_health: bool = False, tok
     )
     result = pipeline.run()
 
+    health_by_config: dict[str, dict[str, Any]] = {
+        str(h.get("config", "")): h for h in result.health_dicts if h.get("config")
+    }
+
     items: list[dict[str, Any]] = []
     for score in result.scores[:200]:
+        health = health_by_config.get(score.config, {})
+        source_url = health.get("source_url", "") or ""
         items.append(
             {
                 "config": score.config,
@@ -63,7 +71,8 @@ def scan(limit: int = 200, timeout: float = 5.0, check_health: bool = False, tok
                 "total": float(score.total),
                 "grade": score.grade,
                 "latency_ms": None if score.latency_ms is None else float(score.latency_ms),
-                "source": getattr(score, "source", "") or "",
+                "source": source_url,
+                "source_trust": int(health.get("source_trust", 0) or 0),
                 "real_checked": False,
                 "google_204_ok": None,
                 "real_latency_ms": None,
@@ -73,6 +82,7 @@ def scan(limit: int = 200, timeout: float = 5.0, check_health: bool = False, tok
 
     configs = result.top_configs if result.scores else result.configs
     stats = dict(result.stats)
+    real_results = []
 
     real_info: dict[str, Any] = {
         "requested": bool(_real_check_enabled),
@@ -98,12 +108,19 @@ def scan(limit: int = 200, timeout: float = 5.0, check_health: bool = False, tok
                 candidates = [s.config for s in result.scores[:_real_check_limit]]
                 real_results = check_real_connectivity_batch(
                     candidates,
-                    max_workers=2,
-                    timeout=max(timeout, 8.0),
+                    max_workers=4,
+                    timeout=max(timeout, 6.0),
                     binary_path=_real_check_binary_path,
                     auto_download=False,
                 )
                 real_map = {r.config: r for r in real_results}
+                error_samples = []
+                for r in real_results:
+                    if not r.google_204_ok:
+                        err = r.error or "Google-204 did not return OK through proxy"
+                        error_samples.append(f"{r.protocol}: {err}")
+                real_info["error_samples"] = error_samples[:8]
+
                 verified_items: list[dict[str, Any]] = []
                 for item in items:
                     rr = real_map.get(item["config"])
@@ -133,7 +150,26 @@ def scan(limit: int = 200, timeout: float = 5.0, check_health: bool = False, tok
             except Exception as exc:
                 real_info["message"] = f"xray real check failed: {exc}"
 
+    source_performance = build_source_performance(
+        sources=get_enabled_sources(),
+        health_dicts=result.health_dicts,
+        fetch_errors=result.failed_sources,
+        real_results=real_results,
+    )
+    stats["source_performance"] = source_performance
+
     failed_sources: list[dict[str, Any]] = []
+    if _real_check_enabled and real_info.get("checked", 0) and real_info.get("ok", 0) == 0:
+        failed_sources.append(
+            {
+                "url": "xray://layer3/google-204",
+                "error_type": "xray_real_check_failed",
+                "message": real_info.get("message", "xray real check returned zero working configs")
+                + " Samples: "
+                + " | ".join(real_info.get("error_samples", [])[:5]),
+                "details": real_info,
+            }
+        )
     for url, error in result.failed_sources.items():
         details = error.get("details") if isinstance(error, dict) else {}
         failed_sources.append(
@@ -151,5 +187,6 @@ def scan(limit: int = 200, timeout: float = 5.0, check_health: bool = False, tok
         "items": items,
         "failed_sources": failed_sources,
         "real_check": real_info,
+        "source_performance": source_performance,
     }
     return json.dumps(payload, ensure_ascii=False)
