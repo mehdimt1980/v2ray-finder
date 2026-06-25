@@ -8,7 +8,7 @@
 
 ---
 
-`v2ray-finder` ist ein schnelles Python-Werkzeug zum Abrufen, Aggregieren, Deduplizieren, Validieren, Health-Checking und Bewerten öffentlicher V2Ray/Xray-Konfigurationen aus GitHub und kuratierten Subscription-Quellen.
+`v2ray-finder` ist ein schnelles Python- und Android-Werkzeug zum Abrufen, Aggregieren, Deduplizieren, Validieren, Health-Checking, Real-Testing und Bewerten öffentlicher V2Ray/Xray-Konfigurationen aus GitHub und kuratierten Subscription-Quellen.
 
 Das Tool erzeugt saubere Listen mit:
 
@@ -20,7 +20,7 @@ ss://
 ssr://
 ```
 
-Das Repository enthält inzwischen zusätzlich eine funktionierende Android-APK-Implementierung.
+Das Repository enthält inzwischen sowohl die Python-Engine als auch eine funktionierende native Android-APK-Implementierung.
 
 ---
 
@@ -30,10 +30,12 @@ Das Repository enthält inzwischen zusätzlich eine funktionierende Android-APK-
 - Pipeline-Engine: Discovery → Fetch → Dedup → Health → Score
 - Asynchrones Fetching mit `httpx`
 - TCP-Health-Check und Latenzbewertung
+- Optionaler echter Layer-3-Test mit gebündeltem `xray` + Google-204 auf Android
+- Source Performance Engine zur Bewertung der Quellen, die wirklich nützliche Konfigurationen liefern
 - CLI, Rich CLI und PySide6-Desktop-GUI
 - Native Android-App mit Chaquopy
 - Persische / RTL Android-Oberfläche für iranische Nutzer
-- GitHub-Actions-Workflow zum Erstellen einer Debug-APK
+- GitHub-Actions-Workflows für Debug-APK und signierte Release-APK
 
 ---
 
@@ -62,7 +64,10 @@ android_app/
     build.gradle                    # Android- und Chaquopy-Konfiguration
     src/main/AndroidManifest.xml
     src/main/java/org/mehdimt/v2rayfinder/MainActivity.java
+    src/main/java/org/mehdimt/v2rayfinder/DefaultHealthActivity.java
     src/main/python/android_bridge.py
+scripts/
+  prepare_android_xray_asset.py     # Staging von xray und Android-Build-Patches
 ```
 
 Der GitHub-Actions-Workflow kopiert das Root-Paket `v2ray_finder/` nach:
@@ -79,11 +84,64 @@ Anschließend packt Chaquopy den Python-Bridge-Code, die echte `Pipeline` und di
 - Persisch und rechts-nach-links
 - Optionales GitHub-Token-Feld
 - Steuerung von Ergebnislimit und Timeout
-- Optionaler TCP-Health-Check
+- TCP-Health-Check, standardmäßig aktiviert
+- optionaler echter `xray` / Google-204-Test: langsamer, aber deutlich genauer
 - Statistiken: Fetched / Unique / Healthy / Scored
-- Ergebnis-Karten mit Rang, Protokoll, Qualität, Score und Latenz
+- Ergebnis-Karten mit Rang, Protokoll, Qualität, Score, Latenz und Quelle
+- Suche und Protokollfilter
+- Pagination für größere Ergebnislisten
+- strukturierte Diagnose für fehlgeschlagene Quellen
+- Bereich „effektive Quellen“ mit den besten Sources nach jedem Scan
 - Alle Konfigurationen kopieren
 - Einzelne Konfiguration pro Karte kopieren
+
+### Echter xray / Google-204-Test auf Android
+
+Der Android-Build kann während CI die offizielle Android-arm64-`xray`-Binärdatei bündeln. Die App startet `xray` lokal, öffnet einen SOCKS5-Port und prüft, ob die getestete Konfiguration über diesen Proxy Google-204 erreichen kann.
+
+Das ist etwas anderes als ein einfacher TCP-Test:
+
+```text
+TCP check         → host:port ist erreichbar
+xray / Google-204 → die Konfiguration funktioniert wirklich über xray
+```
+
+Wichtige Implementierungsdetails für Android:
+
+- `scripts/prepare_android_xray_asset.py` lädt während des Builds das Android-arm64-Release-Asset von xray herunter.
+- Die Binärdatei wird als `android_app/app/src/main/jniLibs/arm64-v8a/libxray.so` abgelegt.
+- Der Build setzt `doNotStrip "**/libxray.so"`, damit Gradle die ausführbare Datei nicht beschädigt.
+- Die Android-Activity verwendet `getApplicationInfo().nativeLibraryDir`, um die gebündelte Binärdatei zu starten.
+- Die erzeugte xray-Probe-Konfiguration ist absichtlich minimal und nutzt weder `geoip.dat` noch `geosite.dat`, weil diese Daten nicht in der APK enthalten sind.
+- Die App erfasst xray-Startfehler und zeigt Diagnosedaten, wenn echte Tests fehlschlagen.
+
+### Source Performance Engine
+
+Die Source Performance Engine bewertet, welche Subscription-Quellen in einem Scan wirklich nützlich waren. Pro Quelle werden unter anderem gemessen:
+
+```text
+Fetch-Status
+TCP-Kandidaten
+TCP-OK-Anzahl
+xray-geprüfte Anzahl
+xray-OK-Anzahl
+durchschnittliche Latenz
+beste Latenz
+Trust
+Source Score
+Fehlerbeispiele
+```
+
+Wenn echte xray-Ergebnisse verfügbar sind, wird der Source Score stärker nach xray-Erfolg gewichtet:
+
+```text
+55% xray success rate
+20% TCP success rate
+15% latency score
+10% configured trust
+```
+
+Ohne xray-Ergebnisse fällt die Engine auf TCP, Latenz und konfiguriertes Trust zurück. Details stehen in [`docs/SOURCE_PERFORMANCE_ENGINE.md`](docs/SOURCE_PERFORMANCE_ENGINE.md).
 
 ### Android-Python-Abhängigkeiten
 
@@ -96,7 +154,7 @@ install "httpx>=0.24.0"
 
 `httpx` wird benötigt, weil die echte `Pipeline` asynchrones Source-Fetching nutzt.
 
-### APK mit GitHub Actions bauen
+### Debug-APK mit GitHub Actions bauen
 
 1. In GitHub zu **Actions** gehen.
 2. **Build Android APK** auswählen.
@@ -107,9 +165,31 @@ install "httpx>=0.24.0"
 v2ray-finder-chaquopy-debug-apk
 ```
 
+### Signierte Release-APK mit GitHub Actions bauen
+
+Für eine installierbare signierte APK den Release-Workflow verwenden:
+
+```text
+Build Signed Android Release APK
+version_name: 1.0.10
+create_github_release: true
+```
+
+Benötigte Repository-Secrets:
+
+```text
+ANDROID_KEYSTORE_BASE64
+ANDROID_KEYSTORE_PASSWORD
+ANDROID_KEY_ALIAS
+ANDROID_KEY_PASSWORD
+```
+
 ### Lokaler Android-Build
 
+Für lokale Builds zuerst xray stagen, wenn der echte Google-204-Test benötigt wird:
+
 ```bash
+python scripts/prepare_android_xray_asset.py
 gradle -p android_app :app:assembleDebug
 ```
 
@@ -118,10 +198,6 @@ Die Debug-APK wird hier erzeugt:
 ```text
 android_app/app/build/outputs/apk/debug/
 ```
-
-### Android-Einschränkung
-
-Layer-3 xray / Google-204 Real-World-Probing ist in der Android-App noch nicht aktiviert. Das Bündeln und Ausführen einer nativen xray-Binärdatei in einer APK benötigt eine separate Android-spezifische Implementierung.
 
 ---
 
@@ -197,8 +273,9 @@ Die Desktop-GUI verwendet dieselbe `Pipeline`-Engine wie CLI und Android-Bridge.
 ```text
 v2ray_finder/       # Root-Python-Paket; für Android-Kompatibilität aus src/ verschoben
 android_app/        # native Android-App + Chaquopy
+scripts/            # xray-Staging und Android-Build-Helfer
 src/                # nur Legacy-Kompatibilitätsplatzhalter
-docs/               # Build-Hinweise
+docs/               # Build-Hinweise und Engine-Dokumentation
 ```
 
 ---
