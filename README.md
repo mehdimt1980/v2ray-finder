@@ -8,9 +8,9 @@
 
 ---
 
-A high-performance tool to fetch, aggregate, deduplicate, validate, health-check and score public V2Ray/Xray server configs from GitHub and curated subscription sources.
+A high-performance Python and Android tool to fetch, aggregate, deduplicate, validate, health-check, real-test and score public V2Ray/Xray server configs from GitHub and curated subscription sources.
 
-The project now includes both a Python engine and a working Android APK workflow.
+The project includes both a Python engine and a working native Android APK workflow.
 
 **Built with love for eternal freedom ❤️**
 
@@ -20,10 +20,13 @@ The project now includes both a Python engine and a working Android APK workflow
 
 - Python package: `v2ray_finder/`
 - Pipeline engine: discovery → fetch → dedup → health → score
+- TCP health check and latency scoring
+- Optional Android real check with bundled `xray` + Google-204
+- Source Performance Engine for ranking which sources actually produce working configs
 - CLI and Rich CLI
 - PySide6 desktop GUI
 - Native Android app under `android_app/`
-- GitHub Actions workflow for building a debug APK
+- GitHub Actions workflows for debug and signed release APKs
 
 ---
 
@@ -41,7 +44,10 @@ android_app/
   app/
     build.gradle                    # Android + Chaquopy config
     src/main/java/.../MainActivity.java
+    src/main/java/.../DefaultHealthActivity.java
     src/main/python/android_bridge.py
+scripts/
+  prepare_android_xray_asset.py     # stages xray and patches Android build-time files
 ```
 
 ### Android features
@@ -50,13 +56,50 @@ android_app/
 - Persian / RTL interface designed for Iranian users
 - GitHub token input
 - result limit and timeout controls
-- optional TCP health check
+- TCP health check, enabled by default
+- optional real `xray` / Google-204 validation
 - fetched / unique / healthy / scored statistics
-- scored server cards with protocol, grade, score and latency
+- scored server cards with protocol, grade, score, latency and source URL
+- search, protocol filter and pagination
+- structured failed-source diagnostics
+- Source Performance section showing top effective sources
 - copy all configs or copy a single config
 - runs the real `v2ray_finder.Pipeline` through Chaquopy
 
-### Build APK with GitHub Actions
+### Real xray / Google-204 check
+
+The Android CI build can bundle the official Android arm64 `xray` binary. The app starts `xray` locally, opens a SOCKS5 port and checks whether a candidate config can reach Google-204 through that proxy.
+
+```text
+TCP check         → host:port is reachable
+xray / Google-204 → the config really works through xray
+```
+
+The build script stages the binary as:
+
+```text
+android_app/app/src/main/jniLibs/arm64-v8a/libxray.so
+```
+
+The xray probe config is intentionally minimal and does not use `geoip.dat` or `geosite.dat`, because those data files are not bundled in the APK.
+
+### Source Performance Engine
+
+The engine reports which sources actually produce useful configs. It measures per source:
+
+```text
+fetch status
+TCP candidates / TCP OK
+xray checked / xray OK
+latency
+trust
+source score
+error samples
+```
+
+See [`docs/SOURCE_PERFORMANCE_ENGINE.md`](docs/SOURCE_PERFORMANCE_ENGINE.md) for details.
+
+### Build debug APK with GitHub Actions
 
 1. Open **Actions** in GitHub.
 2. Select **Build Android APK**.
@@ -67,9 +110,27 @@ android_app/
 v2ray-finder-chaquopy-debug-apk
 ```
 
+### Build signed release APK
+
+```text
+Build Signed Android Release APK
+version_name: 1.0.10
+create_github_release: true
+```
+
+Required repository secrets:
+
+```text
+ANDROID_KEYSTORE_BASE64
+ANDROID_KEYSTORE_PASSWORD
+ANDROID_KEY_ALIAS
+ANDROID_KEY_PASSWORD
+```
+
 ### Local Android build
 
 ```bash
+python scripts/prepare_android_xray_asset.py
 gradle -p android_app :app:assembleDebug
 ```
 
@@ -78,10 +139,6 @@ The APK is generated under:
 ```text
 android_app/app/build/outputs/apk/debug/
 ```
-
-### Android limitations
-
-Layer-3 xray / Google-204 real-world probing is not enabled in the Android app yet. Bundling and running the native xray binary on Android requires a separate Android-specific implementation.
 
 ---
 
@@ -115,8 +172,9 @@ for score in result.scores[:10]:
 ```text
 v2ray_finder/       # root Python package; moved out of src/ for Android compatibility
 android_app/        # native Android + Chaquopy app
+scripts/            # Android xray staging and build helpers
 src/                # legacy compatibility placeholder only
-docs/               # build notes
+docs/               # build notes and engine documentation
 ```
 
 ---
