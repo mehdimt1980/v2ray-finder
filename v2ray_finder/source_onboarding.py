@@ -12,6 +12,7 @@ Example:
 from __future__ import annotations
 
 import argparse
+import base64
 import json
 import re
 import socket
@@ -22,6 +23,7 @@ from urllib.parse import urlparse
 
 import requests
 
+from .clash_parser import extract_clash_proxy_uris
 from .source_registry import SourceRecord, append_candidate, make_source_id
 
 _PROTO_RE = re.compile(
@@ -55,15 +57,55 @@ class OnboardingReport:
         return asdict(self)
 
 
+def _try_base64_decode(text: str) -> str:
+    compact = "".join((text or "").split())
+    if len(compact) < 16:
+        return ""
+    try:
+        padded = compact + "=" * (-len(compact) % 4)
+        decoded = base64.b64decode(padded, validate=False).decode("utf-8", errors="ignore")
+        if "://" in decoded:
+            return decoded
+    except Exception:
+        pass
+    return ""
+
+
 def extract_configs(text: str) -> List[str]:
-    return _PROTO_RE.findall(text or "")
+    """Extract config URIs from raw text, base64 subscriptions and Clash YAML."""
+    text = text or ""
+    found: List[str] = []
+    found.extend(_PROTO_RE.findall(text))
+    decoded = _try_base64_decode(text)
+    if decoded:
+        found.extend(_PROTO_RE.findall(decoded))
+    if "proxies:" in text and "type:" in text:
+        found.extend(extract_clash_proxy_uris(text))
+    return list(dict.fromkeys(found))
+
+
+def _vmess_endpoint(uri: str) -> Tuple[str, int]:
+    raw = uri.split("://", 1)[1]
+    try:
+        decoded = base64.urlsafe_b64decode(raw + "=" * (-len(raw) % 4)).decode("utf-8", errors="ignore")
+        data = json.loads(decoded)
+        return str(data.get("add") or ""), int(data.get("port") or 443)
+    except Exception:
+        return "", 0
+
+
+def _ss_endpoint(uri: str) -> Tuple[str, int]:
+    parsed = urlparse(uri)
+    if parsed.hostname:
+        return parsed.hostname, parsed.port or 443
+    return "", 0
 
 
 def _endpoint_from_uri(uri: str) -> Tuple[str, int]:
     if uri.startswith("vmess://"):
-        # vmess can be base64 JSON; avoid heavy decoding here.  Onboarding still
-        # measures raw/unique counts and can rely on real validation later.
-        return "", 0
+        return _vmess_endpoint(uri)
+    if uri.startswith("ss://"):
+        return _ss_endpoint(uri)
     parsed = urlparse(uri)
     if not parsed.hostname:
         return "", 0
@@ -134,6 +176,8 @@ def evaluate_source(
         response.raise_for_status()
         report.fetch_ok = True
         configs = extract_configs(response.text)
+        if configs and "proxies:" in response.text:
+            report.notes.append("Parsed Clash YAML proxies in addition to raw URI links.")
     except Exception as exc:
         report.fetch_error = str(exc)
         report.notes.append("Fetch failed; keep this source disabled or quarantined.")
