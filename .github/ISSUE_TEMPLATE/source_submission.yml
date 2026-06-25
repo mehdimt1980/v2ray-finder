@@ -1,0 +1,68 @@
+name: Submit a new config source
+description: Suggest a new V2Ray/Xray subscription source for onboarding
+title: "Source candidate: "
+labels: ["source-candidate", "needs-onboarding"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for suggesting a source. New sources are not added directly to trusted scans. They first go through onboarding and source-performance evaluation.
+
+  - type: input
+    id: source_url
+    attributes:
+      label: Source URL
+      description: Raw subscription URL or public source URL.
+      placeholder: https://example.com/sub.txt
+    validations:
+      required: true
+
+  - type: input
+    id: label
+    attributes:
+      label: Suggested label
+      placeholder: Example Source
+    validations:
+      required: true
+
+  - type: dropdown
+    id: source_type
+    attributes:
+      label: Source type
+      options:
+        - static_subscription
+        - meta_collector
+        - github_repo
+        - github_topic
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: protocols
+    attributes:
+      label: Protocols observed
+      options:
+        - label: vless
+        - label: vmess
+        - label: trojan
+        - label: shadowsocks / ss
+        - label: ssr
+
+  - type: input
+    id: region
+    attributes:
+      label: Region or target users
+      placeholder: Iran / global / unknown
+
+  - type: textarea
+    id: notes
+    attributes:
+      label: Notes
+      description: Update frequency, known maintainers, reliability, or anything else useful.
+
+  - type: textarea
+    id: onboarding_output
+    attributes:
+      label: Optional onboarding output
+      description: Paste output from `python -m v2ray_finder.source_onboarding --url ... --json` if available.
+      render: json
