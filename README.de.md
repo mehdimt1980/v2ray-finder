@@ -30,7 +30,7 @@ Das Repository enthält inzwischen sowohl die Python-Engine als auch eine funkti
 - Pipeline-Engine: Discovery → Fetch → Dedup → Health → Score
 - Asynchrones Fetching mit `httpx`
 - TCP-Health-Check und Latenzbewertung
-- Optionaler echter Layer-3-Test mit gebündeltem `xray` + Google-204 auf Android
+- Real Validation Engine v2 auf Android mit gebündeltem `xray`, Multi-Probe-Checks, Confidence Score und Stability-Signal
 - Source Performance Engine zur Bewertung der Quellen, die wirklich nützliche Konfigurationen liefern
 - CLI, Rich CLI und PySide6-Desktop-GUI
 - Native Android-App mit Chaquopy
@@ -68,6 +68,7 @@ android_app/
     src/main/python/android_bridge.py
 scripts/
   prepare_android_xray_asset.py     # Staging von xray und Android-Build-Patches
+  patch_android_validation_ui.py    # optionaler UI-Patch für Confidence/Stability-Anzeige
 ```
 
 Der GitHub-Actions-Workflow kopiert das Root-Paket `v2ray_finder/` nach:
@@ -76,7 +77,7 @@ Der GitHub-Actions-Workflow kopiert das Root-Paket `v2ray_finder/` nach:
 android_app/app/src/main/python/v2ray_finder/
 ```
 
-Anschließend packt Chaquopy den Python-Bridge-Code, die echte `Pipeline` und die Python-Abhängigkeiten in die APK.
+Anschließend packt Chaquopy den Python-Bridge-Code, die echte `Pipeline`, die Real Validation Engine v2 und die Python-Abhängigkeiten in die APK.
 
 ### Android-UI-Funktionen
 
@@ -85,9 +86,10 @@ Anschließend packt Chaquopy den Python-Bridge-Code, die echte `Pipeline` und di
 - Optionales GitHub-Token-Feld
 - Steuerung von Ergebnislimit und Timeout
 - TCP-Health-Check, standardmäßig aktiviert
-- optionaler echter `xray` / Google-204-Test: langsamer, aber deutlich genauer
+- Real Validation Engine v2 mit `xray`: langsamer, aber deutlich strenger
 - Statistiken: Fetched / Unique / Healthy / Scored
 - Ergebnis-Karten mit Rang, Protokoll, Qualität, Score, Latenz und Quelle
+- Validierungs-Metadaten aus der Bridge: Confidence Score, Confidence Level, Probe-Anzahl und Stability-Anzahl
 - Suche und Protokollfilter
 - Pagination für größere Ergebnislisten
 - strukturierte Diagnose für fehlgeschlagene Quellen
@@ -95,16 +97,49 @@ Anschließend packt Chaquopy den Python-Bridge-Code, die echte `Pipeline` und di
 - Alle Konfigurationen kopieren
 - Einzelne Konfiguration pro Karte kopieren
 
-### Echter xray / Google-204-Test auf Android
+### Real Validation Engine v2 auf Android
 
-Der Android-Build kann während CI die offizielle Android-arm64-`xray`-Binärdatei bündeln. Die App startet `xray` lokal, öffnet einen SOCKS5-Port und prüft, ob die getestete Konfiguration über diesen Proxy Google-204 erreichen kann.
+Der Android-Build kann während CI die offizielle Android-arm64-`xray`-Binärdatei bündeln. Die App startet `xray` lokal, öffnet einen SOCKS5-Port und prüft, ob die getestete Konfiguration über diesen Proxy mehrere leichte HTTP-Endpunkte erreichen kann.
 
-Das ist etwas anderes als ein einfacher TCP-Test:
+Das ist strenger als ein einfacher TCP-Test oder ein einzelner Google-204-Test:
 
 ```text
-TCP check         → host:port ist erreichbar
-xray / Google-204 → die Konfiguration funktioniert wirklich über xray
+TCP check              → host:port ist erreichbar
+single Google-204      → ein Endpunkt funktioniert über xray
+Real Validation v2     → mehrere Probes + Confidence + Stability über xray
 ```
+
+Aktuelle Probes:
+
+```text
+google_204       → clients3.google.com/generate_204
+gstatic_204      → connectivitycheck.gstatic.com/generate_204
+google_www_204   → www.google.com/generate_204
+cloudflare_trace → one.one.one.one/cdn-cgi/trace
+```
+
+Pro Kandidat werden erzeugt:
+
+```text
+validation_ok
+confidence_score
+confidence_level
+passed_probes / total_probes
+stability_passes / stability_attempts
+latency_ms
+Fehlerdiagnose
+```
+
+Die aktuelle Confidence-Gewichtung:
+
+```text
+50% Probe-Erfolg
+25% Stability
+15% Latenz
+10% Google-204-Bonus
+```
+
+Eine Konfiguration wird nur akzeptiert, wenn sie erreichbar ist, mindestens einen Stability Pass hat und den Mindest-Confidence-Wert erreicht. Dadurch ist die Android-Validierung strenger als die frühere einmalige Google-204-Prüfung.
 
 Wichtige Implementierungsdetails für Android:
 
@@ -113,7 +148,7 @@ Wichtige Implementierungsdetails für Android:
 - Der Build setzt `doNotStrip "**/libxray.so"`, damit Gradle die ausführbare Datei nicht beschädigt.
 - Die Android-Activity verwendet `getApplicationInfo().nativeLibraryDir`, um die gebündelte Binärdatei zu starten.
 - Die erzeugte xray-Probe-Konfiguration ist absichtlich minimal und nutzt weder `geoip.dat` noch `geosite.dat`, weil diese Daten nicht in der APK enthalten sind.
-- Die App erfasst xray-Startfehler und zeigt Diagnosedaten, wenn echte Tests fehlschlagen.
+- Die App erfasst xray-Startfehler und zeigt Diagnosedaten, wenn echte Validierung fehlschlägt.
 
 ### Source Performance Engine
 
@@ -123,8 +158,8 @@ Die Source Performance Engine bewertet, welche Subscription-Quellen in einem Sca
 Fetch-Status
 TCP-Kandidaten
 TCP-OK-Anzahl
-xray-geprüfte Anzahl
-xray-OK-Anzahl
+real-validation checked count
+real-validation OK count
 durchschnittliche Latenz
 beste Latenz
 Trust
@@ -132,16 +167,16 @@ Source Score
 Fehlerbeispiele
 ```
 
-Wenn echte xray-Ergebnisse verfügbar sind, wird der Source Score stärker nach xray-Erfolg gewichtet:
+Wenn echte Validierungsergebnisse verfügbar sind, wird der Source Score stärker nach Validierungserfolg gewichtet:
 
 ```text
-55% xray success rate
+55% real-validation success rate
 20% TCP success rate
 15% latency score
 10% configured trust
 ```
 
-Ohne xray-Ergebnisse fällt die Engine auf TCP, Latenz und konfiguriertes Trust zurück. Details stehen in [`docs/SOURCE_PERFORMANCE_ENGINE.md`](docs/SOURCE_PERFORMANCE_ENGINE.md).
+Ohne Real Validation fällt die Engine auf TCP, Latenz und konfiguriertes Trust zurück. Details stehen in [`docs/SOURCE_PERFORMANCE_ENGINE.md`](docs/SOURCE_PERFORMANCE_ENGINE.md).
 
 ### Android-Python-Abhängigkeiten
 
@@ -186,10 +221,11 @@ ANDROID_KEY_PASSWORD
 
 ### Lokaler Android-Build
 
-Für lokale Builds zuerst xray stagen, wenn der echte Google-204-Test benötigt wird:
+Für lokale Builds zuerst xray und den UI-Patch vorbereiten, wenn Real Validation v2 benötigt wird:
 
 ```bash
 python scripts/prepare_android_xray_asset.py
+python scripts/patch_android_validation_ui.py
 gradle -p android_app :app:assembleDebug
 ```
 
