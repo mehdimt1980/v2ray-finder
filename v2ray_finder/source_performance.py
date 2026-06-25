@@ -146,8 +146,8 @@ def build_source_performance(
             ``tcp_ok``, ``google_204_ok`` and latency information.
         fetch_errors: Structured fetch errors from ``PipelineResult.failed_sources``.
         real_results: Optional Layer-3 xray results from Android's second-stage
-            Google-204 verifier.  Each object is expected to expose ``config``,
-            ``protocol``, ``google_204_ok``, ``latency_ms`` and ``error``.
+            verifier.  Newer results expose ``validation_ok`` and
+            ``confidence_score``; older results expose ``google_204_ok``.
 
     Returns:
         List of JSON-safe dicts sorted by source quality and usefulness.
@@ -186,7 +186,7 @@ def build_source_performance(
                 continue
             row = _ensure(stats, url)
             row.xray_checked_count += 1
-            ok = bool(getattr(rr, "google_204_ok", False))
+            ok = bool(getattr(rr, "validation_ok", getattr(rr, "google_204_ok", False)))
             if ok:
                 row.xray_ok_count += 1
             latency = getattr(rr, "latency_ms", None)
@@ -197,7 +197,7 @@ def build_source_performance(
                     pass
             if not ok:
                 proto = str(getattr(rr, "protocol", "") or "?")
-                err = str(getattr(rr, "error", "") or "Google-204 did not return OK through proxy")
+                err = str(getattr(rr, "error", "") or "real validation failed")
                 _append_error(row, f"{proto}: {err}")
 
     if fetch_errors:
