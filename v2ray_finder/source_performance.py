@@ -219,12 +219,7 @@ def build_source_performance(
             row.avg_latency_ms = round(sum(vals) / len(vals), 1)
             row.best_latency_ms = round(min(vals), 1)
         _finalize_score(row)
-        if (
-            row.tcp_candidates > 0
-            or row.xray_checked_count > 0
-            or not row.fetch_ok
-            or row.source_score > 0
-        ):
+        if row.tcp_candidates > 0 or row.xray_checked_count > 0 or not row.fetch_ok:
             rows.append(row)
 
     rows.sort(
