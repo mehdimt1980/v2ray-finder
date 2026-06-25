@@ -13,10 +13,10 @@ from v2ray_finder.sources import get_enabled_sources
 
 _real_check_enabled = False
 _real_check_binary_path = ""
-_real_check_limit = 200
+_real_check_limit = 50
 
 
-def set_real_check(enabled: bool = False, binary_path: str = "", limit: int = 200) -> str:
+def set_real_check(enabled: bool = False, binary_path: str = "", limit: int = 50) -> str:
     """Configure optional Android real validation through xray.
 
     Java calls this before ``scan``. The existing ``scan`` signature remains
@@ -25,7 +25,7 @@ def set_real_check(enabled: bool = False, binary_path: str = "", limit: int = 20
     global _real_check_enabled, _real_check_binary_path, _real_check_limit
     _real_check_enabled = bool(enabled)
     _real_check_binary_path = binary_path or ""
-    _real_check_limit = max(1, min(int(limit or 200), 200))
+    _real_check_limit = max(1, min(int(limit or 50), 200))
     available = bool(_real_check_binary_path and os.path.isfile(_real_check_binary_path))
     return json.dumps(
         {
@@ -52,7 +52,7 @@ def _validation_error_summary(rr: Any) -> str:
 
 def scan(limit: int = 200, timeout: float = 5.0, check_health: bool = False, token: str = "") -> str:
     """Run the real v2ray_finder Pipeline and return compact JSON for Android."""
-    limit = max(1, min(int(limit or 200), 5000))
+    limit = max(1, min(int(limit or 50), 200))
     timeout = max(1.0, min(float(timeout or 5.0), 60.0))
     token = token or None
 
