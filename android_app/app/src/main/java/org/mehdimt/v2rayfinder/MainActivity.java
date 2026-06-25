@@ -65,6 +65,7 @@ public class MainActivity extends Activity {
     private final List<String> latestConfigs = new ArrayList<>();
     private JSONArray currentItems = new JSONArray();
     private JSONArray currentFailedSources = new JSONArray();
+    private JSONArray currentSourcePerformance = new JSONArray();
     private int currentPage = 0;
     private String currentProtocolFilter = FILTER_ALL;
     private String searchTerm = "";
@@ -215,6 +216,7 @@ public class MainActivity extends Activity {
         latestConfigs.clear();
         currentItems = new JSONArray();
         currentFailedSources = new JSONArray();
+        currentSourcePerformance = new JSONArray();
         currentPage = 0;
         resultList.removeAllViews();
         setStats("0", "0", "0", "0");
@@ -280,13 +282,18 @@ public class MainActivity extends Activity {
 
             JSONArray items = payload.optJSONArray("items");
             JSONArray failedSources = payload.optJSONArray("failed_sources");
+            JSONArray sourcePerformance = payload.optJSONArray("source_performance");
             currentItems = items == null ? new JSONArray() : items;
             currentFailedSources = failedSources == null ? new JSONArray() : failedSources;
+            currentSourcePerformance = sourcePerformance == null ? new JSONArray() : sourcePerformance;
             currentPage = 0;
 
             renderCurrentPage();
 
             String done = "تمام شد. " + latestConfigs.size() + " کانفیگ آماده است.";
+            if (currentSourcePerformance.length() > 0) {
+                done += " عملکرد " + currentSourcePerformance.length() + " منبع تحلیل شد.";
+            }
             if (currentFailedSources.length() > 0) {
                 done += " " + currentFailedSources.length() + " منبع ناموفق هم ثبت شد.";
             }
@@ -312,6 +319,7 @@ public class MainActivity extends Activity {
 
         if (rawTotal == 0) {
             resultList.addView(resultRow("نتیجه‌ای پیدا نشد", "بررسی سلامت را خاموش کن یا تعداد نتایج را بیشتر کن.", "", false));
+            renderSourcePerformanceIfNeeded(true);
             renderFailedSourcesIfNeeded(true);
             return;
         }
@@ -319,6 +327,7 @@ public class MainActivity extends Activity {
         if (totalItems == 0) {
             resultList.addView(resultRow("نتیجه‌ای مطابق فیلتر پیدا نشد", "فیلتر پروتکل یا متن جستجو را تغییر بده.", "", false));
             resultList.addView(infoRow("فیلتر فعلی", filterSummary(rawTotal, totalItems)));
+            renderSourcePerformanceIfNeeded(true);
             renderFailedSourcesIfNeeded(true);
             return;
         }
@@ -352,7 +361,9 @@ public class MainActivity extends Activity {
         }
 
         resultList.addView(pagerRow(pageCount));
-        renderFailedSourcesIfNeeded(currentPage == pageCount - 1);
+        boolean lastPage = currentPage == pageCount - 1;
+        renderSourcePerformanceIfNeeded(lastPage);
+        renderFailedSourcesIfNeeded(lastPage);
         statusText.setText("صفحه " + (currentPage + 1) + " از " + pageCount + " — " + totalItems + " کانفیگ مطابق فیلتر.");
     }
 
@@ -416,6 +427,65 @@ public class MainActivity extends Activity {
         protocolButton.setText("فیلتر پروتکل: " + (FILTER_ALL.equals(currentProtocolFilter) ? "همه" : currentProtocolFilter.toLowerCase(Locale.US)));
         currentPage = 0;
         if (currentItems.length() > 0) renderCurrentPage();
+    }
+
+    private void renderSourcePerformanceIfNeeded(boolean shouldShow) {
+        int count = currentSourcePerformance.length();
+        if (!shouldShow || count == 0) return;
+
+        int shown = Math.min(count, 5);
+        resultList.addView(sectionTitle("منابع مؤثر — " + count + " منبع تحلیل شد"));
+        resultList.addView(infoRow("Source Performance Engine", "امتیاز منبع بر اساس موفقیت xray، موفقیت TCP، latency و trust محاسبه می‌شود."));
+        for (int i = 0; i < shown; i++) {
+            try {
+                resultList.addView(sourcePerformanceRow(currentSourcePerformance.getJSONObject(i), i + 1));
+            } catch (Exception ignored) {
+                // Skip malformed performance rows.
+            }
+        }
+        if (count > shown) {
+            resultList.addView(infoRow("نمایش محدود", "برای خوانایی، فقط ۵ منبع برتر نشان داده شد."));
+        }
+    }
+
+    private View sourcePerformanceRow(JSONObject src, int rank) {
+        LinearLayout row = card(surface, 18);
+        row.setOrientation(LinearLayout.VERTICAL);
+
+        String label = src.optString("label", "");
+        String url = src.optString("url", "");
+        String name = label == null || label.trim().isEmpty() ? shortUrl(url) : label;
+        double sourceScore = src.optDouble("source_score", 0.0);
+        int xrayOk = src.optInt("xray_ok_count", 0);
+        int xrayChecked = src.optInt("xray_checked_count", 0);
+        int tcpOk = src.optInt("tcp_ok_count", 0);
+        int tcpCandidates = src.optInt("tcp_candidates", 0);
+        int trust = src.optInt("trust", 0);
+        boolean fetchOk = src.optBoolean("fetch_ok", true);
+        String latency = src.isNull("avg_latency_ms") ? "نامشخص" : String.format(Locale.US, "%.0f ms", src.optDouble("avg_latency_ms", 0.0));
+
+        String title = "#" + rank + "  " + name + "  •  امتیاز منبع " + String.format(Locale.US, "%.1f", sourceScore);
+        String meta = "xray: " + xrayOk + "/" + xrayChecked + "  •  TCP: " + tcpOk + "/" + tcpCandidates + "  •  latency: " + latency + "  •  trust: " + trust;
+
+        row.addView(label(title, 14, fetchOk ? text : warning, true, true));
+        row.addView(label(meta, 12, muted, false, true));
+
+        if (!fetchOk) {
+            String err = src.optString("fetch_error_message", "خطای دریافت منبع");
+            row.addView(label(shortMessage(err), 11, warning, false, true));
+        }
+
+        JSONArray samples = src.optJSONArray("error_samples");
+        if (samples != null && samples.length() > 0) {
+            row.addView(label("نمونه خطا: " + shortMessage(samples.optString(0)), 10, muted, false, true));
+        }
+
+        TextView source = label(shortUrl(url), 10, muted, false, false);
+        source.setTypeface(Typeface.MONOSPACE);
+        source.setMaxLines(2);
+        source.setPadding(0, dp(6), 0, 0);
+        row.addView(source);
+        return row;
     }
 
     private void renderFailedSourcesIfNeeded(boolean shouldShow) {
