@@ -21,7 +21,8 @@ The project includes both a Python engine and a working native Android APK workf
 - Python package: `v2ray_finder/`
 - Pipeline engine: discovery → fetch → dedup → health → score
 - TCP health check and latency scoring
-- Optional Android real check with bundled `xray` + Google-204
+- Real Validation Engine v2 on Android with bundled `xray`
+- Multi-probe validation, confidence scoring and two-pass stability signals
 - Source Performance Engine for ranking which sources actually produce working configs
 - CLI and Rich CLI
 - PySide6 desktop GUI
@@ -47,7 +48,8 @@ android_app/
     src/main/java/.../DefaultHealthActivity.java
     src/main/python/android_bridge.py
 scripts/
-  prepare_android_xray_asset.py     # stages xray and patches Android build-time files
+  prepare_android_xray_asset.py     # stages xray and build-time Android patches
+  patch_android_validation_ui.py    # optional UI patch for validation metadata
 ```
 
 ### Android features
@@ -57,25 +59,57 @@ scripts/
 - GitHub token input
 - result limit and timeout controls
 - TCP health check, enabled by default
-- optional real `xray` / Google-204 validation
+- optional Real Validation Engine v2 with bundled `xray`
 - fetched / unique / healthy / scored statistics
 - scored server cards with protocol, grade, score, latency and source URL
+- validation metadata from the bridge: confidence score, probe count and stability count
 - search, protocol filter and pagination
 - structured failed-source diagnostics
 - Source Performance section showing top effective sources
 - copy all configs or copy a single config
 - runs the real `v2ray_finder.Pipeline` through Chaquopy
 
-### Real xray / Google-204 check
+### Real Validation Engine v2
 
-The Android CI build can bundle the official Android arm64 `xray` binary. The app starts `xray` locally, opens a SOCKS5 port and checks whether a candidate config can reach Google-204 through that proxy.
+The Android build can bundle the official Android arm64 `xray` binary. The app starts `xray` locally, opens a SOCKS5 port and validates whether a candidate config can reach multiple lightweight HTTP endpoints through that proxy.
 
 ```text
-TCP check         → host:port is reachable
-xray / Google-204 → the config really works through xray
+TCP check              → host:port is reachable
+single Google-204      → one endpoint works through xray
+Real Validation v2     → multiple probes + confidence + stability through xray
 ```
 
-The build script stages the binary as:
+Current probes:
+
+```text
+google_204       → clients3.google.com/generate_204
+gstatic_204      → connectivitycheck.gstatic.com/generate_204
+google_www_204   → www.google.com/generate_204
+cloudflare_trace → one.one.one.one/cdn-cgi/trace
+```
+
+For every candidate the bridge can return:
+
+```text
+validation_ok
+confidence_score
+confidence_level
+passed_probes / total_probes
+stability_passes / stability_attempts
+latency_ms
+error diagnostics
+```
+
+Confidence is currently weighted as:
+
+```text
+50% probe success
+25% stability
+15% latency
+10% Google-204 bonus
+```
+
+The xray binary is staged as:
 
 ```text
 android_app/app/src/main/jniLibs/arm64-v8a/libxray.so
@@ -90,7 +124,7 @@ The engine reports which sources actually produce useful configs. It measures pe
 ```text
 fetch status
 TCP candidates / TCP OK
-xray checked / xray OK
+real-validation checked / real-validation OK
 latency
 trust
 source score
@@ -131,6 +165,7 @@ ANDROID_KEY_PASSWORD
 
 ```bash
 python scripts/prepare_android_xray_asset.py
+python scripts/patch_android_validation_ui.py
 gradle -p android_app :app:assembleDebug
 ```
 
