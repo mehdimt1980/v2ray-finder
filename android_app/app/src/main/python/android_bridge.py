@@ -7,6 +7,7 @@ import os
 from typing import Any
 
 from v2ray_finder import Pipeline
+from v2ray_finder.real_validation import check_real_validation_batch
 from v2ray_finder.source_performance import build_source_performance
 from v2ray_finder.sources import get_enabled_sources
 
@@ -16,7 +17,7 @@ _real_check_limit = 200
 
 
 def set_real_check(enabled: bool = False, binary_path: str = "", limit: int = 200) -> str:
-    """Configure optional Android Layer-3 xray/Google-204 checking.
+    """Configure optional Android real validation through xray.
 
     Java calls this before ``scan``. The existing ``scan`` signature remains
     backward compatible for older UI code and tests.
@@ -35,6 +36,18 @@ def set_real_check(enabled: bool = False, binary_path: str = "", limit: int = 20
         },
         ensure_ascii=False,
     )
+
+
+def _validation_error_summary(rr: Any) -> str:
+    err = getattr(rr, "error", None)
+    if err:
+        return str(err)
+    probes = getattr(rr, "probe_results", []) or []
+    failed = []
+    for p in probes:
+        if isinstance(p, dict) and not p.get("ok"):
+            failed.append(f"{p.get('name', '?')}:{p.get('status', 0)}")
+    return "failed probes: " + ", ".join(failed[:4]) if failed else "real validation failed"
 
 
 def scan(limit: int = 200, timeout: float = 5.0, check_health: bool = False, token: str = "") -> str:
@@ -74,7 +87,14 @@ def scan(limit: int = 200, timeout: float = 5.0, check_health: bool = False, tok
                 "source": source_url,
                 "source_trust": int(health.get("source_trust", 0) or 0),
                 "real_checked": False,
+                "validation_ok": None,
                 "google_204_ok": None,
+                "confidence_score": None,
+                "confidence_level": None,
+                "passed_probes": None,
+                "total_probes": None,
+                "stability_passes": None,
+                "stability_attempts": None,
                 "real_latency_ms": None,
                 "real_error": None,
             }
@@ -92,6 +112,8 @@ def scan(limit: int = 200, timeout: float = 5.0, check_health: bool = False, tok
         "ok": 0,
         "limit": _real_check_limit,
         "message": "",
+        "engine": "real_validation_v2",
+        "probes": ["google_204", "gstatic_204", "google_www_204", "cloudflare_trace"],
     }
 
     if _real_check_enabled:
@@ -100,25 +122,23 @@ def scan(limit: int = 200, timeout: float = 5.0, check_health: bool = False, tok
         if not binary_ok:
             real_info["message"] = "xray binary is not bundled in this APK build."
         elif not result.scores:
-            real_info["message"] = "No scored configs available for real xray check."
+            real_info["message"] = "No scored configs available for real validation."
         else:
             try:
-                from v2ray_finder.xray_connectivity import check_real_connectivity_batch
-
                 candidates = [s.config for s in result.scores[:_real_check_limit]]
-                real_results = check_real_connectivity_batch(
+                real_results = check_real_validation_batch(
                     candidates,
                     max_workers=4,
                     timeout=max(timeout, 6.0),
                     binary_path=_real_check_binary_path,
                     auto_download=False,
+                    stability_attempts=2,
                 )
                 real_map = {r.config: r for r in real_results}
                 error_samples = []
                 for r in real_results:
-                    if not r.google_204_ok:
-                        err = r.error or "Google-204 did not return OK through proxy"
-                        error_samples.append(f"{r.protocol}: {err}")
+                    if not getattr(r, "validation_ok", False):
+                        error_samples.append(f"{r.protocol}: {_validation_error_summary(r)}")
                 real_info["error_samples"] = error_samples[:8]
 
                 verified_items: list[dict[str, Any]] = []
@@ -127,12 +147,19 @@ def scan(limit: int = 200, timeout: float = 5.0, check_health: bool = False, tok
                     if rr is None:
                         continue
                     item["real_checked"] = True
+                    item["validation_ok"] = bool(rr.validation_ok)
                     item["google_204_ok"] = bool(rr.google_204_ok)
+                    item["confidence_score"] = float(rr.confidence_score)
+                    item["confidence_level"] = rr.confidence_level
+                    item["passed_probes"] = int(rr.passed_probes)
+                    item["total_probes"] = int(rr.total_probes)
+                    item["stability_passes"] = int(rr.stability_passes)
+                    item["stability_attempts"] = int(rr.stability_attempts)
                     item["real_latency_ms"] = None if rr.latency_ms is None else float(rr.latency_ms)
                     item["real_error"] = rr.error
                     if rr.latency_ms is not None:
                         item["latency_ms"] = float(rr.latency_ms)
-                    if rr.google_204_ok:
+                    if rr.validation_ok:
                         verified_items.append(item)
 
                 items = verified_items
@@ -141,14 +168,14 @@ def scan(limit: int = 200, timeout: float = 5.0, check_health: bool = False, tok
                 real_info["checked"] = len(real_results)
                 real_info["ok"] = len(configs)
                 real_info["message"] = (
-                    f"xray Google-204 checked {len(real_results)} configs; {len(configs)} passed."
+                    f"Real Validation v2 checked {len(real_results)} configs; {len(configs)} passed."
                 )
                 stats["real_checked"] = len(real_results)
                 stats["real_ok"] = len(configs)
                 stats["healthy"] = len(configs)
                 stats["scored"] = len(configs)
             except Exception as exc:
-                real_info["message"] = f"xray real check failed: {exc}"
+                real_info["message"] = f"real validation failed: {exc}"
 
     source_performance = build_source_performance(
         sources=get_enabled_sources(),
@@ -162,9 +189,9 @@ def scan(limit: int = 200, timeout: float = 5.0, check_health: bool = False, tok
     if _real_check_enabled and real_info.get("checked", 0) and real_info.get("ok", 0) == 0:
         failed_sources.append(
             {
-                "url": "xray://layer3/google-204",
-                "error_type": "xray_real_check_failed",
-                "message": real_info.get("message", "xray real check returned zero working configs")
+                "url": "xray://real-validation-v2",
+                "error_type": "real_validation_failed",
+                "message": real_info.get("message", "real validation returned zero working configs")
                 + " Samples: "
                 + " | ".join(real_info.get("error_samples", [])[:5]),
                 "details": real_info,
