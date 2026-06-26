@@ -22,6 +22,65 @@
     ],
     "added_at": "2026-06-26",
     "last_reviewed_at": "2026-06-26"
+  },
+  {
+    "id": "aliilapro-v2rayng-config-sub-txt",
+    "label": "ALIILAPRO/v2rayNG-Config — sub.txt",
+    "url": "https://raw.githubusercontent.com/ALIILAPRO/v2rayNG-Config/main/sub.txt",
+    "source_type": "static_subscription",
+    "trust": "medium",
+    "status": "trusted",
+    "enabled": true,
+    "tags": [
+      "discovered",
+      "repo-search",
+      "v2ray",
+      "vless",
+      "vmess",
+      "trojan",
+      "candidate",
+      "auto-promoted",
+      "trusted"
+    ],
+    "notes": "Discovered by GitHub repository search query: active-v2ray-config-repos; onboarding score=83.5; unique=918; tcp_ok=19/30; recommended=candidate; auto-promoted by source discovery on 2026-06-26; onboarding score=83.5; final score=85.4",
+    "protocols": [
+      "vless",
+      "vmess",
+      "trojan"
+    ],
+    "added_at": "2026-06-26",
+    "last_reviewed_at": "2026-06-26"
+  },
+  {
+    "id": "epodonios-v2ray-configs-all-configs-sub-txt",
+    "label": "Epodonios/v2ray-configs — All_Configs_Sub.txt",
+    "url": "https://raw.githubusercontent.com/Epodonios/v2ray-configs/main/All_Configs_Sub.txt",
+    "source_type": "static_subscription",
+    "trust": "medium",
+    "status": "trusted",
+    "enabled": true,
+    "tags": [
+      "discovered",
+      "repo-search",
+      "v2ray",
+      "vless",
+      "trojan",
+      "vmess",
+      "ss",
+      "ssr",
+      "candidate",
+      "auto-promoted",
+      "trusted"
+    ],
+    "notes": "Discovered by GitHub repository search query: active-v2ray-config-repos; onboarding score=80.5; unique=7628; tcp_ok=17/30; recommended=candidate; auto-promoted by source discovery on 2026-06-26; onboarding score=80.5; final score=84.2",
+    "protocols": [
+      "vless",
+      "trojan",
+      "vmess",
+      "ss",
+      "ssr"
+    ],
+    "added_at": "2026-06-26",
+    "last_reviewed_at": "2026-06-26"
   }
 ]
-
