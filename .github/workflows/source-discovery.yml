@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       max_results_per_query:
-        description: "GitHub results per discovery query"
+        description: "GitHub results per repo/code query"
         required: true
         default: "10"
       min_score:
@@ -19,6 +19,30 @@ on:
         description: "Maximum kept candidates in the final report"
         required: true
         default: "50"
+      include_code_search:
+        description: "Enable GitHub Code Search. Usually keep false to avoid rate/abuse limits."
+        required: true
+        type: choice
+        default: "false"
+        options:
+          - "false"
+          - "true"
+      seed_only:
+        description: "Use only seed repository probing; no GitHub Search API. Most stable mode."
+        required: true
+        type: choice
+        default: "false"
+        options:
+          - "false"
+          - "true"
+      disable_repo_search:
+        description: "Disable GitHub Repository Search. Useful if GitHub Search is rate-limited."
+        required: true
+        type: choice
+        default: "false"
+        options:
+          - "false"
+          - "true"
       auto_promote_to_sources:
         description: "Automatically append high-quality candidates to registry/sources.json and push to main"
         required: true
@@ -79,7 +103,7 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install -e .
 
-      - name: Run discovery engine
+      - name: Run resilient discovery engine
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: |
@@ -88,6 +112,9 @@ jobs:
           MIN_SCORE="${{ github.event.inputs.min_score || '20' }}"
           TCP_SAMPLE="${{ github.event.inputs.tcp_sample_size || '30' }}"
           MAX_CANDIDATES="${{ github.event.inputs.max_candidates || '50' }}"
+          INCLUDE_CODE_SEARCH="${{ github.event.inputs.include_code_search || 'false' }}"
+          SEED_ONLY="${{ github.event.inputs.seed_only || 'false' }}"
+          DISABLE_REPO_SEARCH="${{ github.event.inputs.disable_repo_search || 'false' }}"
           AUTO_PROMOTE="${{ github.event.inputs.auto_promote_to_sources || 'false' }}"
           PROMOTE_MIN_SCORE="${{ github.event.inputs.promote_min_score || '60' }}"
           PROMOTE_MIN_FINAL_SCORE="${{ github.event.inputs.promote_min_final_score || '55' }}"
@@ -97,8 +124,17 @@ jobs:
           PROMOTE_MAX_COUNT="${{ github.event.inputs.promote_max_count || '5' }}"
 
           EXTRA_ARGS=""
+          if [ "$INCLUDE_CODE_SEARCH" = "true" ]; then
+            EXTRA_ARGS="$EXTRA_ARGS --include-code-search"
+          fi
+          if [ "$SEED_ONLY" = "true" ]; then
+            EXTRA_ARGS="$EXTRA_ARGS --seed-only"
+          fi
+          if [ "$DISABLE_REPO_SEARCH" = "true" ]; then
+            EXTRA_ARGS="$EXTRA_ARGS --disable-repo-search"
+          fi
           if [ "$AUTO_PROMOTE" = "true" ]; then
-            EXTRA_ARGS="--auto-promote \
+            EXTRA_ARGS="$EXTRA_ARGS --auto-promote \
               --promote-min-score $PROMOTE_MIN_SCORE \
               --promote-min-final-score $PROMOTE_MIN_FINAL_SCORE \
               --promote-min-unique $PROMOTE_MIN_UNIQUE \
@@ -107,7 +143,7 @@ jobs:
               --promote-max-count $PROMOTE_MAX_COUNT"
           fi
 
-          python -m v2ray_finder.source_discovery \
+          python -m v2ray_finder.source_discovery_resilient \
             --max-results-per-query "$MAX_RESULTS" \
             --min-score "$MIN_SCORE" \
             --tcp-sample-size "$TCP_SAMPLE" \
