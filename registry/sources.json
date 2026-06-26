@@ -1,29 +1,5 @@
 [
   {
-    "id": "liketolivefree-kobabi-sub",
-    "label": "liketolivefree/kobabi — sub",
-    "url": "https://raw.githubusercontent.com/liketolivefree/kobabi/main/sub",
-    "source_type": "static_subscription",
-    "trust": "medium",
-    "status": "trusted",
-    "enabled": true,
-    "tags": [
-      "discovered",
-      "repo-search",
-      "v2ray",
-      "vless",
-      "candidate",
-      "auto-promoted",
-      "trusted"
-    ],
-    "notes": "Discovered by GitHub repository search query: active-v2ray-config-repos; onboarding score=77.8; unique=110; tcp_ok=30/30; recommended=candidate; auto-promoted by source discovery on 2026-06-26; onboarding score=77.8; final score=78.4",
-    "protocols": [
-      "vless"
-    ],
-    "added_at": "2026-06-26",
-    "last_reviewed_at": "2026-06-26"
-  },
-  {
     "id": "aliilapro-v2rayng-config-sub-txt",
     "label": "ALIILAPRO/v2rayNG-Config — sub.txt",
     "url": "https://raw.githubusercontent.com/ALIILAPRO/v2rayNG-Config/main/sub.txt",
