@@ -6,10 +6,11 @@ package release every time ``registry/sources.json`` changes.
 
 Resolution order:
 
-1. Remote registry from GitHub, if enabled and reachable.
-2. Fresh local cache, if remote is unavailable.
-3. Bundled JSON registry under ``registry/sources.json``.
-4. Legacy hard-coded ``sources.STATIC_SOURCES`` fallback.
+1. Fresh local remote cache, if still inside TTL.
+2. Remote registry from GitHub, if enabled and reachable.
+3. Stale local cache, if remote is unavailable.
+4. Bundled JSON registry under ``registry/sources.json``.
+5. Legacy built-in fallback.
 
 Only active registry statuses, ``official`` and ``trusted``, are returned by
 default. Candidate, experimental, quarantine and disabled sources are not used
@@ -20,10 +21,10 @@ from __future__ import annotations
 
 import json
 import os
-import time
 import tempfile
+import time
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Optional
+from typing import Any, Dict, Iterable, List
 
 import requests
 
@@ -61,8 +62,6 @@ def _cache_dir() -> Path:
     explicit = os.environ.get("V2RAY_FINDER_REGISTRY_CACHE_DIR")
     if explicit:
         return Path(explicit)
-    # On Android/Chaquopy, HOME may not be useful. tempfile is safer and still
-    # survives during the app process; callers can override with env if needed.
     base = Path(os.environ.get("XDG_CACHE_HOME") or tempfile.gettempdir())
     return base / "v2ray-finder"
 
@@ -174,7 +173,6 @@ def fetch_remote_records(*, timeout: float = 8.0) -> List[SourceRecord]:
     )
     response.raise_for_status()
     records = _read_records_from_json_text(response.text)
-    # Only cache syntactically valid registry payloads.
     path = remote_cache_path()
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps([r.to_dict() for r in records], ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
@@ -195,6 +193,7 @@ def get_remote_registry_diagnostics() -> Dict[str, Any]:
         "url": remote_registry_url(),
         "cache_path": str(path),
         "cache_exists": path.exists(),
+        "cache_fresh": _is_cache_fresh(path, remote_registry_ttl_seconds()),
         "cache_ttl_seconds": remote_registry_ttl_seconds(),
     }
 
@@ -208,10 +207,12 @@ def get_sources_with_remote_registry(
     records: List[SourceRecord] = []
 
     if remote_registry_enabled():
-        try:
-            records = fetch_remote_records(timeout=timeout)
-        except Exception:
-            records = load_cached_remote_records(allow_stale=True)
+        records = load_cached_remote_records(allow_stale=False)
+        if not records:
+            try:
+                records = fetch_remote_records(timeout=timeout)
+            except Exception:
+                records = load_cached_remote_records(allow_stale=True)
 
     if not records:
         records = load_bundled_records()
@@ -220,10 +221,9 @@ def get_sources_with_remote_registry(
     if entries:
         return entries
 
-    # Last-resort compatibility fallback for old installs or broken registries.
     try:
-        from .sources import STATIC_SOURCES
+        from .sources import _legacy_static_sources
 
-        return [src for src in STATIC_SOURCES if getattr(src, "enabled", True)]
+        return [src for src in _legacy_static_sources() if getattr(src, "enabled", True)]
     except Exception:
         return []
