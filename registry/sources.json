@@ -481,5 +481,36 @@
     ],
     "added_at": "2026-06-26",
     "last_reviewed_at": "2026-06-26"
+  },
+  {
+    "id": "mahdibland-v2rayaggregator-sub-sub-merge-txt",
+    "label": "mahdibland/V2RayAggregator — sub/sub_merge.txt",
+    "url": "https://raw.githubusercontent.com/mahdibland/V2RayAggregator/master/sub/sub_merge.txt",
+    "source_type": "static_subscription",
+    "trust": "medium",
+    "status": "trusted",
+    "enabled": true,
+    "tags": [
+      "discovered",
+      "seed",
+      "aggregator",
+      "base64",
+      "vmess",
+      "ss",
+      "trojan",
+      "ssr",
+      "candidate",
+      "auto-promoted",
+      "trusted"
+    ],
+    "notes": "Discovered by seed repository probing: mahdibland-v2rayaggregator; onboarding score=98.5; unique=5145; tcp_ok=29/30; recommended=candidate; auto-promoted by source discovery on 2026-06-26; onboarding score=98.5; final score=88.4",
+    "protocols": [
+      "vmess",
+      "ss",
+      "trojan",
+      "ssr"
+    ],
+    "added_at": "2026-06-26",
+    "last_reviewed_at": "2026-06-26"
   }
 ]
