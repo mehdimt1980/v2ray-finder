@@ -34,7 +34,7 @@ from .sources import SourceEntry, SourceTrust, SourceType
 DEFAULT_REMOTE_REGISTRY_URL = (
     "https://raw.githubusercontent.com/mehdimt1980/v2ray-finder/main/registry/sources.json"
 )
-DEFAULT_CACHE_TTL_SECONDS = 24 * 60 * 60
+DEFAULT_CACHE_TTL_SECONDS = 60 * 60
 
 
 def _truthy(value: str) -> bool:
