@@ -1,11 +1,13 @@
 """Source definitions and remote-registry backed source loading.
 
-The default source list is now resolved through ``remote_source_registry``:
+The default source list is resolved through ``remote_source_registry`` when
+``get_enabled_sources`` is called:
 
-1. remote GitHub registry, when reachable;
-2. local remote cache;
-3. bundled JSON registry;
-4. legacy built-in fallback.
+1. fresh remote cache;
+2. remote GitHub registry;
+3. stale remote cache;
+4. bundled JSON registry;
+5. legacy built-in fallback.
 """
 
 from __future__ import annotations
@@ -120,7 +122,6 @@ def get_enabled_sources(
     return result
 
 
-# Compatibility name for old imports.  This is intentionally a resolved snapshot
-# at import time; callers that need fresh remote data should call
-# ``get_enabled_sources()``.
-STATIC_SOURCES: List[SourceEntry] = get_enabled_sources()
+# Compatibility name for old imports. It must not fetch the remote registry at
+# import time. Call ``get_enabled_sources()`` for fresh remote/bundled data.
+STATIC_SOURCES: List[SourceEntry] = _legacy_static_sources()
