@@ -6,7 +6,11 @@
     "source_type": "static_subscription",
     "trust": "high",
     "status": "trusted",
-    "tags": ["iran", "daily"],
+    "enabled": true,
+    "tags": [
+      "iran",
+      "daily"
+    ],
     "notes": "Iran-focused, updated regularly"
   },
   {
@@ -16,7 +20,10 @@
     "source_type": "static_subscription",
     "trust": "high",
     "status": "trusted",
-    "tags": ["aggregator"]
+    "enabled": true,
+    "tags": [
+      "aggregator"
+    ]
   },
   {
     "id": "epodonios-all-configs",
@@ -25,7 +32,10 @@
     "source_type": "static_subscription",
     "trust": "high",
     "status": "trusted",
-    "tags": ["aggregator"]
+    "enabled": true,
+    "tags": [
+      "aggregator"
+    ]
   },
   {
     "id": "mahdibland-eternity",
@@ -34,7 +44,11 @@
     "source_type": "meta_collector",
     "trust": "high",
     "status": "trusted",
-    "tags": ["aggregator", "large"],
+    "enabled": true,
+    "tags": [
+      "aggregator",
+      "large"
+    ],
     "notes": "Pulls from 30+ upstream sources, updated hourly"
   },
   {
@@ -44,7 +58,11 @@
     "source_type": "meta_collector",
     "trust": "high",
     "status": "trusted",
-    "tags": ["aggregator", "base64"]
+    "enabled": true,
+    "tags": [
+      "aggregator",
+      "base64"
+    ]
   },
   {
     "id": "mfuu-v2ray-clash",
@@ -53,7 +71,10 @@
     "source_type": "meta_collector",
     "trust": "medium",
     "status": "trusted",
-    "tags": ["clash"],
+    "enabled": true,
+    "tags": [
+      "clash"
+    ],
     "notes": "Clash YAML format; parser extracts proxy URI lines"
   },
   {
@@ -63,7 +84,10 @@
     "source_type": "meta_collector",
     "trust": "medium",
     "status": "trusted",
-    "tags": ["aggregator"]
+    "enabled": true,
+    "tags": [
+      "aggregator"
+    ]
   },
   {
     "id": "lalatinahub-mineral",
@@ -72,7 +96,10 @@
     "source_type": "meta_collector",
     "trust": "medium",
     "status": "trusted",
-    "tags": ["aggregator"]
+    "enabled": true,
+    "tags": [
+      "aggregator"
+    ]
   },
   {
     "id": "freefq-v2",
@@ -81,7 +108,10 @@
     "source_type": "static_subscription",
     "trust": "medium",
     "status": "trusted",
-    "tags": ["vmess"]
+    "enabled": true,
+    "tags": [
+      "vmess"
+    ]
   },
   {
     "id": "tbbatbb-proxy-v2ray",
@@ -90,7 +120,11 @@
     "source_type": "static_subscription",
     "trust": "medium",
     "status": "candidate",
-    "tags": ["vmess", "vless"],
+    "enabled": true,
+    "tags": [
+      "vmess",
+      "vless"
+    ],
     "notes": "Observed as unstable in recent scans; kept as candidate until it produces useful validated configs again"
   },
   {
@@ -100,7 +134,10 @@
     "source_type": "static_subscription",
     "trust": "medium",
     "status": "candidate",
-    "tags": ["vmess"],
+    "enabled": true,
+    "tags": [
+      "vmess"
+    ],
     "notes": "Candidate until it proves recent usefulness"
   },
   {
@@ -110,7 +147,11 @@
     "source_type": "static_subscription",
     "trust": "medium",
     "status": "trusted",
-    "tags": ["vmess", "vless"]
+    "enabled": true,
+    "tags": [
+      "vmess",
+      "vless"
+    ]
   },
   {
     "id": "azadnetch-v2ray",
@@ -119,7 +160,10 @@
     "source_type": "static_subscription",
     "trust": "medium",
     "status": "trusted",
-    "tags": ["iran"]
+    "enabled": true,
+    "tags": [
+      "iran"
+    ]
   },
   {
     "id": "leon406-subcrawler-vless",
@@ -128,7 +172,10 @@
     "source_type": "static_subscription",
     "trust": "medium",
     "status": "trusted",
-    "tags": ["vless"]
+    "enabled": true,
+    "tags": [
+      "vless"
+    ]
   },
   {
     "id": "leon406-subcrawler-ss",
@@ -137,7 +184,10 @@
     "source_type": "static_subscription",
     "trust": "medium",
     "status": "trusted",
-    "tags": ["shadowsocks"]
+    "enabled": true,
+    "tags": [
+      "shadowsocks"
+    ]
   },
   {
     "id": "awesome-vpn-all",
@@ -146,7 +196,10 @@
     "source_type": "static_subscription",
     "trust": "medium",
     "status": "trusted",
-    "tags": ["aggregator"]
+    "enabled": true,
+    "tags": [
+      "aggregator"
+    ]
   },
   {
     "id": "yasserdivar-shadowsocks2022",
@@ -155,7 +208,11 @@
     "source_type": "static_subscription",
     "trust": "medium",
     "status": "trusted",
-    "tags": ["shadowsocks", "iran"]
+    "enabled": true,
+    "tags": [
+      "shadowsocks",
+      "iran"
+    ]
   },
   {
     "id": "soroushmirzaei-mixed",
@@ -164,7 +221,12 @@
     "source_type": "meta_collector",
     "trust": "high",
     "status": "trusted",
-    "tags": ["telegram", "aggregator", "iran"],
+    "enabled": true,
+    "tags": [
+      "telegram",
+      "aggregator",
+      "iran"
+    ],
     "notes": "Collects from Telegram channels, updated frequently"
   },
   {
@@ -174,7 +236,12 @@
     "source_type": "meta_collector",
     "trust": "high",
     "status": "trusted",
-    "tags": ["telegram", "vmess", "iran"]
+    "enabled": true,
+    "tags": [
+      "telegram",
+      "vmess",
+      "iran"
+    ]
   },
   {
     "id": "soroushmirzaei-vless",
@@ -183,7 +250,12 @@
     "source_type": "meta_collector",
     "trust": "high",
     "status": "trusted",
-    "tags": ["telegram", "vless", "iran"]
+    "enabled": true,
+    "tags": [
+      "telegram",
+      "vless",
+      "iran"
+    ]
   },
   {
     "id": "soroushmirzaei-trojan",
@@ -192,7 +264,12 @@
     "source_type": "meta_collector",
     "trust": "high",
     "status": "trusted",
-    "tags": ["telegram", "trojan", "iran"]
+    "enabled": true,
+    "tags": [
+      "telegram",
+      "trojan",
+      "iran"
+    ]
   },
   {
     "id": "soroushmirzaei-shadowsocks",
@@ -201,7 +278,12 @@
     "source_type": "meta_collector",
     "trust": "high",
     "status": "trusted",
-    "tags": ["telegram", "shadowsocks", "iran"]
+    "enabled": true,
+    "tags": [
+      "telegram",
+      "shadowsocks",
+      "iran"
+    ]
   },
   {
     "id": "mhditaheri-vless",
@@ -210,7 +292,11 @@
     "source_type": "meta_collector",
     "trust": "medium",
     "status": "trusted",
-    "tags": ["vless", "iran"]
+    "enabled": true,
+    "tags": [
+      "vless",
+      "iran"
+    ]
   },
   {
     "id": "mhditaheri-vmess",
@@ -219,7 +305,11 @@
     "source_type": "meta_collector",
     "trust": "medium",
     "status": "trusted",
-    "tags": ["vmess", "iran"]
+    "enabled": true,
+    "tags": [
+      "vmess",
+      "iran"
+    ]
   },
   {
     "id": "mhditaheri-trojan",
@@ -228,7 +318,11 @@
     "source_type": "meta_collector",
     "trust": "medium",
     "status": "trusted",
-    "tags": ["trojan", "iran"]
+    "enabled": true,
+    "tags": [
+      "trojan",
+      "iran"
+    ]
   },
   {
     "id": "surfboard-worker-eternity",
@@ -237,7 +331,10 @@
     "source_type": "static_subscription",
     "trust": "medium",
     "status": "trusted",
-    "tags": ["aggregator"]
+    "enabled": true,
+    "tags": [
+      "aggregator"
+    ]
   },
   {
     "id": "tbbatbb-proxy-trojan",
@@ -246,7 +343,10 @@
     "source_type": "static_subscription",
     "trust": "medium",
     "status": "candidate",
-    "tags": ["trojan"],
+    "enabled": true,
+    "tags": [
+      "trojan"
+    ],
     "notes": "Observed as unstable in recent scans; kept as candidate"
   },
   {
@@ -256,7 +356,10 @@
     "source_type": "static_subscription",
     "trust": "medium",
     "status": "trusted",
-    "tags": ["iran"]
+    "enabled": true,
+    "tags": [
+      "iran"
+    ]
   },
   {
     "id": "iranian-cypherpunks-sub",
@@ -265,7 +368,10 @@
     "source_type": "static_subscription",
     "trust": "medium",
     "status": "trusted",
-    "tags": ["iran"]
+    "enabled": true,
+    "tags": [
+      "iran"
+    ]
   },
   {
     "id": "chromego-merge-base64",
@@ -274,7 +380,11 @@
     "source_type": "meta_collector",
     "trust": "medium",
     "status": "trusted",
-    "tags": ["aggregator", "base64"]
+    "enabled": true,
+    "tags": [
+      "aggregator",
+      "base64"
+    ]
   },
   {
     "id": "aliilapro-v2rayng",
@@ -283,7 +393,10 @@
     "source_type": "static_subscription",
     "trust": "medium",
     "status": "trusted",
-    "tags": ["iran"]
+    "enabled": true,
+    "tags": [
+      "iran"
+    ]
   },
   {
     "id": "bardiafa-all",
@@ -292,6 +405,81 @@
     "source_type": "meta_collector",
     "trust": "medium",
     "status": "trusted",
-    "tags": ["aggregator"]
+    "enabled": true,
+    "tags": [
+      "aggregator"
+    ]
+  },
+  {
+    "id": "liketolivefree-kobabi-sub-txt",
+    "label": "liketolivefree/kobabi — sub.txt",
+    "url": "https://raw.githubusercontent.com/liketolivefree/kobabi/main/sub.txt",
+    "source_type": "static_subscription",
+    "trust": "medium",
+    "status": "trusted",
+    "enabled": true,
+    "tags": [
+      "discovered",
+      "repo-search",
+      "v2ray",
+      "vless",
+      "candidate",
+      "auto-promoted",
+      "trusted"
+    ],
+    "notes": "Discovered by GitHub repository search query: active-v2ray-config-repos; onboarding score=87.5; unique=219; tcp_ok=28/30; recommended=candidate; auto-promoted by source discovery on 2026-06-26; onboarding score=87.5; final score=85.2",
+    "protocols": [
+      "vless"
+    ],
+    "added_at": "2026-06-26",
+    "last_reviewed_at": "2026-06-26"
+  },
+  {
+    "id": "pornnewbee-free-vless-vpn-vless-txt",
+    "label": "pornnewbee/free-vless-VPN — vless.txt",
+    "url": "https://raw.githubusercontent.com/pornnewbee/free-vless-VPN/main/vless.txt",
+    "source_type": "static_subscription",
+    "trust": "medium",
+    "status": "trusted",
+    "enabled": true,
+    "tags": [
+      "discovered",
+      "repo-search",
+      "v2ray",
+      "vless",
+      "candidate",
+      "auto-promoted",
+      "trusted"
+    ],
+    "notes": "Discovered by GitHub repository search query: active-v2ray-config-repos; onboarding score=95.5; unique=462; tcp_ok=27/30; recommended=candidate; auto-promoted by source discovery on 2026-06-26; onboarding score=95.5; final score=81.8",
+    "protocols": [
+      "vless"
+    ],
+    "added_at": "2026-06-26",
+    "last_reviewed_at": "2026-06-26"
+  },
+  {
+    "id": "liketolivefree-kobabi-sub",
+    "label": "liketolivefree/kobabi — sub",
+    "url": "https://raw.githubusercontent.com/liketolivefree/kobabi/main/sub",
+    "source_type": "static_subscription",
+    "trust": "medium",
+    "status": "trusted",
+    "enabled": true,
+    "tags": [
+      "discovered",
+      "repo-search",
+      "v2ray",
+      "vless",
+      "candidate",
+      "auto-promoted",
+      "trusted"
+    ],
+    "notes": "Discovered by GitHub repository search query: active-v2ray-config-repos; onboarding score=77.8; unique=110; tcp_ok=30/30; recommended=candidate; auto-promoted by source discovery on 2026-06-26; onboarding score=77.8; final score=78.4",
+    "protocols": [
+      "vless"
+    ],
+    "added_at": "2026-06-26",
+    "last_reviewed_at": "2026-06-26"
   }
 ]

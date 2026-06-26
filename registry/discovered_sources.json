@@ -1,8 +1,71 @@
 [
   {
-    "id": "xiaoji235-airport-free-v2ray-txt",
-    "label": "xiaoji235/airport-free — v2ray.txt",
-    "url": "https://raw.githubusercontent.com/xiaoji235/airport-free/main/v2ray.txt",
+    "id": "liketolivefree-kobabi-sub-txt",
+    "label": "liketolivefree/kobabi — sub.txt",
+    "url": "https://raw.githubusercontent.com/liketolivefree/kobabi/main/sub.txt",
+    "source_type": "static_subscription",
+    "trust": "low",
+    "status": "candidate",
+    "enabled": true,
+    "tags": [
+      "discovered",
+      "repo-search",
+      "v2ray",
+      "vless",
+      "candidate"
+    ],
+    "notes": "Discovered by GitHub repository search query: active-v2ray-config-repos; onboarding score=87.5; unique=219; tcp_ok=28/30; recommended=candidate",
+    "protocols": [
+      "vless"
+    ],
+    "added_at": "2026-06-26"
+  },
+  {
+    "id": "pornnewbee-free-vless-vpn-vless-txt",
+    "label": "pornnewbee/free-vless-VPN — vless.txt",
+    "url": "https://raw.githubusercontent.com/pornnewbee/free-vless-VPN/main/vless.txt",
+    "source_type": "static_subscription",
+    "trust": "low",
+    "status": "candidate",
+    "enabled": true,
+    "tags": [
+      "discovered",
+      "repo-search",
+      "v2ray",
+      "vless",
+      "candidate"
+    ],
+    "notes": "Discovered by GitHub repository search query: active-v2ray-config-repos; onboarding score=95.5; unique=462; tcp_ok=27/30; recommended=candidate",
+    "protocols": [
+      "vless"
+    ],
+    "added_at": "2026-06-26"
+  },
+  {
+    "id": "liketolivefree-kobabi-sub",
+    "label": "liketolivefree/kobabi — sub",
+    "url": "https://raw.githubusercontent.com/liketolivefree/kobabi/main/sub",
+    "source_type": "static_subscription",
+    "trust": "low",
+    "status": "candidate",
+    "enabled": true,
+    "tags": [
+      "discovered",
+      "repo-search",
+      "v2ray",
+      "vless",
+      "candidate"
+    ],
+    "notes": "Discovered by GitHub repository search query: active-v2ray-config-repos; onboarding score=77.8; unique=110; tcp_ok=30/30; recommended=candidate",
+    "protocols": [
+      "vless"
+    ],
+    "added_at": "2026-06-26"
+  },
+  {
+    "id": "nyeinkokoaung404-v2ray-configs-all-configs-sub-txt",
+    "label": "nyeinkokoaung404/V2ray-Configs — All_Configs_Sub.txt",
+    "url": "https://raw.githubusercontent.com/nyeinkokoaung404/V2ray-Configs/main/All_Configs_Sub.txt",
     "source_type": "static_subscription",
     "trust": "low",
     "status": "candidate",
@@ -15,108 +78,23 @@
       "vmess",
       "ss",
       "trojan",
-      "candidate"
-    ],
-    "notes": "Discovered by GitHub repository search query: base64-subscription-hints; onboarding score=100.0; unique=812; tcp_ok=30/30; recommended=candidate",
-    "protocols": [
-      "vless",
-      "vmess",
-      "ss",
-      "trojan"
-    ],
-    "added_at": "2026-06-26"
-  },
-  {
-    "id": "barry-far-v2ray-config-all-configs-sub-txt",
-    "label": "barry-far/V2ray-Config — All_Configs_Sub.txt",
-    "url": "https://raw.githubusercontent.com/barry-far/V2ray-Config/main/All_Configs_Sub.txt",
-    "source_type": "static_subscription",
-    "trust": "low",
-    "status": "candidate",
-    "enabled": true,
-    "tags": [
-      "discovered",
-      "repo-search",
-      "v2ray",
-      "vless",
-      "trojan",
-      "ss",
-      "vmess",
-      "ssr",
-      "candidate"
-    ],
-    "notes": "Discovered by GitHub repository search query: active-v2ray-config-repos; onboarding score=82.0; unique=5869; tcp_ok=18/30; recommended=candidate",
-    "protocols": [
-      "vless",
-      "trojan",
-      "ss",
-      "vmess",
-      "ssr"
-    ],
-    "added_at": "2026-06-26"
-  },
-  {
-    "id": "longlon-v2ray-config-all-configs-sub-txt",
-    "label": "longlon/v2ray-config — All_Configs_Sub.txt",
-    "url": "https://raw.githubusercontent.com/longlon/v2ray-config/main/All_Configs_Sub.txt",
-    "source_type": "static_subscription",
-    "trust": "low",
-    "status": "candidate",
-    "enabled": true,
-    "tags": [
-      "discovered",
-      "repo-search",
-      "v2ray",
-      "vless",
-      "trojan",
-      "vmess",
-      "ss",
-      "ssr",
-      "candidate"
-    ],
-    "notes": "Discovered by GitHub repository search query: active-v2ray-config-repos; onboarding score=85.0; unique=7999; tcp_ok=20/30; recommended=candidate",
-    "protocols": [
-      "vless",
-      "trojan",
-      "vmess",
-      "ss",
-      "ssr"
-    ],
-    "added_at": "2026-06-26"
-  },
-  {
-    "id": "delta-kronecker-v2ray-config-sub-txt",
-    "label": "Delta-Kronecker/V2ray-Config — sub.txt",
-    "url": "https://raw.githubusercontent.com/Delta-Kronecker/V2ray-Config/main/sub.txt",
-    "source_type": "static_subscription",
-    "trust": "low",
-    "status": "candidate",
-    "enabled": true,
-    "tags": [
-      "discovered",
-      "repo-search",
-      "v2ray",
-      "ss",
-      "vmess",
-      "trojan",
-      "vless",
       "ssr",
       "experimental"
     ],
-    "notes": "Discovered by GitHub repository search query: active-v2ray-config-repos; onboarding score=48.2; unique=203; tcp_ok=3/30; recommended=experimental",
+    "notes": "Discovered by GitHub repository search query: base64-subscription-hints; onboarding score=58.0; unique=1554; tcp_ok=2/30; recommended=experimental",
     "protocols": [
-      "ss",
-      "vmess",
-      "trojan",
       "vless",
+      "vmess",
+      "ss",
+      "trojan",
       "ssr"
     ],
     "added_at": "2026-06-26"
   },
   {
-    "id": "seyedhub-subscription-sub-txt",
-    "label": "Seyedhub/Subscription — sub.txt",
-    "url": "https://raw.githubusercontent.com/Seyedhub/Subscription/main/sub.txt",
+    "id": "asiblak4-beep-mysub-sub-txt",
+    "label": "asiblak4-beep/Mysub — sub.txt",
+    "url": "https://raw.githubusercontent.com/asiblak4-beep/Mysub/main/sub.txt",
     "source_type": "static_subscription",
     "trust": "low",
     "status": "candidate",
@@ -126,13 +104,15 @@
       "repo-search",
       "subscription",
       "vless",
-      "trojan",
+      "vmess",
+      "ss",
       "experimental"
     ],
-    "notes": "Discovered by GitHub repository search query: base64-subscription-hints; onboarding score=59.4; unique=7; tcp_ok=6/7; recommended=experimental",
+    "notes": "Discovered by GitHub repository search query: base64-subscription-hints; onboarding score=48.2; unique=27; tcp_ok=15/27; recommended=experimental",
     "protocols": [
       "vless",
-      "trojan"
+      "vmess",
+      "ss"
     ],
     "added_at": "2026-06-26"
   }
