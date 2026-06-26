@@ -4,12 +4,12 @@ This module searches GitHub for potential public V2Ray/Xray subscription
 sources, converts file results into raw URLs, evaluates them through the existing
 source onboarding pipeline, and writes a JSON report.
 
-Discovery is intentionally conservative:
+Discovery is conservative by default:
 
-- It never promotes a source to trusted.
 - It deduplicates against trusted, candidate and previously discovered sources.
 - It keeps only sources that produce at least one config and are not disabled.
-- Promotion remains a manual review step.
+- It only promotes sources to ``registry/sources.json`` when ``--auto-promote``
+  is explicitly enabled and strict promotion thresholds are met.
 
 Example:
 
@@ -21,12 +21,10 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import time
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Sequence
-from urllib.parse import quote
 
 import requests
 
@@ -81,6 +79,19 @@ class DiscoveryQuery:
             query=str(data.get("query") or ""),
             tags=[str(t) for t in data.get("tags", []) if str(t)],
         )
+
+
+@dataclass
+class PromotionPolicy:
+    """Thresholds for automatic promotion to ``registry/sources.json``."""
+
+    min_onboarding_score: float = 60.0
+    min_final_score: float = 55.0
+    min_unique_configs: int = 30
+    min_tcp_success_rate: float = 0.25
+    max_duplicate_ratio: float = 0.50
+    max_promotions: int = 5
+    allowed_recommendations: Sequence[str] = ("candidate", "trusted")
 
 
 @dataclass
@@ -378,7 +389,107 @@ def discover_sources(
         "tcp_sample_size": tcp_sample_size,
         "errors": errors,
         "sources": [c.to_dict() for c in evaluated],
+        "promotion": {
+            "enabled": False,
+            "promoted_count": 0,
+            "promoted_sources": [],
+            "skipped_sources": [],
+        },
     }
+
+
+def _promotion_reason(item: Dict[str, Any], policy: PromotionPolicy, existing_urls: set[str]) -> str:
+    onboarding = item.get("onboarding") or {}
+    url = str(item.get("url") or "")
+    if not url:
+        return "missing URL"
+    if url in existing_urls:
+        return "already exists in trusted registry"
+    if not onboarding.get("fetch_ok"):
+        return "fetch_ok is false"
+    if int(onboarding.get("unique_configs") or 0) < policy.min_unique_configs:
+        return f"unique_configs below {policy.min_unique_configs}"
+    if float(onboarding.get("tcp_success_rate") or 0.0) < policy.min_tcp_success_rate:
+        return f"tcp_success_rate below {policy.min_tcp_success_rate}"
+    if float(onboarding.get("score") or 0.0) < policy.min_onboarding_score:
+        return f"onboarding score below {policy.min_onboarding_score}"
+    if float(item.get("final_candidate_score") or 0.0) < policy.min_final_score:
+        return f"final_candidate_score below {policy.min_final_score}"
+    if float(onboarding.get("duplicate_ratio") or 0.0) > policy.max_duplicate_ratio:
+        return f"duplicate_ratio above {policy.max_duplicate_ratio}"
+    if str(onboarding.get("recommended_status") or "") not in set(policy.allowed_recommendations):
+        return "recommended_status is not promotable"
+    return "ok"
+
+
+def _promoted_record_from_item(item: Dict[str, Any]) -> SourceRecord:
+    onboarding = item.get("onboarding") or {}
+    protocols = list((onboarding.get("protocols") or {}).keys())
+    tcp_rate = float(onboarding.get("tcp_success_rate") or 0.0)
+    trust = "medium" if tcp_rate >= 0.50 else "low"
+    tags = list(dict.fromkeys(list(item.get("tags") or []) + ["auto-promoted", "trusted"] + protocols))
+    notes = str(item.get("notes") or "")
+    notes += (
+        f"; auto-promoted by source discovery on {datetime.now(timezone.utc).date().isoformat()}"
+        f"; onboarding score={onboarding.get('score')}; final score={item.get('final_candidate_score')}"
+    )
+    return SourceRecord(
+        id=str(item.get("id") or make_source_id(str(item.get("label") or item.get("url") or "source"))),
+        label=str(item.get("label") or item.get("url") or "Discovered source"),
+        url=str(item.get("url") or ""),
+        source_type=str(item.get("source_type") or "static_subscription"),
+        trust=trust,
+        status="trusted",
+        enabled=True,
+        tags=tags,
+        notes=notes,
+        protocols=protocols,
+        added_at=datetime.now(timezone.utc).date().isoformat(),
+        last_reviewed_at=datetime.now(timezone.utc).date().isoformat(),
+    )
+
+
+def auto_promote_sources(
+    report: Dict[str, Any],
+    *,
+    policy: PromotionPolicy,
+    registry_path: Path = TRUSTED_REGISTRY,
+) -> Dict[str, Any]:
+    """Append high-quality discovered sources to the trusted registry.
+
+    Promotion is append-only and URL-deduplicated.  The workflow is responsible
+    for committing the modified registry file back to ``main``.
+    """
+    records = load_json_records(registry_path)
+    existing_urls = {r.url for r in records}
+    promoted: List[Dict[str, Any]] = []
+    skipped: List[Dict[str, str]] = []
+
+    for item in report.get("sources", []):
+        reason = _promotion_reason(item, policy, existing_urls)
+        if reason != "ok":
+            skipped.append({"label": str(item.get("label") or item.get("url") or ""), "reason": reason})
+            continue
+        if len(promoted) >= policy.max_promotions:
+            skipped.append({"label": str(item.get("label") or item.get("url") or ""), "reason": "max promotions reached"})
+            continue
+        record = _promoted_record_from_item(item)
+        records.append(record)
+        existing_urls.add(record.url)
+        promoted.append(record.to_dict())
+
+    if promoted:
+        save_records(registry_path, records)
+
+    promotion = {
+        "enabled": True,
+        "policy": asdict(policy),
+        "promoted_count": len(promoted),
+        "promoted_sources": promoted,
+        "skipped_sources": skipped,
+    }
+    report["promotion"] = promotion
+    return promotion
 
 
 def write_outputs(report: Dict[str, Any], *, report_path: Path, registry_path: Path) -> None:
@@ -391,6 +502,7 @@ def write_step_summary(report: Dict[str, Any]) -> None:
     summary_path = os.environ.get("GITHUB_STEP_SUMMARY")
     if not summary_path:
         return
+    promotion = report.get("promotion") or {}
     lines = [
         "# Source Discovery Report",
         "",
@@ -398,6 +510,8 @@ def write_step_summary(report: Dict[str, Any]) -> None:
         f"Queries: **{report.get('query_count')}**",
         f"Raw discovered: **{report.get('raw_discovered_count')}**",
         f"Kept candidates: **{report.get('kept_count')}**",
+        f"Auto-promotion: **{'enabled' if promotion.get('enabled') else 'disabled'}**",
+        f"Promoted sources: **{promotion.get('promoted_count', 0)}**",
         "",
         "| Score | Onboarding | Source | URL |",
         "|---:|---:|---|---|",
@@ -408,6 +522,10 @@ def write_step_summary(report: Dict[str, Any]) -> None:
         lines.append(
             f"| {item.get('final_candidate_score', 0)} | {item.get('onboarding_score', 0)} | {label} | {url} |"
         )
+    if promotion.get("promoted_sources"):
+        lines.extend(["", "## Auto-promoted to `registry/sources.json`"])
+        for item in promotion.get("promoted_sources", []):
+            lines.append(f"- **{item.get('label')}** — `{item.get('url')}`")
     if report.get("errors"):
         lines.extend(["", "## Errors"])
         for err in report["errors"]:
@@ -425,6 +543,14 @@ def main(argv: Optional[List[str]] = None) -> int:
     parser.add_argument("--registry-path", default=str(DISCOVERED_REGISTRY))
     parser.add_argument("--token", default="", help="GitHub token; defaults to GITHUB_TOKEN/GH_TOKEN")
     parser.add_argument("--json", action="store_true", help="Print full JSON report to stdout")
+
+    parser.add_argument("--auto-promote", action="store_true", help="Append high-quality candidates to registry/sources.json")
+    parser.add_argument("--promote-min-score", type=float, default=60.0)
+    parser.add_argument("--promote-min-final-score", type=float, default=55.0)
+    parser.add_argument("--promote-min-unique", type=int, default=30)
+    parser.add_argument("--promote-min-tcp-rate", type=float, default=0.25)
+    parser.add_argument("--promote-max-duplicate-ratio", type=float, default=0.50)
+    parser.add_argument("--promote-max-count", type=int, default=5)
     args = parser.parse_args(argv)
 
     report = discover_sources(
@@ -434,6 +560,20 @@ def main(argv: Optional[List[str]] = None) -> int:
         max_candidates=args.max_candidates,
         token=args.token or None,
     )
+
+    if args.auto_promote:
+        auto_promote_sources(
+            report,
+            policy=PromotionPolicy(
+                min_onboarding_score=args.promote_min_score,
+                min_final_score=args.promote_min_final_score,
+                min_unique_configs=args.promote_min_unique,
+                min_tcp_success_rate=args.promote_min_tcp_rate,
+                max_duplicate_ratio=args.promote_max_duplicate_ratio,
+                max_promotions=args.promote_max_count,
+            ),
+        )
+
     write_outputs(report, report_path=Path(args.report_path), registry_path=Path(args.registry_path))
     write_step_summary(report)
     if args.json:
@@ -441,7 +581,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     else:
         print(
             f"Discovery complete: raw={report['raw_discovered_count']} kept={report['kept_count']} "
-            f"report={args.report_path}"
+            f"promoted={report.get('promotion', {}).get('promoted_count', 0)} report={args.report_path}"
         )
         if report.get("errors"):
             print(f"Errors: {len(report['errors'])}")
