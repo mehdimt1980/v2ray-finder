@@ -198,6 +198,40 @@ def get_remote_registry_diagnostics() -> Dict[str, Any]:
     }
 
 
+def refresh_remote_registry_now(*, include_candidates: bool = False, timeout: float = 12.0) -> Dict[str, Any]:
+    """Force-refresh the remote registry and overwrite the local cache.
+
+    This is used by Android's "Refresh Sources Now" button. It deliberately
+    bypasses TTL and tries the remote registry immediately. If the remote fetch
+    fails, the existing cache/bundled fallback is left untouched.
+    """
+    if not remote_registry_enabled():
+        return {
+            "ok": False,
+            "message": "Remote Source Registry is disabled.",
+            "diagnostics": get_remote_registry_diagnostics(),
+            "active_sources": 0,
+        }
+    try:
+        records = fetch_remote_records(timeout=timeout)
+        entries = records_to_entries(records, include_candidates=include_candidates)
+        return {
+            "ok": True,
+            "message": f"Remote Source Registry refreshed: {len(entries)} active sources.",
+            "active_sources": len(entries),
+            "total_records": len(records),
+            "diagnostics": get_remote_registry_diagnostics(),
+        }
+    except Exception as exc:
+        fallback = get_sources_with_remote_registry(include_candidates=include_candidates, timeout=timeout)
+        return {
+            "ok": False,
+            "message": f"Remote Source Registry refresh failed: {exc}",
+            "active_sources": len(fallback),
+            "diagnostics": get_remote_registry_diagnostics(),
+        }
+
+
 def get_sources_with_remote_registry(
     *,
     include_candidates: bool = False,
