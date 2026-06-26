@@ -8,6 +8,7 @@ from typing import Any
 
 from v2ray_finder import Pipeline
 from v2ray_finder.real_validation import check_real_validation_batch
+from v2ray_finder.remote_source_registry import get_remote_registry_diagnostics
 from v2ray_finder.source_performance import build_source_performance
 from v2ray_finder.sources import get_enabled_sources
 
@@ -102,6 +103,10 @@ def scan(limit: int = 200, timeout: float = 5.0, check_health: bool = False, tok
 
     configs = result.top_configs if result.scores else result.configs
     stats = dict(result.stats)
+    try:
+        stats["remote_source_registry"] = get_remote_registry_diagnostics()
+    except Exception as exc:
+        stats["remote_source_registry"] = {"enabled": False, "error": str(exc)}
     real_results = []
 
     real_info: dict[str, Any] = {
@@ -215,5 +220,6 @@ def scan(limit: int = 200, timeout: float = 5.0, check_health: bool = False, tok
         "failed_sources": failed_sources,
         "real_check": real_info,
         "source_performance": source_performance,
+        "remote_source_registry": stats.get("remote_source_registry", {}),
     }
     return json.dumps(payload, ensure_ascii=False)
