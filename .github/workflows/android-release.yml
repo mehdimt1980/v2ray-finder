@@ -96,6 +96,7 @@ jobs:
           root = Path('android_app/app/src/main/python')
           required = [
               root / 'android_bridge.py',
+              root / 'android_bridge_balanced.py',
               root / 'android_source_refresh.py',
               root / 'v2ray_finder/__init__.py',
               root / 'v2ray_finder/pipeline.py',
@@ -108,6 +109,12 @@ jobs:
           print('Python files staged for release:', len(list(root.rglob('*.py'))))
           print('Registry files staged for release:', len(list((root / 'registry').glob('*.json'))))
           PY
+
+      - name: Patch Android UI for source-balanced scan
+        run: |
+          set -euxo pipefail
+          python3.11 scripts/patch_android_balanced_scan.py
+          grep -R "android_bridge_balanced" -n android_app/app/src/main/java/org/mehdimt/v2rayfinder/MainActivity.java
 
       - name: Bundle xray binary for Android real checks
         env:
@@ -182,6 +189,7 @@ jobs:
             - Real v2ray_finder Pipeline through Chaquopy
             - Remote Source Registry: source updates can be pulled from GitHub without reinstalling the APK
             - Refresh Sources Now button for immediate remote registry updates
+            - Source-balanced Android scan so one large source cannot consume the whole result pool
             - TCP health check enabled by default
             - optional Real Validation v2 with bundled xray
             - protocol filter, search, pagination, stop button
