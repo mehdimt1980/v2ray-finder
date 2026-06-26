@@ -1,0 +1,74 @@
+name: Source Discovery
+
+on:
+  workflow_dispatch:
+    inputs:
+      max_results_per_query:
+        description: "GitHub results per discovery query"
+        required: true
+        default: "10"
+      min_score:
+        description: "Minimum onboarding score to keep a discovered source"
+        required: true
+        default: "20"
+      tcp_sample_size:
+        description: "How many configs to TCP-sample during onboarding"
+        required: true
+        default: "30"
+      max_candidates:
+        description: "Maximum kept candidates in the final report"
+        required: true
+        default: "50"
+  schedule:
+    - cron: "17 4 * * 1"
+
+permissions:
+  contents: read
+
+jobs:
+  discover-sources:
+    name: Discover source candidates
+    runs-on: ubuntu-22.04
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install package
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e .
+
+      - name: Run discovery engine
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set -euxo pipefail
+          MAX_RESULTS="${{ github.event.inputs.max_results_per_query || '10' }}"
+          MIN_SCORE="${{ github.event.inputs.min_score || '20' }}"
+          TCP_SAMPLE="${{ github.event.inputs.tcp_sample_size || '30' }}"
+          MAX_CANDIDATES="${{ github.event.inputs.max_candidates || '50' }}"
+          python -m v2ray_finder.source_discovery \
+            --max-results-per-query "$MAX_RESULTS" \
+            --min-score "$MIN_SCORE" \
+            --tcp-sample-size "$TCP_SAMPLE" \
+            --max-candidates "$MAX_CANDIDATES" \
+            --report-path source-discovery-report.json \
+            --registry-path registry/discovered_sources.json \
+            --json | tee source-discovery-stdout.json
+
+      - name: Upload discovery artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: source-discovery-report
+          path: |
+            source-discovery-report.json
+            source-discovery-stdout.json
+            registry/discovered_sources.json
+          if-no-files-found: error
