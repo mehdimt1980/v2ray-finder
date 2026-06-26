@@ -24,6 +24,7 @@ The project includes both a Python engine and a working native Android APK workf
 - Real Validation Engine v2 on Android with bundled `xray`
 - Multi-probe validation, confidence scoring and two-pass stability signals
 - Source Performance Engine for ranking which sources actually produce working configs
+- Source Registry, Source Onboarding and GitHub Source Discovery Engine
 - CLI and Rich CLI
 - PySide6 desktop GUI
 - Native Android app under `android_app/`
@@ -132,6 +133,23 @@ error samples
 ```
 
 See [`docs/SOURCE_PERFORMANCE_ENGINE.md`](docs/SOURCE_PERFORMANCE_ENGINE.md) for details.
+
+### Source Registry, Onboarding and Discovery
+
+Source management is handled through a controlled pipeline:
+
+```text
+GitHub discovery → onboarding → discovered candidate → manual review → trusted registry
+```
+
+Relevant docs:
+
+```text
+docs/SOURCE_REGISTRY_AND_ONBOARDING.md
+docs/SOURCE_DISCOVERY_ENGINE.md
+```
+
+The discovery engine runs in GitHub Actions and never promotes sources directly to trusted.
 
 ### Build debug APK with GitHub Actions
 
