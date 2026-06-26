@@ -51,7 +51,7 @@ registry/sources.json
 Default cache TTL:
 
 ```text
-24 hours
+1 hour / 3600 seconds
 ```
 
 Default cache path:
@@ -67,7 +67,7 @@ The cache avoids hitting GitHub on every scan. A remote fetch happens when the c
 | Variable | Meaning |
 |---|---|
 | `V2RAY_FINDER_REMOTE_REGISTRY_URL` | Override the remote registry URL |
-| `V2RAY_FINDER_REMOTE_REGISTRY_TTL` | TTL in seconds, default `86400` |
+| `V2RAY_FINDER_REMOTE_REGISTRY_TTL` | TTL in seconds, default `3600` |
 | `V2RAY_FINDER_REGISTRY_CACHE` | Exact cache file path |
 | `V2RAY_FINDER_REGISTRY_CACHE_DIR` | Cache directory |
 | `V2RAY_FINDER_DISABLE_REMOTE_REGISTRY=1` | Disable remote registry and use bundled/fallback sources |
@@ -121,7 +121,7 @@ The Android bridge includes registry diagnostics in the scan payload:
     "cache_path": ".../remote_sources.json",
     "cache_exists": true,
     "cache_fresh": true,
-    "cache_ttl_seconds": 86400
+    "cache_ttl_seconds": 3600
   }
 }
 ```
