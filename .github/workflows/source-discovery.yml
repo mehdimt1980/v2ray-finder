@@ -76,10 +76,17 @@ on:
         required: true
         default: "5"
   schedule:
-    - cron: "17 4 * * 1"
+    # Daily at 04:17 UTC. Code Search stays disabled by default; resilient discovery
+    # uses seed repo probing plus repository search and auto-promotes only sources
+    # that pass strict onboarding thresholds.
+    - cron: "17 4 * * *"
 
 permissions:
   contents: write
+
+concurrency:
+  group: source-discovery-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
   discover-sources:
@@ -115,7 +122,7 @@ jobs:
           INCLUDE_CODE_SEARCH="${{ github.event.inputs.include_code_search || 'false' }}"
           SEED_ONLY="${{ github.event.inputs.seed_only || 'false' }}"
           DISABLE_REPO_SEARCH="${{ github.event.inputs.disable_repo_search || 'false' }}"
-          AUTO_PROMOTE="${{ github.event.inputs.auto_promote_to_sources || 'false' }}"
+          AUTO_PROMOTE="${{ github.event.inputs.auto_promote_to_sources || 'true' }}"
           PROMOTE_MIN_SCORE="${{ github.event.inputs.promote_min_score || '60' }}"
           PROMOTE_MIN_FINAL_SCORE="${{ github.event.inputs.promote_min_final_score || '55' }}"
           PROMOTE_MIN_UNIQUE="${{ github.event.inputs.promote_min_unique || '30' }}"
@@ -154,7 +161,7 @@ jobs:
             --json | tee source-discovery-stdout.json
 
       - name: Commit auto-promoted sources
-        if: ${{ github.event.inputs.auto_promote_to_sources == 'true' }}
+        if: ${{ github.event_name == 'schedule' || github.event.inputs.auto_promote_to_sources == 'true' }}
         run: |
           set -euxo pipefail
           git config user.name "github-actions[bot]"
