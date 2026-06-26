@@ -19,11 +19,43 @@ on:
         description: "Maximum kept candidates in the final report"
         required: true
         default: "50"
+      auto_promote_to_sources:
+        description: "Automatically append high-quality candidates to registry/sources.json and push to main"
+        required: true
+        type: choice
+        default: "true"
+        options:
+          - "true"
+          - "false"
+      promote_min_score:
+        description: "Minimum onboarding score for auto-promotion"
+        required: true
+        default: "60"
+      promote_min_final_score:
+        description: "Minimum final candidate score for auto-promotion"
+        required: true
+        default: "55"
+      promote_min_unique:
+        description: "Minimum unique configs for auto-promotion"
+        required: true
+        default: "30"
+      promote_min_tcp_rate:
+        description: "Minimum TCP success rate for auto-promotion"
+        required: true
+        default: "0.25"
+      promote_max_duplicate_ratio:
+        description: "Maximum duplicate ratio for auto-promotion"
+        required: true
+        default: "0.50"
+      promote_max_count:
+        description: "Maximum sources promoted in one run"
+        required: true
+        default: "5"
   schedule:
     - cron: "17 4 * * 1"
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   discover-sources:
@@ -34,6 +66,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          persist-credentials: true
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -54,6 +88,25 @@ jobs:
           MIN_SCORE="${{ github.event.inputs.min_score || '20' }}"
           TCP_SAMPLE="${{ github.event.inputs.tcp_sample_size || '30' }}"
           MAX_CANDIDATES="${{ github.event.inputs.max_candidates || '50' }}"
+          AUTO_PROMOTE="${{ github.event.inputs.auto_promote_to_sources || 'false' }}"
+          PROMOTE_MIN_SCORE="${{ github.event.inputs.promote_min_score || '60' }}"
+          PROMOTE_MIN_FINAL_SCORE="${{ github.event.inputs.promote_min_final_score || '55' }}"
+          PROMOTE_MIN_UNIQUE="${{ github.event.inputs.promote_min_unique || '30' }}"
+          PROMOTE_MIN_TCP_RATE="${{ github.event.inputs.promote_min_tcp_rate || '0.25' }}"
+          PROMOTE_MAX_DUPLICATE_RATIO="${{ github.event.inputs.promote_max_duplicate_ratio || '0.50' }}"
+          PROMOTE_MAX_COUNT="${{ github.event.inputs.promote_max_count || '5' }}"
+
+          EXTRA_ARGS=""
+          if [ "$AUTO_PROMOTE" = "true" ]; then
+            EXTRA_ARGS="--auto-promote \
+              --promote-min-score $PROMOTE_MIN_SCORE \
+              --promote-min-final-score $PROMOTE_MIN_FINAL_SCORE \
+              --promote-min-unique $PROMOTE_MIN_UNIQUE \
+              --promote-min-tcp-rate $PROMOTE_MIN_TCP_RATE \
+              --promote-max-duplicate-ratio $PROMOTE_MAX_DUPLICATE_RATIO \
+              --promote-max-count $PROMOTE_MAX_COUNT"
+          fi
+
           python -m v2ray_finder.source_discovery \
             --max-results-per-query "$MAX_RESULTS" \
             --min-score "$MIN_SCORE" \
@@ -61,7 +114,22 @@ jobs:
             --max-candidates "$MAX_CANDIDATES" \
             --report-path source-discovery-report.json \
             --registry-path registry/discovered_sources.json \
+            $EXTRA_ARGS \
             --json | tee source-discovery-stdout.json
+
+      - name: Commit auto-promoted sources
+        if: ${{ github.event.inputs.auto_promote_to_sources == 'true' }}
+        run: |
+          set -euxo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add registry/sources.json registry/discovered_sources.json
+          if git diff --cached --quiet; then
+            echo "No registry changes to commit."
+          else
+            git commit -m "Auto-promote discovered trusted sources"
+            git push
+          fi
 
       - name: Upload discovery artifacts
         uses: actions/upload-artifact@v4
@@ -71,4 +139,5 @@ jobs:
             source-discovery-report.json
             source-discovery-stdout.json
             registry/discovered_sources.json
+            registry/sources.json
           if-no-files-found: error
