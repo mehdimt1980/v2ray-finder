@@ -20,6 +20,7 @@ REPO_API = "https://api.github.com/repos/XTLS/Xray-core/releases"
 NATIVE_TARGET = Path("android_app/app/src/main/jniLibs/arm64-v8a/libxray.so")
 LEGACY_ASSET_TARGET = Path("android_app/app/src/main/assets/xray/arm64-v8a/xray")
 JAVA_ACTIVITY = Path("android_app/app/src/main/java/org/mehdimt/v2rayfinder/DefaultHealthActivity.java")
+MAIN_ACTIVITY = Path("android_app/app/src/main/java/org/mehdimt/v2rayfinder/MainActivity.java")
 BUILD_GRADLE = Path("android_app/app/build.gradle")
 PY_ROOT = Path("android_app/app/src/main/python")
 
@@ -109,6 +110,51 @@ def _patch_android_activity() -> None:
     text = text[:start] + new_method + text[end:]
     JAVA_ACTIVITY.write_text(text, encoding="utf-8")
     print("Patched DefaultHealthActivity to use nativeLibraryDir/libxray.so")
+
+
+def _patch_main_activity_balanced_scan() -> None:
+    if not MAIN_ACTIVITY.exists():
+        print(f"MainActivity not found, skipping balanced scan patch: {MAIN_ACTIVITY}")
+        return
+    text = MAIN_ACTIVITY.read_text(encoding="utf-8")
+    old = 'PyObject bridge = py.getModule("android_bridge");'
+    new = 'PyObject bridge = py.getModule("android_bridge_balanced");'
+    if new not in text:
+        if old not in text:
+            raise SystemExit("Could not locate android_bridge scan module line in MainActivity.")
+        text = text.replace(old, new, 1)
+    MAIN_ACTIVITY.write_text(text, encoding="utf-8")
+    print("Patched MainActivity to use android_bridge_balanced")
+
+
+def _patch_main_activity_source_balancing_ui() -> None:
+    if not MAIN_ACTIVITY.exists():
+        return
+    text = MAIN_ACTIVITY.read_text(encoding="utf-8")
+    if 'stats.optJSONObject("source_balancing")' in text:
+        print("MainActivity source balancing UI already patched")
+        return
+    old = '''            String done = "تمام شد. " + latestConfigs.size() + " کانفیگ آماده است.";
+            if (currentSourcePerformance.length() > 0) {
+                done += " عملکرد " + currentSourcePerformance.length() + " منبع تحلیل شد.";
+            }
+'''
+    new = '''            String done = "تمام شد. " + latestConfigs.size() + " کانفیگ آماده است.";
+            JSONObject balancing = stats == null ? null : stats.optJSONObject("source_balancing");
+            if (balancing != null && balancing.optBoolean("enabled", false)) {
+                done += " نمونه‌گیری متوازن از " + balancing.optInt("active_sources", 0)
+                        + " منبع فعال انجام شد"
+                        + "؛ سقف هر منبع: " + balancing.optInt("per_source_cap", 0) + ".";
+            }
+            if (currentSourcePerformance.length() > 0) {
+                done += " عملکرد " + currentSourcePerformance.length() + " منبع تحلیل شد.";
+            }
+'''
+    if old not in text:
+        print("MainActivity status block not found; skipping source balancing UI patch.")
+        return
+    MAIN_ACTIVITY.write_text(text.replace(old, new, 1), encoding="utf-8")
+    print("Patched MainActivity source balancing status message")
 
 
 def _patch_build_gradle() -> None:
@@ -236,41 +282,8 @@ def _patch_android_bridge() -> None:
     text = text.replace("min(int(limit or 10), 50)", "min(int(limit or 200), 200)")
     text = text.replace("max_workers=2", "max_workers=4")
     text = text.replace("timeout=max(timeout, 8.0)", "timeout=max(timeout, 6.0)")
-    text = text.replace(
-        """                real_map = {r.config: r for r in real_results}
-                verified_items: list[dict[str, Any]] = []
-""",
-        """                real_map = {r.config: r for r in real_results}
-                error_samples = []
-                for r in real_results:
-                    if not r.google_204_ok:
-                        err = r.error or \"Google-204 did not return OK through proxy\"
-                        error_samples.append(f\"{r.protocol}: {err}\")
-                real_info[\"error_samples\"] = error_samples[:8]
-                verified_items: list[dict[str, Any]] = []
-""",
-    )
-    text = text.replace(
-        """    failed_sources: list[dict[str, Any]] = []
-    for url, error in result.failed_sources.items():
-""",
-        """    failed_sources: list[dict[str, Any]] = []
-    if _real_check_enabled and real_info.get(\"checked\", 0) and real_info.get(\"ok\", 0) == 0:
-        failed_sources.append(
-            {
-                \"url\": \"xray://layer3/google-204\",
-                \"error_type\": \"xray_real_check_failed\",
-                \"message\": real_info.get(\"message\", \"xray real check returned zero working configs\")
-                + \" Samples: \"
-                + \" | \".join(real_info.get(\"error_samples\", [])[:5]),
-                \"details\": real_info,
-            }
-        )
-    for url, error in result.failed_sources.items():
-""",
-    )
     path.write_text(text, encoding="utf-8")
-    print("Patched android_bridge real-check diagnostics")
+    print("Patched android_bridge real-check defaults")
 
 
 def main() -> int:
@@ -300,6 +313,8 @@ def main() -> int:
                 _copy_executable(binary, extra)
 
     _patch_android_activity()
+    _patch_main_activity_balanced_scan()
+    _patch_main_activity_source_balancing_ui()
     _patch_build_gradle()
     _patch_xray_runner()
     _patch_reality_adapter()
