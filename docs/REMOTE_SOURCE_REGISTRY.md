@@ -41,6 +41,7 @@ disabled
 ```text
 v2ray_finder/remote_source_registry.py
 v2ray_finder/sources.py
+android_app/app/src/main/python/android_source_refresh.py
 registry/sources.json
 ```
 
@@ -108,6 +109,24 @@ updating registry/sources.json on GitHub
 ```
 
 If GitHub is blocked or unavailable, the app still works using cached or bundled sources.
+
+## Refresh Sources Now
+
+The Android UI includes a manual refresh button:
+
+```text
+به‌روزرسانی منابع از GitHub
+```
+
+This calls:
+
+```python
+refresh_remote_registry_now(timeout=12.0)
+```
+
+and bypasses the 1-hour TTL. If the remote registry is reachable and valid, it overwrites the local cache immediately. The next scan uses the refreshed trusted source list.
+
+If refresh fails, the app keeps using the existing cache, stale cache, bundled registry, or legacy fallback.
 
 ## Diagnostics
 
