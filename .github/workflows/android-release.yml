@@ -4,9 +4,9 @@ on:
   workflow_dispatch:
     inputs:
       version_name:
-        description: "Release version name, for example 1.0.8"
+        description: "Release version name, for example 1.0.10"
         required: true
-        default: "1.0.8"
+        default: "1.0.10"
       create_github_release:
         description: "Create a GitHub Release and upload the signed APK"
         required: true
@@ -84,19 +84,28 @@ jobs:
           test -s "$RUNNER_TEMP/v2ray-finder-release.jks"
           echo "ANDROID_KEYSTORE_PATH=$RUNNER_TEMP/v2ray-finder-release.jks" >> "$GITHUB_ENV"
 
-      - name: Stage Python package for Chaquopy
+      - name: Stage Python package and registry for Chaquopy
         run: |
           rm -rf android_app/app/src/main/python/v2ray_finder
+          rm -rf android_app/app/src/main/python/registry
           cp -R v2ray_finder android_app/app/src/main/python/v2ray_finder
+          cp -R registry android_app/app/src/main/python/registry
           find android_app/app/src/main/python -type d -name __pycache__ -prune -exec rm -rf {} +
           python3.11 - <<'PY'
           from pathlib import Path
           root = Path('android_app/app/src/main/python')
-          required = [root / 'android_bridge.py', root / 'v2ray_finder/__init__.py', root / 'v2ray_finder/pipeline.py']
+          required = [
+              root / 'android_bridge.py',
+              root / 'v2ray_finder/__init__.py',
+              root / 'v2ray_finder/pipeline.py',
+              root / 'v2ray_finder/remote_source_registry.py',
+              root / 'registry/sources.json',
+          ]
           missing = [str(p) for p in required if not p.exists()]
           if missing:
               raise SystemExit('Missing Python files for Android: ' + ', '.join(missing))
           print('Python files staged for release:', len(list(root.rglob('*.py'))))
+          print('Registry files staged for release:', len(list((root / 'registry').glob('*.json'))))
           PY
 
       - name: Bundle xray binary for Android real checks
@@ -170,13 +179,14 @@ jobs:
             Features:
             - Persian / RTL native Android UI
             - Real v2ray_finder Pipeline through Chaquopy
+            - Remote Source Registry: source updates can be pulled from GitHub without reinstalling the APK
             - TCP health check enabled by default
-            - optional xray / Google-204 real connectivity check for top configs
+            - optional Real Validation v2 with bundled xray
             - protocol filter, search, pagination, stop button
             - ranked config cards
             - copy all or single configs
 
-            Note: xray / Google-204 is slower and should be used when you want stricter verification.
+            Note: remote registry falls back safely to the bundled registry when GitHub is unavailable.
           files: ${{ env.SIGNED_APK }}
 
       - name: Upload release build logs on failure
