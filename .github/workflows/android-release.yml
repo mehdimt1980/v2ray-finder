@@ -96,6 +96,7 @@ jobs:
           root = Path('android_app/app/src/main/python')
           required = [
               root / 'android_bridge.py',
+              root / 'android_source_refresh.py',
               root / 'v2ray_finder/__init__.py',
               root / 'v2ray_finder/pipeline.py',
               root / 'v2ray_finder/remote_source_registry.py',
@@ -180,6 +181,7 @@ jobs:
             - Persian / RTL native Android UI
             - Real v2ray_finder Pipeline through Chaquopy
             - Remote Source Registry: source updates can be pulled from GitHub without reinstalling the APK
+            - Refresh Sources Now button for immediate remote registry updates
             - TCP health check enabled by default
             - optional Real Validation v2 with bundled xray
             - protocol filter, search, pagination, stop button
