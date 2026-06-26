@@ -10,15 +10,56 @@ Discovery → onboarding → discovered candidate → optional auto-promotion �
 
 Discovery never promotes a source unless `--auto-promote` is explicitly enabled and strict thresholds are met.
 
+## Why resilient discovery exists
+
+GitHub Code Search often hits secondary rate limits / abuse limits in CI. To avoid fragile runs, the default workflow now uses a resilient engine:
+
+```text
+seed repository probing → GitHub repository search → optional GitHub code search
+```
+
+Code Search is disabled by default. It can be enabled manually, but normal weekly or manual discovery should work without it.
+
 ## Files
 
 ```text
+registry/discovery_seed_repos.json
 registry/discovery_queries.json
 registry/discovered_sources.json
 registry/sources.json
+v2ray_finder/source_discovery_resilient.py
 v2ray_finder/source_discovery.py
 .github/workflows/source-discovery.yml
 ```
+
+## Seed repositories
+
+Seed repositories live in:
+
+```text
+registry/discovery_seed_repos.json
+```
+
+A seed record looks like this:
+
+```json
+{
+  "id": "example-seed",
+  "repository": "owner/repo",
+  "branch": "main",
+  "paths": ["sub.txt", "clash.yaml", "All_Configs_Sub.txt"],
+  "tags": ["seed", "v2ray"]
+}
+```
+
+The resilient engine probes these raw URLs directly:
+
+```text
+https://raw.githubusercontent.com/owner/repo/main/sub.txt
+https://raw.githubusercontent.com/owner/repo/main/clash.yaml
+```
+
+This avoids GitHub Code Search completely and is much less likely to hit rate limits.
 
 ## Discovery queries
 
@@ -37,34 +78,37 @@ Supported query types:
 
 | Type | Meaning |
 |---|---|
-| `code` | Uses GitHub Code Search to find files containing raw URIs or Clash YAML |
-| `repo` | Uses GitHub Repository Search, then probes common subscription paths |
+| `code` | Uses GitHub Code Search to find files containing raw URIs or Clash YAML. Disabled by default in the workflow. |
+| `repo` | Uses GitHub Repository Search, then probes common subscription paths. |
 
-## What the engine does
+## What the resilient engine does
 
-1. Load discovery queries.
-2. Search GitHub Code Search or Repository Search.
-3. Convert GitHub file results into `raw.githubusercontent.com` URLs.
-4. Deduplicate against:
+1. Probe seed repositories from `registry/discovery_seed_repos.json`.
+2. Optionally run GitHub Repository Search.
+3. Optionally run GitHub Code Search only when `--include-code-search` is passed.
+4. Convert discovered files into `raw.githubusercontent.com` URLs.
+5. Deduplicate against:
    - `registry/sources.json`
    - `registry/candidate_sources.json`
    - `registry/discovered_sources.json`
-5. Run `source_onboarding` on each raw URL.
-6. Keep only candidates that:
+6. Run `source_onboarding` on each raw URL.
+7. Keep only candidates that:
    - fetch successfully
    - produce at least one unique config
    - are not recommended as `disabled`
    - pass the configured minimum onboarding score
-7. Write:
+8. Write:
    - `source-discovery-report.json`
    - `registry/discovered_sources.json`
    - GitHub Actions step summary
-8. If auto-promotion is enabled, append high-quality candidates to `registry/sources.json` with `status: trusted`.
+9. If auto-promotion is enabled, append high-quality candidates to `registry/sources.json` with `status: trusted`.
 
 ## Running locally
 
+Recommended resilient mode:
+
 ```bash
-python -m v2ray_finder.source_discovery \
+python -m v2ray_finder.source_discovery_resilient \
   --max-results-per-query 10 \
   --min-score 20 \
   --tcp-sample-size 30 \
@@ -72,10 +116,20 @@ python -m v2ray_finder.source_discovery \
   --json
 ```
 
+Most stable mode, no GitHub Search API:
+
+```bash
+python -m v2ray_finder.source_discovery_resilient \
+  --seed-only \
+  --min-score 20 \
+  --tcp-sample-size 30 \
+  --json
+```
+
 With automatic promotion:
 
 ```bash
-python -m v2ray_finder.source_discovery \
+python -m v2ray_finder.source_discovery_resilient \
   --max-results-per-query 10 \
   --min-score 20 \
   --tcp-sample-size 30 \
@@ -90,10 +144,18 @@ python -m v2ray_finder.source_discovery \
   --json
 ```
 
+If you really want Code Search:
+
+```bash
+python -m v2ray_finder.source_discovery_resilient \
+  --include-code-search \
+  --json
+```
+
 If you have a GitHub token:
 
 ```bash
-GITHUB_TOKEN=ghp_xxx python -m v2ray_finder.source_discovery --json
+GITHUB_TOKEN=ghp_xxx python -m v2ray_finder.source_discovery_resilient --json
 ```
 
 ## Running in GitHub Actions
@@ -104,14 +166,34 @@ Go to:
 Actions → Source Discovery → Run workflow
 ```
 
-Inputs:
+Important inputs:
 
 ```text
-max_results_per_query        default 10
-min_score                    default 20
-tcp_sample_size              default 30
-max_candidates               default 50
-auto_promote_to_sources      default true
+include_code_search      default false
+seed_only                default false
+disable_repo_search      default false
+auto_promote_to_sources  default true
+```
+
+Recommended default run:
+
+```text
+include_code_search: false
+seed_only: false
+disable_repo_search: false
+```
+
+Most stable run if GitHub Search is currently limited:
+
+```text
+include_code_search: false
+seed_only: true
+disable_repo_search: true
+```
+
+Auto-promotion inputs:
+
+```text
 promote_min_score            default 60
 promote_min_final_score      default 55
 promote_min_unique           default 30
@@ -128,8 +210,6 @@ registry/discovered_sources.json
 ```
 
 and pushes them back to `main` using `github-actions[bot]`.
-
-The scheduled weekly run does **not** auto-promote by default, because scheduled events do not provide the manual input. Automatic promotion is intended for manual runs where the maintainer can control the thresholds.
 
 ## Output files
 
@@ -159,11 +239,11 @@ registry/sources.json
   "trust": "low",
   "status": "candidate",
   "tags": ["discovered", "vless", "candidate"],
-  "discovered_by": "raw-vless-text",
+  "discovered_by": "seed:example-seed",
   "discovered_at": "2026-06-26",
-  "discovery_score": 55.0,
+  "discovery_score": 65.0,
   "onboarding_score": 63.5,
-  "final_candidate_score": 61.0,
+  "final_candidate_score": 63.9,
   "onboarding": {
     "fetch_ok": true,
     "unique_configs": 140,
@@ -212,4 +292,4 @@ The default policy promotes at most 5 sources per run.
 
 ## Why this is separate from the Android app
 
-Discovery uses GitHub Search APIs and can hit rate limits. It is better to run it in GitHub Actions instead of on the user's phone. The Android app should consume trusted registry data, not perform global GitHub discovery at runtime.
+Discovery can still use GitHub Search APIs and may hit rate limits. It is better to run it in GitHub Actions instead of on the user's phone. The Android app consumes trusted registry data; it does not perform global GitHub discovery at runtime.
