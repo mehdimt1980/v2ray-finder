@@ -1,13 +1,23 @@
 # Source Registry and Onboarding
 
-The source system is designed to avoid blindly adding random subscription URLs to the main scanner.
+The source registry is the runtime contract between the external source hunter and the app.
+
+`v2ray-finder` no longer performs global source discovery. Discovery, crawling, scoring and registry generation are handled by the separate `v2ray-source-hunter` repository. This repository consumes the resulting trusted registry and uses it for fetching, validation and source-performance reporting.
 
 The main idea is:
 
 ```text
-trusted sources      → used by normal scans
-candidate sources    → quarantined and tested first
-quarantine/disabled  → not used by normal scans
+v2ray-source-hunter
+→ discovers and validates public sources
+→ writes trusted source records
+→ syncs registry/sources.json into v2ray-finder
+
+v2ray-finder
+→ loads registry/sources.json
+→ fetches configs from enabled active sources
+→ deduplicates configs
+→ health-checks and real-validates configs
+→ reports source performance
 ```
 
 ## Files
@@ -19,6 +29,8 @@ v2ray_finder/source_registry.py
 v2ray_finder/source_onboarding.py
 scripts/patch_sources_registry_loader.py
 ```
+
+`registry/sources.json` is the only active registry used by default scans. `registry/candidate_sources.json` is optional and remains for manual review/onboarding workflows only.
 
 ## Source statuses
 
@@ -50,7 +62,9 @@ scripts/patch_sources_registry_loader.py
 }
 ```
 
-## Onboarding a new source
+## Onboarding a single source manually
+
+The global discovery engine was removed from this repository, but the single-source onboarding evaluator remains useful for manual checks.
 
 Run the evaluator:
 
@@ -131,7 +145,7 @@ quarantine
 disabled
 ```
 
-Even if the recommendation is `trusted`, the automatic append operation still adds it as `candidate` first. A maintainer should manually review the report before promoting it to `trusted` in `registry/sources.json`.
+Even if the recommendation is `trusted`, the automatic append operation still adds it as `candidate` first. A maintainer or the external hunter should decide whether it belongs in `registry/sources.json`.
 
 ## Runtime integration
 
@@ -145,4 +159,4 @@ After that, `get_enabled_sources()` reads active sources from the JSON registry.
 
 ## Why this matters
 
-Free public config sources often become stale quickly. A source can have thousands of configs but still produce zero working servers. The registry/onboarding pipeline makes source quality measurable and prevents noisy or broken sources from polluting the main scan.
+Free public config sources become stale quickly. A source can have thousands of configs but still produce zero working servers. The registry/onboarding layer keeps source quality measurable while leaving global discovery to `v2ray-source-hunter`.
