@@ -8,7 +8,9 @@
 
 ---
 
-A high-performance Python and Android tool to fetch, aggregate, deduplicate, validate, health-check, real-test and score public V2Ray/Xray server configs from GitHub and curated subscription sources.
+A high-performance Python and Android tool to fetch, aggregate, deduplicate, validate, health-check, real-test and score public V2Ray/Xray server configs from a trusted source registry.
+
+Source discovery is intentionally no longer part of this repository. Discovery, source hunting and registry generation are handled by the separate `v2ray-source-hunter` repository. This app consumes `registry/sources.json` as its source of truth.
 
 The project includes both a Python engine and a working native Android APK workflow.
 
@@ -19,16 +21,37 @@ The project includes both a Python engine and a working native Android APK workf
 ## What is included
 
 - Python package: `v2ray_finder/`
-- Pipeline engine: discovery → fetch → dedup → health → score
+- Registry-driven pipeline: source registry → fetch → dedup → health → score
 - TCP health check and latency scoring
 - Real Validation Engine v2 on Android with bundled `xray`
 - Multi-probe validation, confidence scoring and two-pass stability signals
-- Source Performance Engine for ranking which sources actually produce working configs
-- Source Registry, Source Onboarding and GitHub Source Discovery Engine
+- Source Performance Engine for ranking which trusted sources actually produce working configs
+- Source Registry and optional Source Onboarding tools
 - CLI and Rich CLI
 - PySide6 desktop GUI
 - Native Android app under `android_app/`
 - GitHub Actions workflows for debug and signed release APKs
+
+---
+
+## Source ownership
+
+`v2ray-finder` is now the app/runtime repository. It does not run GitHub source discovery, Telegram source discovery, source hunting, or auto-promotion workflows.
+
+```text
+v2ray-source-hunter
+→ discovers, validates, scores and exports trusted source registries
+→ syncs registry/sources.json into v2ray-finder
+
+v2ray-finder
+→ consumes registry/sources.json
+→ fetches configs
+→ deduplicates configs
+→ health-checks and real-validates configs
+→ ranks configs and reports source performance
+```
+
+This separation prevents two different discovery engines from mutating `registry/sources.json` at the same time.
 
 ---
 
@@ -120,7 +143,7 @@ The xray probe config is intentionally minimal and does not use `geoip.dat` or `
 
 ### Source Performance Engine
 
-The engine reports which sources actually produce useful configs. It measures per source:
+The engine reports which trusted registry sources actually produce useful configs. It measures per source:
 
 ```text
 fetch status
@@ -134,22 +157,19 @@ error samples
 
 See [`docs/SOURCE_PERFORMANCE_ENGINE.md`](docs/SOURCE_PERFORMANCE_ENGINE.md) for details.
 
-### Source Registry, Onboarding and Discovery
+### Source Registry and Onboarding
 
-Source management is handled through a controlled pipeline:
+The app reads active sources from:
 
 ```text
-GitHub discovery → onboarding → discovered candidate → manual review → trusted registry
+registry/sources.json
 ```
 
-Relevant docs:
+Candidate onboarding remains available for manual review/testing of a single source, but global source discovery has been removed from this repository. See:
 
 ```text
 docs/SOURCE_REGISTRY_AND_ONBOARDING.md
-docs/SOURCE_DISCOVERY_ENGINE.md
 ```
-
-The discovery engine runs in GitHub Actions and never promotes sources directly to trusted.
 
 ### Build debug APK with GitHub Actions
 
@@ -228,6 +248,7 @@ android_app/        # native Android + Chaquopy app
 scripts/            # Android xray staging and build helpers
 src/                # legacy compatibility placeholder only
 docs/               # build notes and engine documentation
+registry/           # trusted source registry consumed by the app
 ```
 
 ---
