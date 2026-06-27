@@ -1,8 +1,8 @@
 [
   {
-    "id": "https-raw-githubusercontent-com-nyeinkokoaung404-v2ray-configs-main-conf-c94a99a0",
-    "label": "nyeinkokoaung404/V2ray-Configs — configs/proxy_configs.txt",
-    "url": "https://raw.githubusercontent.com/nyeinkokoaung404/V2ray-Configs/main/configs/proxy_configs.txt",
+    "id": "https-raw-githubusercontent-com-nyeinkokoaung404-v2ray-configs-main-conf-8c5dfa92",
+    "label": "nyeinkokoaung404/V2ray-Configs — configs/proxy_configs_tested.txt",
+    "url": "https://raw.githubusercontent.com/nyeinkokoaung404/V2ray-Configs/main/configs/proxy_configs_tested.txt",
     "source_type": "static_subscription",
     "trust": "medium",
     "status": "trusted",
@@ -24,20 +24,49 @@
       "vless",
       "vmess"
     ],
-    "notes": "Discovered by source-hunter from repository_tree; score=100.0; unique=616; tcp=60/60",
+    "notes": "Discovered by source-hunter from repository_tree; score=99.2; unique=569; tcp=59/60",
     "added_at": "2026-06-27",
     "last_reviewed_at": "2026-06-27"
   },
   {
-    "id": "https-raw-githubusercontent-com-epodonios-v2ray-configs-main-all-configs-cb739e0d",
-    "label": "Epodonios/v2ray-configs — All_Configs_base64_Sub.txt",
-    "url": "https://raw.githubusercontent.com/Epodonios/v2ray-configs/main/All_Configs_base64_Sub.txt",
+    "id": "https-raw-githubusercontent-com-nyeinkokoaung404-v2ray-configs-main-all--421de993",
+    "label": "nyeinkokoaung404/V2ray-Configs — All_Configs_Sub.txt",
+    "url": "https://raw.githubusercontent.com/nyeinkokoaung404/V2ray-Configs/main/All_Configs_Sub.txt",
     "source_type": "static_subscription",
     "trust": "medium",
     "status": "trusted",
     "enabled": true,
     "tags": [
-      "repository-tree",
+      "github",
+      "seed",
+      "hunter",
+      "trusted",
+      "ss",
+      "ssr",
+      "trojan",
+      "vless",
+      "vmess"
+    ],
+    "protocols": [
+      "ss",
+      "ssr",
+      "trojan",
+      "vless",
+      "vmess"
+    ],
+    "notes": "Discovered by source-hunter from github_repo_seed; score=83.3; unique=1570; tcp=40/60",
+    "added_at": "2026-06-27",
+    "last_reviewed_at": "2026-06-27"
+  },
+  {
+    "id": "https-raw-githubusercontent-com-epodonios-v2ray-configs-main-all-configs-438fc7b9",
+    "label": "Epodonios All Configs",
+    "url": "https://raw.githubusercontent.com/Epodonios/v2ray-configs/main/All_Configs_Sub.txt",
+    "source_type": "static_subscription",
+    "trust": "medium",
+    "status": "trusted",
+    "enabled": true,
+    "tags": [
       "seed",
       "github",
       "large",
@@ -56,7 +85,7 @@
       "vless",
       "vmess"
     ],
-    "notes": "Discovered by source-hunter from repository_tree; score=80.0; unique=7685; tcp=60/100",
+    "notes": "Discovered by source-hunter from seed; score=79.5; unique=7978; tcp=59/100",
     "added_at": "2026-06-27",
     "last_reviewed_at": "2026-06-27"
   },
@@ -86,34 +115,7 @@
       "vless",
       "vmess"
     ],
-    "notes": "Discovered by source-hunter from repository_tree; score=77.8; unique=190; tcp=26/30",
-    "added_at": "2026-06-27",
-    "last_reviewed_at": "2026-06-27"
-  },
-  {
-    "id": "https-raw-githubusercontent-com-amir-reza-bijandi-v2ray-configs-main-cla-90ea01eb",
-    "label": "amir-reza-bijandi/v2ray-configs — clash.yaml",
-    "url": "https://raw.githubusercontent.com/amir-reza-bijandi/v2ray-configs/main/clash.yaml",
-    "source_type": "static_subscription",
-    "trust": "medium",
-    "status": "trusted",
-    "enabled": true,
-    "tags": [
-      "github",
-      "seed",
-      "clash",
-      "hunter",
-      "trusted",
-      "ss",
-      "trojan",
-      "vless"
-    ],
-    "protocols": [
-      "ss",
-      "trojan",
-      "vless"
-    ],
-    "notes": "Discovered by source-hunter from github_repo_seed; score=70.5; unique=93; tcp=26/30",
+    "notes": "Discovered by source-hunter from repository_tree; score=69.3; unique=186; tcp=21/30",
     "added_at": "2026-06-27",
     "last_reviewed_at": "2026-06-27"
   },
