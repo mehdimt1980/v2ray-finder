@@ -29,36 +29,6 @@
     "last_reviewed_at": "2026-06-27"
   },
   {
-    "id": "https-raw-githubusercontent-com-amir-reza-bijandi-v2ray-configs-main-con-deac2d2c",
-    "label": "amir-reza-bijandi/v2ray-configs — configs.txt",
-    "url": "https://raw.githubusercontent.com/amir-reza-bijandi/v2ray-configs/main/configs.txt",
-    "source_type": "static_subscription",
-    "trust": "medium",
-    "status": "trusted",
-    "enabled": true,
-    "tags": [
-      "repository-tree",
-      "seed",
-      "github",
-      "clash",
-      "hunter",
-      "trusted",
-      "ss",
-      "trojan",
-      "vless",
-      "vmess"
-    ],
-    "protocols": [
-      "ss",
-      "trojan",
-      "vless",
-      "vmess"
-    ],
-    "notes": "Discovered by source-hunter from repository_tree; score=80.8; unique=217; tcp=27/30",
-    "added_at": "2026-06-27",
-    "last_reviewed_at": "2026-06-27"
-  },
-  {
     "id": "https-raw-githubusercontent-com-epodonios-v2ray-configs-main-all-configs-cb739e0d",
     "label": "Epodonios/v2ray-configs — All_Configs_base64_Sub.txt",
     "url": "https://raw.githubusercontent.com/Epodonios/v2ray-configs/main/All_Configs_base64_Sub.txt",
@@ -86,7 +56,64 @@
       "vless",
       "vmess"
     ],
-    "notes": "Discovered by source-hunter from repository_tree; score=79.0; unique=7657; tcp=58/100",
+    "notes": "Discovered by source-hunter from repository_tree; score=80.0; unique=7685; tcp=60/100",
+    "added_at": "2026-06-27",
+    "last_reviewed_at": "2026-06-27"
+  },
+  {
+    "id": "https-raw-githubusercontent-com-amir-reza-bijandi-v2ray-configs-main-con-deac2d2c",
+    "label": "amir-reza-bijandi/v2ray-configs — configs.txt",
+    "url": "https://raw.githubusercontent.com/amir-reza-bijandi/v2ray-configs/main/configs.txt",
+    "source_type": "static_subscription",
+    "trust": "medium",
+    "status": "trusted",
+    "enabled": true,
+    "tags": [
+      "repository-tree",
+      "seed",
+      "github",
+      "clash",
+      "hunter",
+      "trusted",
+      "ss",
+      "trojan",
+      "vless",
+      "vmess"
+    ],
+    "protocols": [
+      "ss",
+      "trojan",
+      "vless",
+      "vmess"
+    ],
+    "notes": "Discovered by source-hunter from repository_tree; score=77.8; unique=190; tcp=26/30",
+    "added_at": "2026-06-27",
+    "last_reviewed_at": "2026-06-27"
+  },
+  {
+    "id": "https-raw-githubusercontent-com-amir-reza-bijandi-v2ray-configs-main-cla-90ea01eb",
+    "label": "amir-reza-bijandi/v2ray-configs — clash.yaml",
+    "url": "https://raw.githubusercontent.com/amir-reza-bijandi/v2ray-configs/main/clash.yaml",
+    "source_type": "static_subscription",
+    "trust": "medium",
+    "status": "trusted",
+    "enabled": true,
+    "tags": [
+      "github",
+      "seed",
+      "clash",
+      "hunter",
+      "trusted",
+      "ss",
+      "trojan",
+      "vless"
+    ],
+    "protocols": [
+      "ss",
+      "trojan",
+      "vless"
+    ],
+    "notes": "Discovered by source-hunter from github_repo_seed; score=70.5; unique=93; tcp=26/30",
     "added_at": "2026-06-27",
     "last_reviewed_at": "2026-06-27"
   },
