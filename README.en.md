@@ -8,9 +8,17 @@
 
 ---
 
-`v2ray-finder` is a high-performance Python and Android tool for fetching, aggregating, deduplicating, validating, health-checking, real-testing and scoring public V2Ray/Xray server configs from GitHub and curated subscription sources.
+`v2ray-finder` is the Android and Python runtime for fetching, deduplicating, validating, health-checking, real-testing and scoring V2Ray/Xray configs from a trusted source registry.
 
-It can produce clean lists of:
+Source discovery is no longer part of this repository. Discovery, source hunting, Telegram/GitHub crawling, source scoring and registry generation are handled by the separate [`v2ray-source-hunter`](https://github.com/mehdimt1980/v2ray-source-hunter) repository.
+
+`v2ray-finder` consumes:
+
+```text
+registry/sources.json
+```
+
+and produces clean runtime config results such as:
 
 ```text
 vmess://
@@ -20,18 +28,43 @@ ss://
 ssr://
 ```
 
-The repository now contains both the Python engine and a working native Android APK implementation.
+---
+
+## Repository roles
+
+```text
+v2ray-source-hunter
+→ discovers public source candidates
+→ validates and scores source feeds
+→ materializes Telegram-derived feeds into clean raw files
+→ exports app-compatible trusted registry records
+→ syncs registry/sources.json into v2ray-finder
+
+v2ray-finder
+→ consumes registry/sources.json
+→ fetches configs from enabled trusted sources
+→ deduplicates configs
+→ health-checks and real-validates configs
+→ ranks configs
+→ reports source performance
+→ builds the Android APK
+```
+
+This split prevents two discovery engines from changing the same app registry at the same time.
 
 ---
 
 ## Highlights
 
 - Real Python core package: `v2ray_finder/`
-- Pipeline engine: discovery → fetch → dedup → health → score
+- Registry-driven pipeline: source registry → fetch → dedup → health → score
+- No global source discovery in this repo
+- Trusted registry supplied by `v2ray-source-hunter`
 - Async fetching with `httpx`
 - TCP health checking and latency scoring
-- Real Validation Engine v2 on Android with bundled `xray`, multi-probe checks, confidence scoring and stability signals
-- Source Performance Engine for ranking which sources actually produce useful configs
+- Real Validation Engine v2 on Android with bundled `xray`
+- Multi-probe checks, confidence scoring and stability signals
+- Source Performance Engine for ranking which trusted sources actually produce useful configs
 - CLI, Rich CLI and PySide6 desktop GUI
 - Native Android app with Chaquopy
 - Persian / RTL Android UI designed for Iranian users
@@ -45,13 +78,13 @@ The Android app was rebuilt after testing multiple approaches.
 
 ### What changed
 
-The first mobile attempt used Kivy + Buildozer. The APK could be built, but Buildozer only packaged `main.pyc` and repeatedly failed to include the real `v2ray_finder` package. Because of that, the Android build path was migrated to a more reliable architecture:
+The first mobile attempt used Kivy + Buildozer. The APK could be built, but Buildozer only packaged `main.pyc` and repeatedly failed to include the real `v2ray_finder` package. Because of that, the Android build path was migrated to:
 
 ```text
 Native Android UI + Gradle + Chaquopy + real Python package
 ```
 
-The obsolete Buildozer/Kivy Android entrypoint and `buildozer.spec` were removed from the Android build path.
+The obsolete Buildozer/Kivy Android path is no longer used.
 
 ### Current Android architecture
 
@@ -67,8 +100,10 @@ android_app/
     src/main/java/org/mehdimt/v2rayfinder/DefaultHealthActivity.java
     src/main/python/android_bridge.py
 scripts/
-  prepare_android_xray_asset.py     # stages xray and patches Android build-time files
+  prepare_android_xray_asset.py     # stages xray and Android build-time files
   patch_android_validation_ui.py    # optional UI patch for confidence/stability display
+registry/
+  sources.json                      # trusted source registry synced from v2ray-source-hunter
 ```
 
 The GitHub Actions workflow copies the root `v2ray_finder/` package into:
@@ -77,31 +112,66 @@ The GitHub Actions workflow copies the root `v2ray_finder/` package into:
 android_app/app/src/main/python/v2ray_finder/
 ```
 
-Then Chaquopy packages the Python bridge, the real `Pipeline`, the Real Validation Engine v2, and the Python dependencies into the APK.
+Then Chaquopy packages the Python bridge, the real `Pipeline`, the Real Validation Engine v2 and the Python dependencies into the APK.
 
 ### Android UI features
 
 - Native Android interface
 - Persian and right-to-left layout
-- GitHub token field
+- GitHub token field for runtime fetching when needed
 - result limit and timeout controls
 - TCP health check, enabled by default
-- optional Real Validation Engine v2 with bundled `xray`: slower, but much stricter
+- optional Real Validation Engine v2 with bundled `xray`
 - fetched / unique / healthy / scored statistics
 - result cards with rank, protocol, grade, score, latency and source URL
 - validation metadata from the bridge: confidence score, confidence level, probe count and stability count
 - search and protocol filter
 - pagination for large result sets
 - structured failed-source diagnostics
-- Source Performance section showing the top effective sources after each scan
+- Source Performance section showing the top effective trusted sources after each scan
 - copy all configs
 - copy one config from each result card
 
-### Real Validation Engine v2 on Android
+---
 
-The Android build can bundle the official Android arm64 `xray` binary during CI. The app starts `xray` locally, opens a SOCKS5 port, and validates whether the tested config can actually reach multiple lightweight HTTP endpoints through that proxy.
+## Source registry
 
-This is stricter than a simple TCP check:
+The runtime source registry lives at:
+
+```text
+registry/sources.json
+```
+
+This file is generated and synced by `v2ray-source-hunter`. `v2ray-finder` does not run GitHub source discovery, Telegram source discovery, source hunting or auto-promotion workflows.
+
+The default scan only loads active enabled source records with status:
+
+```text
+official
+trusted
+```
+
+Candidate, experimental, quarantined and disabled sources are excluded unless explicitly requested in code.
+
+### Manual onboarding
+
+Single-source onboarding still exists for local/manual testing:
+
+```bash
+python -m v2ray_finder.source_onboarding \
+  --url https://example.com/sub.txt \
+  --label "Example Source" \
+  --tcp-sample-size 50 \
+  --json
+```
+
+This is not global discovery. Global discovery belongs to `v2ray-source-hunter`.
+
+---
+
+## Real Validation Engine v2 on Android
+
+The Android build can bundle the official Android arm64 `xray` binary during CI. The app starts `xray` locally, opens a SOCKS5 port, and checks whether a candidate config can reach multiple lightweight HTTP endpoints through that proxy.
 
 ```text
 TCP check              → host:port is reachable
@@ -109,7 +179,7 @@ single Google-204      → one endpoint works through xray
 Real Validation v2     → multiple probes + confidence + stability through xray
 ```
 
-Real Validation v2 currently uses these probes:
+Current probes:
 
 ```text
 google_204       → clients3.google.com/generate_204
@@ -139,7 +209,7 @@ Confidence is currently weighted as:
 10% Google-204 bonus
 ```
 
-A config is accepted only when it is reachable, has at least one stability pass, and reaches the minimum confidence threshold. This makes the Android validator stricter than earlier one-shot Google-204 checking.
+A config is accepted only when it is reachable, has at least one stability pass and reaches the minimum confidence threshold.
 
 Important Android implementation details:
 
@@ -147,12 +217,14 @@ Important Android implementation details:
 - The binary is staged as `android_app/app/src/main/jniLibs/arm64-v8a/libxray.so`.
 - The build sets `doNotStrip "**/libxray.so"` so Gradle does not corrupt the executable.
 - The Android activity uses `getApplicationInfo().nativeLibraryDir` to launch the bundled binary.
-- The generated xray probe config is intentionally minimal and does not use `geoip.dat` or `geosite.dat`, because those data files are not bundled.
+- The generated xray probe config is intentionally minimal and does not use `geoip.dat` or `geosite.dat`, because those files are not bundled.
 - The app captures xray startup errors and shows diagnostics when real validation fails.
 
-### Source Performance Engine
+---
 
-The Source Performance Engine ranks subscription sources by actual usefulness in a scan run. It measures, per source:
+## Source Performance Engine
+
+The Source Performance Engine ranks trusted registry sources by actual usefulness in a scan run. It measures, per source:
 
 ```text
 fetch status
@@ -176,9 +248,11 @@ When real validation results are available, source score is weighted toward vali
 10% configured trust
 ```
 
-Without real validation results, the engine falls back to TCP, latency and configured trust. See [`docs/SOURCE_PERFORMANCE_ENGINE.md`](docs/SOURCE_PERFORMANCE_ENGINE.md) for details.
+Without real validation results, the engine falls back to TCP, latency and configured trust. See [`docs/SOURCE_PERFORMANCE_ENGINE.md`](docs/SOURCE_PERFORMANCE_ENGINE.md).
 
-### Android runtime dependencies
+---
+
+## Android runtime dependencies
 
 The Android module installs:
 
@@ -189,7 +263,9 @@ install "httpx>=0.24.0"
 
 `httpx` is required because the real `Pipeline` uses async source fetching.
 
-### Build debug APK with GitHub Actions
+---
+
+## Build debug APK with GitHub Actions
 
 1. Go to **Actions** in GitHub.
 2. Select **Build Android APK**.
@@ -200,7 +276,7 @@ install "httpx>=0.24.0"
 v2ray-finder-chaquopy-debug-apk
 ```
 
-### Build signed release APK with GitHub Actions
+## Build signed release APK with GitHub Actions
 
 Use the release workflow for an installable signed APK:
 
@@ -219,9 +295,7 @@ ANDROID_KEY_ALIAS
 ANDROID_KEY_PASSWORD
 ```
 
-### Local Android build
-
-For local builds, stage xray first if you want real validation:
+## Local Android build
 
 ```bash
 python scripts/prepare_android_xray_asset.py
@@ -229,7 +303,7 @@ python scripts/patch_android_validation_ui.py
 gradle -p android_app :app:assembleDebug
 ```
 
-The debug APK will be generated under:
+The debug APK is generated under:
 
 ```text
 android_app/app/build/outputs/apk/debug/
@@ -240,17 +314,12 @@ android_app/app/build/outputs/apk/debug/
 ## Python installation
 
 ```bash
-# Core
 pip install v2ray-finder
-
-# Async fetch support
 pip install "v2ray-finder[async]"
-
-# Everything
 pip install "v2ray-finder[all]"
 ```
 
-### From source
+From source:
 
 ```bash
 git clone https://github.com/mehdimt1980/v2ray-finder.git
@@ -314,6 +383,7 @@ The desktop GUI uses the same `Pipeline` engine as the CLI and Android bridge.
 ```text
 v2ray_finder/       # root Python package; moved out of src/ for Android compatibility
 android_app/        # native Android + Chaquopy app
+registry/           # trusted source registry consumed at runtime
 scripts/            # Android xray staging and build helpers
 src/                # legacy compatibility placeholder only
 docs/               # build notes and engine documentation
