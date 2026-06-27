@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "v2ray-finder"
 version = "1.0.0"
-description = "Search and collect V2Ray servers from GitHub repositories"
+description = "Fetch, validate and score V2Ray/Xray configs from a trusted source registry"
 readme = "README.md"
 authors = [
     {name = "Ali Sadeghi Aghili", email = "alisadeghiaghili@gmail.com"}
@@ -27,7 +27,7 @@ classifiers = [
     "Topic :: Internet",
     "Topic :: Utilities",
 ]
-keywords = ["v2ray", "proxy", "vpn", "github", "vmess", "vless", "trojan", "shadowsocks", "subscription"]
+keywords = ["v2ray", "proxy", "vpn", "vmess", "vless", "trojan", "shadowsocks", "subscription", "xray"]
 dependencies = [
     "requests>=2.31.0",
 ]
