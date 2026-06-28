@@ -19,6 +19,12 @@ android {
         }
     }
 
+    sourceSets {
+        main {
+            assets.srcDirs += ["../../registry"]
+        }
+    }
+
     packagingOptions {
         doNotStrip "**/libxray.so"
     }
