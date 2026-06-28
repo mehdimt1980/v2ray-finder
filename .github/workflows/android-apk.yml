@@ -5,7 +5,7 @@ on:
   pull_request:
     paths:
       - "android_app/**"
-      - "v2ray_finder/**"
+      - "registry/**"
       - "scripts/**"
       - ".github/workflows/android-apk.yml"
   push:
@@ -28,19 +28,10 @@ jobs:
           distribution: temurin
           java-version: "17"
 
-      - name: Set up Python 3.11 for Chaquopy
+      - name: Set up Python for build scripts
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-
-      - name: Expose python3.11 command
-        run: |
-          set -euxo pipefail
-          mkdir -p "$RUNNER_TEMP/python-bin"
-          ln -sf "$(command -v python)" "$RUNNER_TEMP/python-bin/python3.11"
-          echo "$RUNNER_TEMP/python-bin" >> "$GITHUB_PATH"
-          python --version
-          "$RUNNER_TEMP/python-bin/python3.11" --version
 
       - name: Set up Gradle 8.9
         run: |
@@ -55,46 +46,28 @@ jobs:
           path: |
             ~/.gradle/caches
             ~/.gradle/wrapper
-          key: gradle-chaquopy-${{ runner.os }}-${{ hashFiles('android_app/**/*.gradle') }}
+          key: gradle-native-kotlin-${{ runner.os }}-${{ hashFiles('android_app/**/*.gradle') }}
           restore-keys: |
-            gradle-chaquopy-${{ runner.os }}-
+            gradle-native-kotlin-${{ runner.os }}-
 
-      - name: Stage Python package for Chaquopy
-        run: |
-          rm -rf android_app/app/src/main/python/v2ray_finder
-          cp -R v2ray_finder android_app/app/src/main/python/v2ray_finder
-          find android_app/app/src/main/python -type d -name __pycache__ -prune -exec rm -rf {} +
-          python3.11 - <<'PY'
-          from pathlib import Path
-          root = Path('android_app/app/src/main/python')
-          required = [root / 'android_bridge.py', root / 'v2ray_finder/__init__.py', root / 'v2ray_finder/pipeline.py']
-          missing = [str(p) for p in required if not p.exists()]
-          if missing:
-              raise SystemExit('Missing Python files for Android: ' + ', '.join(missing))
-          files = sorted(str(p.relative_to(root)) for p in root.rglob('*.py'))
-          print('Python files staged for Chaquopy:', len(files))
-          print('\n'.join(files[:80]))
-          PY
-
-      - name: Bundle xray binary for Android real checks
+      - name: Bundle xray binary for Android native runtime
         env:
-          XRAY_ANDROID_TARGET: android_app/app/src/main/assets/xray/arm64-v8a/xray
           GITHUB_TOKEN: ${{ github.token }}
         run: |
           set -euxo pipefail
-          python3.11 scripts/prepare_android_xray_asset.py
-          test -s android_app/app/src/main/assets/xray/arm64-v8a/xray
-          ls -lh android_app/app/src/main/assets/xray/arm64-v8a/xray
+          python scripts/prepare_android_xray_asset.py
+          test -s android_app/app/src/main/jniLibs/arm64-v8a/libxray.so
+          ls -lh android_app/app/src/main/jniLibs/arm64-v8a/libxray.so
 
       - name: Build debug APK
         run: |
           set -o pipefail
           gradle -p android_app :app:assembleDebug --stacktrace 2>&1 | tee android-gradle-build.log
 
-      - name: Verify APK contains Chaquopy runtime and xray asset
+      - name: Verify APK contains native runtime payloads
         run: |
           APK=$(ls -1 android_app/app/build/outputs/apk/debug/*.apk | head -n 1)
-          python3.11 - <<'PY'
+          python - <<'PY'
           import zipfile
           from pathlib import Path
 
@@ -102,20 +75,17 @@ jobs:
           with zipfile.ZipFile(apk) as zf:
               names = sorted(zf.namelist())
           Path('apk-files.txt').write_text('\n'.join(names) + '\n', encoding='utf-8')
-          chaquopy_files = [n for n in names if 'chaquopy' in n.lower()]
-          print('APK file count:', len(names))
-          print('Chaquopy files:', len(chaquopy_files))
-          print('\n'.join(chaquopy_files[:120]))
-
           required = [
-              'assets/chaquopy/app.imy',
-              'assets/chaquopy/bootstrap.imy',
-              'assets/chaquopy/requirements-common.imy',
-              'assets/xray/arm64-v8a/xray',
+              'assets/sources.json',
+              'lib/arm64-v8a/libxray.so',
           ]
           missing = [name for name in required if name not in names]
           if missing:
-              raise SystemExit('APK is missing required payload files: ' + ', '.join(missing))
+              raise SystemExit('APK is missing required native payload files: ' + ', '.join(missing))
+          if any('chaquopy' in name.lower() for name in names):
+              raise SystemExit('APK still contains Chaquopy payload files')
+          print('APK file count:', len(names))
+          print('Native payload verification passed')
           PY
 
       - name: Upload build logs on failure
@@ -131,6 +101,6 @@ jobs:
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: v2ray-finder-chaquopy-debug-apk
+          name: v2ray-finder-native-debug-apk
           path: android_app/app/build/outputs/apk/debug/*.apk
           if-no-files-found: error
