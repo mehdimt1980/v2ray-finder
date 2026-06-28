@@ -32,7 +32,6 @@ object XrayOutboundConverter {
         val sid = uri.getQueryParameter("sid") ?: ""
         val path = uri.getQueryParameter("path") ?: uri.getQueryParameter("serviceName") ?: ""
         val hostHeader = uri.getQueryParameter("host") ?: uri.getQueryParameter("authority") ?: ""
-
         val user = JSONObject().put("id", uuid).put("encryption", "none")
         if (flow.isNotBlank()) user.put("flow", flow)
         val outbound = baseOutbound("vless")
@@ -66,19 +65,10 @@ object XrayOutboundConverter {
         val port = src.optString("port", "").trim().toIntOrNull() ?: src.optInt("port", -1)
         if (port !in 1..65535) return null
         val uuid = src.optString("id", "").trim().ifBlank { return null }
-        val user = JSONObject()
-            .put("id", uuid)
-            .put("alterId", src.optString("aid", "0").trim().toIntOrNull() ?: src.optInt("aid", 0))
-            .put("security", src.optString("scy", "auto").ifBlank { "auto" })
-        val security = src.optString("tls", "").ifBlank { "none" }
-        val network = src.optString("net", "tcp").ifBlank { "tcp" }
-        val sni = src.optString("sni", "").ifBlank { src.optString("host", host).ifBlank { host } }
-        val fp = src.optString("fp", "chrome").ifBlank { "chrome" }
-        val path = src.optString("path", "")
-        val hostHeader = src.optString("host", "")
+        val user = JSONObject().put("id", uuid).put("alterId", src.optString("aid", "0").trim().toIntOrNull() ?: src.optInt("aid", 0)).put("security", src.optString("scy", "auto").ifBlank { "auto" })
         val outbound = baseOutbound("vmess")
             .put("settings", JSONObject().put("vnext", JSONArray().put(JSONObject().put("address", host).put("port", port).put("users", JSONArray().put(user)))))
-            .put("streamSettings", streamSettings(security, network, sni, fp, "", "", path, hostHeader))
+            .put("streamSettings", streamSettings(src.optString("tls", "").ifBlank { "none" }, src.optString("net", "tcp").ifBlank { "tcp" }, src.optString("sni", "").ifBlank { src.optString("host", host).ifBlank { host } }, src.optString("fp", "chrome").ifBlank { "chrome" }, "", "", src.optString("path", ""), src.optString("host", "")))
         XrayOutboundConversion("vmess", outbound)
     } catch (_: Exception) { null }
 
@@ -94,16 +84,15 @@ object XrayOutboundConverter {
         val host = hostPort.substringBeforeLast(':', "")
         val port = hostPort.substringAfterLast(':', "").toIntOrNull() ?: return null
         if (method.isBlank() || password.isBlank() || host.isBlank() || port !in 1..65535) return null
-        val outbound = baseOutbound("shadowsocks")
-            .put("settings", JSONObject().put("servers", JSONArray().put(JSONObject().put("address", host).put("port", port).put("method", method).put("password", password))))
-        XrayOutboundConversion("ss", outbound)
+        XrayOutboundConversion("ss", baseOutbound("shadowsocks").put("settings", JSONObject().put("servers", JSONArray().put(JSONObject().put("address", host).put("port", port).put("method", method).put("password", password)))))
     } catch (_: Exception) { null }
 
     private fun baseOutbound(protocol: String): JSONObject = JSONObject().put("tag", "proxy").put("protocol", protocol)
 
     private fun streamSettings(security: String, network: String, sni: String, fingerprint: String, publicKey: String, shortId: String, path: String, hostHeader: String): JSONObject {
         val normalizedSecurity = if (security.isBlank()) "none" else security
-        val normalizedNetwork = if (network.isBlank()) "tcp" else network.lowercase()
+        val networkRaw = if (network.isBlank()) "tcp" else network.lowercase()
+        val normalizedNetwork = if (networkRaw == "websocket") "ws" else networkRaw
         val out = JSONObject().put("network", normalizedNetwork).put("security", normalizedSecurity)
         if (normalizedSecurity == "tls") out.put("tlsSettings", JSONObject().put("serverName", sni))
         if (normalizedSecurity == "reality") {
@@ -112,7 +101,7 @@ object XrayOutboundConverter {
             if (shortId.isNotBlank()) reality.put("shortId", shortId)
             out.put("realitySettings", reality)
         }
-        if (normalizedNetwork == "ws" || normalizedNetwork == "websocket") {
+        if (normalizedNetwork == "ws") {
             val ws = JSONObject()
             if (path.isNotBlank()) ws.put("path", path)
             if (hostHeader.isNotBlank()) ws.put("headers", JSONObject().put("Host", hostHeader))
