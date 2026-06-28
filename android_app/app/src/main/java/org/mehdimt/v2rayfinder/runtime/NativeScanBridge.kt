@@ -39,6 +39,14 @@ object NativeScanBridge {
             tcpScored.map { item -> RankedItem(item, null, item.score) }
         }.sortedWith(compareByDescending<RankedItem> { it.finalScore }.thenBy { it.base.latencyMs ?: Long.MAX_VALUE })
 
+        val statusMessage = when {
+            !realValidation -> "tcp_mode"
+            xrayReport.status == "missing_binary" -> "xray_missing_binary"
+            xrayReport.results.isEmpty() -> "xray_no_candidates_validated"
+            ranked.isEmpty() -> "xray_checked_but_none_passed"
+            else -> "xray_strict_ok"
+        }
+
         val configArray = JSONArray()
         val items = JSONArray()
         for (rankedItem in ranked) {
@@ -77,6 +85,17 @@ object NativeScanBridge {
         }
 
         val performance = JSONArray()
+        performance.put(JSONObject()
+            .put("label", "XRAY DIAGNOSTIC — strict=$realValidation — status=$statusMessage — checked=${xrayReport.results.size} — ok=${xrayReport.results.values.count { it.validationOk }} — skipped=${xrayReport.skipped.size}")
+            .put("url", "native://xray-diagnostic")
+            .put("fetch_ok", true)
+            .put("source_score", if (realValidation) 100.0 else 0.0)
+            .put("tcp_ok_count", tcpScored.count { it.reachable })
+            .put("tcp_candidates", tcpScored.size)
+            .put("selected_count", ranked.size)
+            .put("xray_ok_count", xrayReport.results.values.count { it.validationOk })
+            .put("xray_checked_count", xrayReport.results.size)
+            .put("trust", if (realValidation) statusMessage else "tcp_mode"))
         for (sourceResult in parsed.sourceResults) {
             val sourceUrl = sourceResult.source.url
             val xrayForSource = xrayReport.results.filter { attribution[it.key].orEmpty().any { src -> src.url == sourceUrl } }.values
@@ -91,14 +110,6 @@ object NativeScanBridge {
                 .put("xray_ok_count", xrayForSource.count { it.validationOk })
                 .put("xray_checked_count", xrayForSource.count())
                 .put("trust", sourceResult.source.trust))
-        }
-
-        val statusMessage = when {
-            !realValidation -> "tcp_mode"
-            xrayReport.status == "missing_binary" -> "xray_missing_binary"
-            xrayReport.results.isEmpty() -> "xray_no_candidates_validated"
-            ranked.isEmpty() -> "xray_checked_but_none_passed"
-            else -> "xray_strict_ok"
         }
 
         return JSONObject()
