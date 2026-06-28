@@ -70,6 +70,22 @@ jobs:
           test -s "$RUNNER_TEMP/v2ray-finder-release.jks"
           echo "ANDROID_KEYSTORE_PATH=$RUNNER_TEMP/v2ray-finder-release.jks" >> "$GITHUB_ENV"
 
+      - name: Stage xray binary for Android native runtime
+        run: |
+          set -euxo pipefail
+          mkdir -p android_app/app/src/main/jniLibs/arm64-v8a
+          curl -L --fail --retry 3 -o "$RUNNER_TEMP/xray-android-arm64.zip" \
+            https://github.com/XTLS/Xray-core/releases/latest/download/Xray-android-arm64-v8a.zip
+          rm -rf "$RUNNER_TEMP/xray-android-arm64"
+          mkdir -p "$RUNNER_TEMP/xray-android-arm64"
+          unzip -q "$RUNNER_TEMP/xray-android-arm64.zip" -d "$RUNNER_TEMP/xray-android-arm64"
+          XRAY_BIN=$(find "$RUNNER_TEMP/xray-android-arm64" -type f -name xray | head -n 1)
+          test -n "$XRAY_BIN"
+          cp "$XRAY_BIN" android_app/app/src/main/jniLibs/arm64-v8a/libxray.so
+          chmod 755 android_app/app/src/main/jniLibs/arm64-v8a/libxray.so
+          test -s android_app/app/src/main/jniLibs/arm64-v8a/libxray.so
+          ls -lh android_app/app/src/main/jniLibs/arm64-v8a/libxray.so
+
       - name: Verify native runtime inputs
         run: |
           set -euxo pipefail
