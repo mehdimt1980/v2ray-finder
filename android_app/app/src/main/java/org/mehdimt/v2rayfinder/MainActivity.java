@@ -23,8 +23,10 @@ import android.widget.TextView;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
+import org.mehdimt.v2rayfinder.registry.NativeSourceRefreshBridge;
 import org.mehdimt.v2rayfinder.runtime.NativeScanBridge;
 
+import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -49,12 +51,15 @@ public class MainActivity extends Activity {
     private EditText timeoutInput;
     private EditText searchInput;
     private CheckBox healthBox;
+    private CheckBox realCheckBox;
     private Button startButton;
     private Button stopButton;
     private Button copyButton;
     private Button protocolButton;
+    private Button refreshButton;
     private ProgressBar progressBar;
     private TextView statusText;
+    private TextView refreshStatus;
     private TextView fetchedText;
     private TextView uniqueText;
     private TextView healthyText;
@@ -97,14 +102,14 @@ public class MainActivity extends Activity {
         header.setOrientation(LinearLayout.VERTICAL);
         header.addView(label("V2Ray Finder", 30, text, true, false));
         header.addView(label("یابنده هوشمند کانفیگ‌های V2Ray برای کاربران ایران", 14, muted, false, true));
-        header.addView(label("اسکن، ارزیابی سلامت و کپی سریع سرورها — موتور native Kotlin", 12, muted, false, true));
+        header.addView(label("اسکن، ارزیابی سلامت، xray و کپی سریع سرورها — موتور native Kotlin", 12, muted, false, true));
         root.addView(header, matchWrap());
 
         LinearLayout controls = card(surface, 22);
         controls.setOrientation(LinearLayout.VERTICAL);
         controls.setPadding(dp(14), dp(14), dp(14), dp(14));
 
-        tokenInput = input("توکن گیت‌هاب (فعلاً اختیاری)", true, true);
+        tokenInput = input("توکن گیت‌هاب (اختیاری برای به‌روزرسانی منابع)", true, true);
         controls.addView(tokenInput, matchHeight(54));
 
         LinearLayout row = new LinearLayout(this);
@@ -136,6 +141,32 @@ public class MainActivity extends Activity {
         healthBox.setGravity(Gravity.RIGHT | Gravity.CENTER_VERTICAL);
         healthBox.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
         controls.addView(healthBox);
+
+        realCheckBox = new CheckBox(this);
+        realCheckBox.setText("Real Validation با xray — کندتر، دقیق‌تر");
+        realCheckBox.setChecked(false);
+        realCheckBox.setEnabled(isXrayAvailable());
+        realCheckBox.setTextColor(text);
+        realCheckBox.setTextSize(14);
+        realCheckBox.setGravity(Gravity.RIGHT | Gravity.CENTER_VERTICAL);
+        realCheckBox.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
+        controls.addView(realCheckBox);
+
+        TextView xrayHint = label(
+                isXrayAvailable()
+                        ? "فایل xray داخل APK موجود است. این گزینه برای مسیر native رزرو شده و در نتایج با xray_checked مشخص می‌شود."
+                        : "فایل xray در این build پیدا نشد؛ گزینه Real Validation غیرفعال است.",
+                11, muted, false, true);
+        xrayHint.setPadding(0, 0, 0, dp(8));
+        controls.addView(xrayHint);
+
+        refreshButton = button("به‌روزرسانی منابع از GitHub", surface2);
+        refreshButton.setOnClickListener(v -> refreshSourcesNow());
+        controls.addView(refreshButton, matchHeight(44));
+
+        refreshStatus = label("برای دریافت فوری sourceهای trusted جدید، این دکمه را بزن. در غیر این صورت از registry داخل APK یا cache قبلی استفاده می‌شود.", 11, muted, false, true);
+        refreshStatus.setPadding(0, dp(6), 0, dp(8));
+        controls.addView(refreshStatus);
 
         TextView filterTitle = label("فیلتر و جستجوی نتایج", 13, text, true, true);
         filterTitle.setPadding(0, dp(8), 0, dp(6));
@@ -208,6 +239,34 @@ public class MainActivity extends Activity {
         return scroll;
     }
 
+    private void refreshSourcesNow() {
+        refreshButton.setEnabled(false);
+        refreshStatus.setTextColor(muted);
+        refreshStatus.setText("در حال دریافت Remote Source Registry از GitHub...");
+        String token = tokenInput.getText().toString();
+        new Thread(() -> {
+            String message;
+            boolean ok;
+            try {
+                JSONObject result = new JSONObject(NativeSourceRefreshBridge.refreshSourcesNow(this, token));
+                ok = result.optBoolean("ok", false);
+                int active = result.optInt("active_sources", 0);
+                String msg = result.optString("message", ok ? "منابع به‌روزرسانی شد." : "به‌روزرسانی منابع ناموفق بود.");
+                message = ok ? msg + " اکنون " + active + " منبع فعال آماده scan است." : msg + " منابع فعال فعلی: " + active;
+            } catch (Exception exc) {
+                ok = false;
+                message = "به‌روزرسانی منابع ناموفق بود: " + exc.getMessage();
+            }
+            boolean finalOk = ok;
+            String finalMessage = message;
+            runOnUiThread(() -> {
+                refreshStatus.setText(finalMessage);
+                refreshStatus.setTextColor(finalOk ? accent : muted);
+                refreshButton.setEnabled(!running);
+            });
+        }).start();
+    }
+
     private void startScan() {
         latestConfigs.clear();
         currentItems = new JSONArray();
@@ -225,11 +284,12 @@ public class MainActivity extends Activity {
         int limit = parseInt(limitInput.getText().toString(), 200);
         double timeout = parseDouble(timeoutInput.getText().toString(), 5.0);
         boolean health = healthBox.isChecked();
+        boolean realValidation = realCheckBox != null && realCheckBox.isChecked() && realCheckBox.isEnabled();
         String token = tokenInput.getText().toString();
 
         new Thread(() -> {
             try {
-                String json = NativeScanBridge.scan(this, limit, timeout, health, token);
+                String json = NativeScanBridge.scan(this, limit, timeout, health, realValidation, token);
                 JSONObject payload = new JSONObject(json);
                 runOnUiThread(() -> {
                     if (scanCancelled || runId != scanGeneration) return;
@@ -258,20 +318,11 @@ public class MainActivity extends Activity {
         try {
             JSONObject stats = payload.optJSONObject("stats");
             if (stats != null) {
-                setStats(
-                        String.valueOf(stats.optInt("fetched", 0)),
-                        String.valueOf(stats.optInt("deduped", 0)),
-                        String.valueOf(stats.optInt("healthy", 0)),
-                        String.valueOf(stats.optInt("scored", 0))
-                );
+                setStats(String.valueOf(stats.optInt("fetched", 0)), String.valueOf(stats.optInt("deduped", 0)), String.valueOf(stats.optInt("healthy", 0)), String.valueOf(stats.optInt("scored", 0)));
             }
-
             latestConfigs.clear();
             JSONArray configs = payload.optJSONArray("configs");
-            if (configs != null) {
-                for (int i = 0; i < configs.length(); i++) latestConfigs.add(configs.optString(i));
-            }
-
+            if (configs != null) for (int i = 0; i < configs.length(); i++) latestConfigs.add(configs.optString(i));
             JSONArray items = payload.optJSONArray("items");
             JSONArray failedSources = payload.optJSONArray("failed_sources");
             JSONArray sourcePerformance = payload.optJSONArray("source_performance");
@@ -279,9 +330,7 @@ public class MainActivity extends Activity {
             currentFailedSources = failedSources == null ? new JSONArray() : failedSources;
             currentSourcePerformance = sourcePerformance == null ? new JSONArray() : sourcePerformance;
             currentPage = 0;
-
             renderCurrentPage();
-
             String done = "تمام شد. " + latestConfigs.size() + " کانفیگ آماده است.";
             if (currentSourcePerformance.length() > 0) done += " عملکرد " + currentSourcePerformance.length() + " منبع تحلیل شد.";
             if (currentFailedSources.length() > 0) done += " " + currentFailedSources.length() + " منبع ناموفق هم ثبت شد.";
@@ -302,16 +351,13 @@ public class MainActivity extends Activity {
         int pageCount = Math.max(1, (int) Math.ceil(totalItems / (double) PAGE_SIZE));
         if (currentPage < 0) currentPage = 0;
         if (currentPage >= pageCount) currentPage = pageCount - 1;
-
         copyButton.setEnabled(!running && !collectFilteredConfigs().isEmpty());
-
         if (rawTotal == 0) {
             resultList.addView(resultRow("نتیجه‌ای پیدا نشد", "بررسی سلامت را خاموش کن یا تعداد نتایج را بیشتر کن.", "", false));
             renderSourcePerformanceIfNeeded(true);
             renderFailedSourcesIfNeeded(true);
             return;
         }
-
         if (totalItems == 0) {
             resultList.addView(resultRow("نتیجه‌ای مطابق فیلتر پیدا نشد", "فیلتر پروتکل یا متن جستجو را تغییر بده.", "", false));
             resultList.addView(infoRow("فیلتر فعلی", filterSummary(rawTotal, totalItems)));
@@ -319,14 +365,12 @@ public class MainActivity extends Activity {
             renderFailedSourcesIfNeeded(true);
             return;
         }
-
         int start = currentPage * PAGE_SIZE;
         int end = Math.min(start + PAGE_SIZE, totalItems);
         resultList.addView(sectionTitle("بهترین کانفیگ‌ها — صفحه " + (currentPage + 1) + " از " + pageCount));
         resultList.addView(infoRow("نمایش صفحه‌ای", "کانفیگ‌های " + (start + 1) + " تا " + end + " از " + totalItems + " مورد"));
         if (isFilterActive()) resultList.addView(infoRow("فیلتر فعال", filterSummary(rawTotal, totalItems)));
         resultList.addView(pagerRow(pageCount));
-
         for (int i = start; i < end; i++) {
             try {
                 JSONObject item = filtered.getJSONObject(i);
@@ -334,14 +378,16 @@ public class MainActivity extends Activity {
                 String grade = item.optString("grade", "?");
                 double score = item.optDouble("total", 0.0);
                 String latency = item.isNull("latency_ms") ? "نامشخص" : String.format(Locale.US, "%.0f ms", item.optDouble("latency_ms", 0.0));
-                String source = item.optString("source", "");
+                String sourceUrl = item.optString("source", "");
+                String sourceLabel = item.optString("source_label", "");
+                String sourceDisplay = sourceLabel == null || sourceLabel.trim().isEmpty() ? sourceUrl : sourceLabel + " — " + sourceUrl;
                 String title = "#" + (i + 1) + "  " + protocol + "  •  کیفیت " + grade + "  •  امتیاز " + String.format(Locale.US, "%.2f", score);
                 String meta = "تاخیر: " + latency;
-                if (source != null && !source.trim().isEmpty()) meta += "  •  منبع: " + shortUrl(source);
+                if (sourceDisplay != null && !sourceDisplay.trim().isEmpty()) meta += "  •  منبع: " + shortUrl(sourceDisplay);
+                if (item.optBoolean("xray_checked", false)) meta += "  •  xray: checked";
                 resultList.addView(resultRow(title, meta, item.optString("config", ""), true));
             } catch (Exception ignored) { }
         }
-
         resultList.addView(pagerRow(pageCount));
         boolean lastPage = currentPage == pageCount - 1;
         renderSourcePerformanceIfNeeded(lastPage);
@@ -359,7 +405,7 @@ public class MainActivity extends Activity {
                 if (!FILTER_ALL.equals(currentProtocolFilter) && !currentProtocolFilter.equals(protocol)) continue;
                 if (!q.isEmpty()) {
                     String config = item.optString("config", "").toLowerCase(Locale.US);
-                    String source = item.optString("source", "").toLowerCase(Locale.US);
+                    String source = (item.optString("source", "") + " " + item.optString("source_label", "")).toLowerCase(Locale.US);
                     String grade = item.optString("grade", "").toLowerCase(Locale.US);
                     String protocolLower = protocol.toLowerCase(Locale.US);
                     if (!config.contains(q) && !source.contains(q) && !grade.contains(q) && !protocolLower.contains(q)) continue;
@@ -383,21 +429,12 @@ public class MainActivity extends Activity {
         return configs;
     }
 
-    private boolean isFilterActive() {
-        return !FILTER_ALL.equals(currentProtocolFilter) || (searchTerm != null && !searchTerm.trim().isEmpty());
-    }
-
-    private String filterSummary(int rawTotal, int filteredTotal) {
-        String protocol = FILTER_ALL.equals(currentProtocolFilter) ? "همه" : currentProtocolFilter.toLowerCase(Locale.US);
-        String q = searchTerm == null || searchTerm.trim().isEmpty() ? "بدون جستجو" : searchTerm.trim();
-        return "پروتکل: " + protocol + " — جستجو: " + q + " — نتیجه: " + filteredTotal + " از " + rawTotal;
-    }
+    private boolean isFilterActive() { return !FILTER_ALL.equals(currentProtocolFilter) || (searchTerm != null && !searchTerm.trim().isEmpty()); }
+    private String filterSummary(int rawTotal, int filteredTotal) { return "پروتکل: " + (FILTER_ALL.equals(currentProtocolFilter) ? "همه" : currentProtocolFilter.toLowerCase(Locale.US)) + " — جستجو: " + (searchTerm == null || searchTerm.trim().isEmpty() ? "بدون جستجو" : searchTerm.trim()) + " — نتیجه: " + filteredTotal + " از " + rawTotal; }
 
     private void cycleProtocolFilter() {
         int index = 0;
-        for (int i = 0; i < PROTOCOL_FILTERS.length; i++) {
-            if (PROTOCOL_FILTERS[i].equals(currentProtocolFilter)) { index = i; break; }
-        }
+        for (int i = 0; i < PROTOCOL_FILTERS.length; i++) if (PROTOCOL_FILTERS[i].equals(currentProtocolFilter)) { index = i; break; }
         currentProtocolFilter = PROTOCOL_FILTERS[(index + 1) % PROTOCOL_FILTERS.length];
         protocolButton.setText("فیلتر پروتکل: " + (FILTER_ALL.equals(currentProtocolFilter) ? "همه" : currentProtocolFilter.toLowerCase(Locale.US)));
         currentPage = 0;
@@ -414,10 +451,7 @@ public class MainActivity extends Activity {
         if (!shouldShow || currentSourcePerformance.length() == 0) return;
         int shown = Math.min(currentSourcePerformance.length(), 5);
         resultList.addView(sectionTitle("منابع مؤثر — " + currentSourcePerformance.length() + " منبع تحلیل شد"));
-        for (int i = 0; i < shown; i++) {
-            try { resultList.addView(sourcePerformanceRow(currentSourcePerformance.getJSONObject(i), i + 1)); }
-            catch (Exception ignored) { }
-        }
+        for (int i = 0; i < shown; i++) try { resultList.addView(sourcePerformanceRow(currentSourcePerformance.getJSONObject(i), i + 1)); } catch (Exception ignored) { }
     }
 
     private View sourcePerformanceRow(JSONObject src, int rank) {
@@ -427,8 +461,9 @@ public class MainActivity extends Activity {
         String url = src.optString("url", "");
         String name = label == null || label.trim().isEmpty() ? shortUrl(url) : label;
         double sourceScore = src.optDouble("source_score", 0.0);
-        String title = "#" + rank + "  " + name + "  •  امتیاز منبع " + String.format(Locale.US, "%.1f", sourceScore);
-        row.addView(label(title, 14, text, true, true));
+        String meta = "TCP: " + src.optInt("tcp_ok_count", 0) + "/" + src.optInt("tcp_candidates", 0) + "  •  trust: " + src.optString("trust", "");
+        row.addView(label("#" + rank + "  " + name + "  •  امتیاز منبع " + String.format(Locale.US, "%.1f", sourceScore), 14, text, true, true));
+        row.addView(label(meta, 12, muted, false, true));
         row.addView(label(shortUrl(url), 10, muted, false, false));
         return row;
     }
@@ -437,10 +472,7 @@ public class MainActivity extends Activity {
         if (!shouldShow || currentFailedSources.length() == 0) return;
         int shownFailed = Math.min(currentFailedSources.length(), 20);
         resultList.addView(sectionTitle("منابع ناموفق — " + currentFailedSources.length() + " مورد"));
-        for (int i = 0; i < shownFailed; i++) {
-            try { resultList.addView(failedSourceRow(currentFailedSources.getJSONObject(i))); }
-            catch (Exception ignored) { }
-        }
+        for (int i = 0; i < shownFailed; i++) try { resultList.addView(failedSourceRow(currentFailedSources.getJSONObject(i))); } catch (Exception ignored) { }
     }
 
     private View pagerRow(int pageCount) {
@@ -457,235 +489,45 @@ public class MainActivity extends Activity {
         next.setEnabled(currentPage < pageCount - 1);
         previous.setOnClickListener(v -> { if (currentPage > 0) { currentPage--; renderCurrentPage(); } });
         next.setOnClickListener(v -> { if (currentPage < pageCount - 1) { currentPage++; renderCurrentPage(); } });
-        row.addView(next, weight());
-        row.addView(space(dp(8), 1));
-        row.addView(page, weight());
-        row.addView(space(dp(8), 1));
-        row.addView(previous, weight());
+        row.addView(next, weight()); row.addView(space(dp(8), 1)); row.addView(page, weight()); row.addView(space(dp(8), 1)); row.addView(previous, weight());
         return row;
     }
 
-    private void showError(Exception ex) {
-        statusText.setText("خطا: " + ex.getMessage());
-        resultList.addView(resultRow("خطای موتور native Kotlin", String.valueOf(ex), "", false));
-        setBusy(false);
-    }
-
-    private void copyResults() {
-        List<String> configs = collectFilteredConfigs();
-        ClipboardManager cm = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
-        cm.setPrimaryClip(ClipData.newPlainText("v2ray configs", String.join("\n", configs)));
-        statusText.setText(configs.size() + " کانفیگ کپی شد.");
-    }
-
-    private void copyOne(String config) {
-        ClipboardManager cm = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
-        cm.setPrimaryClip(ClipData.newPlainText("v2ray config", config));
-        statusText.setText("یک کانفیگ کپی شد.");
-    }
+    private boolean isXrayAvailable() { return new File(getApplicationInfo().nativeLibraryDir, "libxray.so").isFile(); }
+    private void showError(Exception ex) { statusText.setText("خطا: " + ex.getMessage()); resultList.addView(resultRow("خطای موتور native Kotlin", String.valueOf(ex), "", false)); setBusy(false); }
+    private void copyResults() { List<String> configs = collectFilteredConfigs(); ClipboardManager cm = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE); cm.setPrimaryClip(ClipData.newPlainText("v2ray configs", String.join("\n", configs))); statusText.setText(configs.size() + " کانفیگ کپی شد."); }
+    private void copyOne(String config) { ClipboardManager cm = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE); cm.setPrimaryClip(ClipData.newPlainText("v2ray config", config)); statusText.setText("یک کانفیگ کپی شد."); }
 
     private void setBusy(boolean busy) {
         running = busy;
-        startButton.setEnabled(!busy);
-        stopButton.setEnabled(busy);
-        copyButton.setEnabled(!busy && !collectFilteredConfigs().isEmpty());
-        tokenInput.setEnabled(!busy);
-        limitInput.setEnabled(!busy);
-        timeoutInput.setEnabled(!busy);
-        healthBox.setEnabled(!busy);
-        searchInput.setEnabled(!busy);
-        protocolButton.setEnabled(!busy);
+        startButton.setEnabled(!busy); stopButton.setEnabled(busy); copyButton.setEnabled(!busy && !collectFilteredConfigs().isEmpty());
+        tokenInput.setEnabled(!busy); limitInput.setEnabled(!busy); timeoutInput.setEnabled(!busy); healthBox.setEnabled(!busy); searchInput.setEnabled(!busy); protocolButton.setEnabled(!busy);
+        if (realCheckBox != null) realCheckBox.setEnabled(!busy && isXrayAvailable());
+        if (refreshButton != null) refreshButton.setEnabled(!busy);
         startButton.setText(busy ? "در حال اسکن..." : "شروع اسکن");
         progressBar.setIndeterminate(busy);
         if (!busy && !scanCancelled) progressBar.setProgress(100);
     }
 
-    private void setStats(String fetched, String unique, String healthy, String scored) {
-        fetchedText.setText(fetched);
-        uniqueText.setText(unique);
-        healthyText.setText(healthy);
-        scoredText.setText(scored);
-    }
+    private void setStats(String fetched, String unique, String healthy, String scored) { fetchedText.setText(fetched); uniqueText.setText(unique); healthyText.setText(healthy); scoredText.setText(scored); }
 
-    private LinearLayout card(int color, int radius) {
-        LinearLayout layout = new LinearLayout(this);
-        layout.setPadding(dp(14), dp(14), dp(14), dp(14));
-        layout.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
-        GradientDrawable bgDrawable = new GradientDrawable();
-        bgDrawable.setColor(color);
-        bgDrawable.setCornerRadius(dp(radius));
-        layout.setBackground(bgDrawable);
-        LinearLayout.LayoutParams lp = matchWrap();
-        lp.setMargins(0, 0, 0, dp(12));
-        layout.setLayoutParams(lp);
-        return layout;
-    }
-
-    private TextView label(String value, int size, int color, boolean bold, boolean rtl) {
-        TextView tv = new TextView(this);
-        tv.setText(value);
-        tv.setTextSize(size);
-        tv.setTextColor(color);
-        tv.setGravity(rtl ? Gravity.RIGHT : Gravity.LEFT);
-        tv.setTextDirection(rtl ? View.TEXT_DIRECTION_RTL : View.TEXT_DIRECTION_LTR);
-        if (bold) tv.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
-        return tv;
-    }
-
-    private LinearLayout inputGroup(String title, String description, EditText input) {
-        LinearLayout group = new LinearLayout(this);
-        group.setOrientation(LinearLayout.VERTICAL);
-        group.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
-        TextView titleView = label(title, 13, text, true, true);
-        TextView descView = label(description, 10, muted, false, true);
-        descView.setPadding(0, 0, 0, dp(6));
-        group.addView(titleView);
-        group.addView(descView);
-        group.addView(input, matchHeight(46));
-        return group;
-    }
-
-    private EditText input(String hint, boolean password, boolean rtl) {
-        EditText input = new EditText(this);
-        input.setHint(hint);
-        input.setHintTextColor(muted);
-        input.setTextColor(text);
-        input.setSingleLine(true);
-        input.setTextSize(14);
-        input.setPadding(dp(12), 0, dp(12), 0);
-        input.setGravity(rtl ? Gravity.RIGHT | Gravity.CENTER_VERTICAL : Gravity.LEFT | Gravity.CENTER_VERTICAL);
-        input.setTextDirection(rtl ? View.TEXT_DIRECTION_RTL : View.TEXT_DIRECTION_LTR);
-        input.setInputType(password ? (InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD) : InputType.TYPE_CLASS_TEXT);
-        GradientDrawable bgDrawable = new GradientDrawable();
-        bgDrawable.setColor(surface2);
-        bgDrawable.setCornerRadius(dp(14));
-        input.setBackground(bgDrawable);
-        return input;
-    }
-
-    private Button button(String title, int color) {
-        Button btn = new Button(this);
-        btn.setText(title);
-        btn.setAllCaps(false);
-        btn.setTextColor(text);
-        btn.setTextSize(14);
-        btn.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
-        GradientDrawable bgDrawable = new GradientDrawable();
-        bgDrawable.setColor(color);
-        bgDrawable.setCornerRadius(dp(14));
-        btn.setBackground(bgDrawable);
-        return btn;
-    }
-
-    private TextView statCard(String title, LinearLayout parent) {
-        LinearLayout card = new LinearLayout(this);
-        card.setOrientation(LinearLayout.VERTICAL);
-        card.setPadding(dp(10), dp(8), dp(10), dp(8));
-        card.setGravity(Gravity.RIGHT);
-        GradientDrawable bgDrawable = new GradientDrawable();
-        bgDrawable.setColor(surface);
-        bgDrawable.setCornerRadius(dp(16));
-        card.setBackground(bgDrawable);
-        TextView top = label(title, 10, muted, false, true);
-        TextView value = label("0", 20, text, true, false);
-        card.addView(top);
-        card.addView(value);
-        LinearLayout.LayoutParams lp = weight();
-        lp.setMargins(dp(3), 0, dp(3), 0);
-        parent.addView(card, lp);
-        return value;
-    }
-
-    private View sectionTitle(String value) {
-        TextView tv = label(value, 15, text, true, true);
-        tv.setPadding(dp(2), 0, dp(2), dp(10));
-        return tv;
-    }
-
-    private View resultRow(String line1, String line2, String config, boolean canCopy) {
-        LinearLayout row = card(surface, 18);
-        row.setOrientation(LinearLayout.VERTICAL);
-        row.addView(label(line1, 14, text, true, true));
-        row.addView(label(line2, 12, muted, false, true));
-        if (config != null && !config.isEmpty()) {
-            TextView cfg = label(config, 10, muted, false, false);
-            cfg.setTypeface(Typeface.MONOSPACE);
-            cfg.setMaxLines(3);
-            cfg.setPadding(0, dp(8), 0, dp(4));
-            row.addView(cfg);
-        }
-        if (canCopy && config != null && !config.isEmpty()) {
-            Button copy = button("کپی این کانفیگ", surface2);
-            copy.setOnClickListener(v -> copyOne(config));
-            LinearLayout.LayoutParams lp = matchHeight(42);
-            lp.setMargins(0, dp(8), 0, 0);
-            row.addView(copy, lp);
-        }
-        return row;
-    }
-
-    private View infoRow(String title, String body) {
-        LinearLayout row = card(surface3, 18);
-        row.setOrientation(LinearLayout.VERTICAL);
-        row.addView(label(title, 13, text, true, true));
-        row.addView(label(body, 12, muted, false, true));
-        return row;
-    }
-
-    private View failedSourceRow(JSONObject failed) {
-        LinearLayout row = card(surface3, 18);
-        row.setOrientation(LinearLayout.VERTICAL);
-        String message = failed.optString("message", failed.optString("error", "خطای نامشخص"));
-        String url = failed.optString("url", "");
-        row.addView(label("خطای منبع", 14, warning, true, true));
-        row.addView(label(shortMessage(message), 12, text, false, true));
-        TextView source = label(shortUrl(url), 10, muted, false, false);
-        source.setTypeface(Typeface.MONOSPACE);
-        source.setMaxLines(2);
-        source.setPadding(0, dp(6), 0, 0);
-        row.addView(source);
-        return row;
-    }
-
-    private String shortMessage(String message) {
-        if (message == null || message.trim().isEmpty()) return "پیام خطا موجود نیست.";
-        String m = message.replace('\n', ' ').trim();
-        return m.length() > 140 ? m.substring(0, 140) + "…" : m;
-    }
-
-    private String shortUrl(String url) {
-        if (url == null || url.trim().isEmpty()) return "source: unknown";
-        return url.length() > 120 ? url.substring(0, 120) + "…" : url;
-    }
-
-    private View space(int width, int height) {
-        View v = new View(this);
-        v.setLayoutParams(new LinearLayout.LayoutParams(width, height));
-        return v;
-    }
-
-    private LinearLayout.LayoutParams matchWrap() {
-        return new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
-    }
-
-    private LinearLayout.LayoutParams matchHeight(int height) {
-        return new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(height));
-    }
-
-    private LinearLayout.LayoutParams weight() {
-        return new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f);
-    }
-
-    private int dp(int value) {
-        float density = getResources().getDisplayMetrics().density;
-        return Math.round(value * density);
-    }
-
-    private int parseInt(String value, int fallback) {
-        try { return Integer.parseInt(value.trim()); } catch (Exception ignored) { return fallback; }
-    }
-
-    private double parseDouble(String value, double fallback) {
-        try { return Double.parseDouble(value.trim()); } catch (Exception ignored) { return fallback; }
-    }
+    private LinearLayout card(int color, int radius) { LinearLayout layout = new LinearLayout(this); layout.setPadding(dp(14), dp(14), dp(14), dp(14)); layout.setLayoutDirection(View.LAYOUT_DIRECTION_RTL); GradientDrawable bgDrawable = new GradientDrawable(); bgDrawable.setColor(color); bgDrawable.setCornerRadius(dp(radius)); layout.setBackground(bgDrawable); LinearLayout.LayoutParams lp = matchWrap(); lp.setMargins(0, 0, 0, dp(12)); layout.setLayoutParams(lp); return layout; }
+    private TextView label(String value, int size, int color, boolean bold, boolean rtl) { TextView tv = new TextView(this); tv.setText(value); tv.setTextSize(size); tv.setTextColor(color); tv.setGravity(rtl ? Gravity.RIGHT : Gravity.LEFT); tv.setTextDirection(rtl ? View.TEXT_DIRECTION_RTL : View.TEXT_DIRECTION_LTR); if (bold) tv.setTypeface(Typeface.DEFAULT, Typeface.BOLD); return tv; }
+    private LinearLayout inputGroup(String title, String description, EditText input) { LinearLayout group = new LinearLayout(this); group.setOrientation(LinearLayout.VERTICAL); group.setLayoutDirection(View.LAYOUT_DIRECTION_RTL); TextView titleView = label(title, 13, text, true, true); TextView descView = label(description, 10, muted, false, true); descView.setPadding(0, 0, 0, dp(6)); group.addView(titleView); group.addView(descView); group.addView(input, matchHeight(46)); return group; }
+    private EditText input(String hint, boolean password, boolean rtl) { EditText input = new EditText(this); input.setHint(hint); input.setHintTextColor(muted); input.setTextColor(text); input.setSingleLine(true); input.setTextSize(14); input.setPadding(dp(12), 0, dp(12), 0); input.setGravity(rtl ? Gravity.RIGHT | Gravity.CENTER_VERTICAL : Gravity.LEFT | Gravity.CENTER_VERTICAL); input.setTextDirection(rtl ? View.TEXT_DIRECTION_RTL : View.TEXT_DIRECTION_LTR); input.setInputType(password ? (InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD) : InputType.TYPE_CLASS_TEXT); GradientDrawable bgDrawable = new GradientDrawable(); bgDrawable.setColor(surface2); bgDrawable.setCornerRadius(dp(14)); input.setBackground(bgDrawable); return input; }
+    private Button button(String title, int color) { Button btn = new Button(this); btn.setText(title); btn.setAllCaps(false); btn.setTextColor(text); btn.setTextSize(14); btn.setTypeface(Typeface.DEFAULT, Typeface.BOLD); GradientDrawable bgDrawable = new GradientDrawable(); bgDrawable.setColor(color); bgDrawable.setCornerRadius(dp(14)); btn.setBackground(bgDrawable); return btn; }
+    private TextView statCard(String title, LinearLayout parent) { LinearLayout card = new LinearLayout(this); card.setOrientation(LinearLayout.VERTICAL); card.setPadding(dp(10), dp(8), dp(10), dp(8)); card.setGravity(Gravity.RIGHT); GradientDrawable bgDrawable = new GradientDrawable(); bgDrawable.setColor(surface); bgDrawable.setCornerRadius(dp(16)); card.setBackground(bgDrawable); TextView top = label(title, 10, muted, false, true); TextView value = label("0", 20, text, true, false); card.addView(top); card.addView(value); LinearLayout.LayoutParams lp = weight(); lp.setMargins(dp(3), 0, dp(3), 0); parent.addView(card, lp); return value; }
+    private View sectionTitle(String value) { TextView tv = label(value, 15, text, true, true); tv.setPadding(dp(2), 0, dp(2), dp(10)); return tv; }
+    private View resultRow(String line1, String line2, String config, boolean canCopy) { LinearLayout row = card(surface, 18); row.setOrientation(LinearLayout.VERTICAL); row.addView(label(line1, 14, text, true, true)); row.addView(label(line2, 12, muted, false, true)); if (config != null && !config.isEmpty()) { TextView cfg = label(config, 10, muted, false, false); cfg.setTypeface(Typeface.MONOSPACE); cfg.setMaxLines(3); cfg.setPadding(0, dp(8), 0, dp(4)); row.addView(cfg); } if (canCopy && config != null && !config.isEmpty()) { Button copy = button("کپی این کانفیگ", surface2); copy.setOnClickListener(v -> copyOne(config)); LinearLayout.LayoutParams lp = matchHeight(42); lp.setMargins(0, dp(8), 0, 0); row.addView(copy, lp); } return row; }
+    private View infoRow(String title, String body) { LinearLayout row = card(surface3, 18); row.setOrientation(LinearLayout.VERTICAL); row.addView(label(title, 13, text, true, true)); row.addView(label(body, 12, muted, false, true)); return row; }
+    private View failedSourceRow(JSONObject failed) { LinearLayout row = card(surface3, 18); row.setOrientation(LinearLayout.VERTICAL); String message = failed.optString("message", failed.optString("error", "خطای نامشخص")); String url = failed.optString("url", ""); row.addView(label("خطای منبع", 14, warning, true, true)); row.addView(label(shortMessage(message), 12, text, false, true)); TextView source = label(shortUrl(url), 10, muted, false, false); source.setTypeface(Typeface.MONOSPACE); source.setMaxLines(2); source.setPadding(0, dp(6), 0, 0); row.addView(source); return row; }
+    private String shortMessage(String message) { if (message == null || message.trim().isEmpty()) return "پیام خطا موجود نیست."; String m = message.replace('\n', ' ').trim(); return m.length() > 140 ? m.substring(0, 140) + "…" : m; }
+    private String shortUrl(String url) { if (url == null || url.trim().isEmpty()) return "source: unknown"; return url.length() > 120 ? url.substring(0, 120) + "…" : url; }
+    private View space(int width, int height) { View v = new View(this); v.setLayoutParams(new LinearLayout.LayoutParams(width, height)); return v; }
+    private LinearLayout.LayoutParams matchWrap() { return new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT); }
+    private LinearLayout.LayoutParams matchHeight(int height) { return new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(height)); }
+    private LinearLayout.LayoutParams weight() { return new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f); }
+    private int dp(int value) { return Math.round(value * getResources().getDisplayMetrics().density); }
+    private int parseInt(String value, int fallback) { try { return Integer.parseInt(value.trim()); } catch (Exception ignored) { return fallback; } }
+    private double parseDouble(String value, double fallback) { try { return Double.parseDouble(value.trim()); } catch (Exception ignored) { return fallback; } }
 }
