@@ -44,6 +44,16 @@ class NativeProbeDebugActivity : Activity() {
             addView(output, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
         }
         setContentView(ScrollView(this).apply { addView(layout) })
+
+        readIntentExtras()
+    }
+
+    private fun readIntentExtras() {
+        val config = intent?.getStringExtra(EXTRA_CONFIG)?.trim().orEmpty()
+        if (config.isNotBlank()) input.setText(config)
+        if (config.isNotBlank() && intent?.getBooleanExtra(EXTRA_AUTO_RUN, false) == true) {
+            runProbe()
+        }
     }
 
     private fun runProbe() {
@@ -57,5 +67,10 @@ class NativeProbeDebugActivity : Activity() {
             val result = NativeValidationDebugHook(this).runSingleConfig(config)
             runOnUiThread { output.text = result }
         }.start()
+    }
+
+    companion object {
+        const val EXTRA_CONFIG: String = "config"
+        const val EXTRA_AUTO_RUN: String = "auto_run"
     }
 }
