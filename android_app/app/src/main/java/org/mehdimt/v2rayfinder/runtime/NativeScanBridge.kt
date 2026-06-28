@@ -15,9 +15,8 @@ object NativeScanBridge {
     private const val XRAY_VALIDATION_LIMIT: Int = 50
 
     @JvmStatic
-    fun scan(context: Context, limit: Int, timeoutSeconds: Double, health: Boolean, token: String): String {
-        return scan(context, limit, timeoutSeconds, health, false, token)
-    }
+    fun scan(context: Context, limit: Int, timeoutSeconds: Double, health: Boolean, token: String): String =
+        scan(context, limit, timeoutSeconds, health, false, token)
 
     @JvmStatic
     fun scan(context: Context, limit: Int, timeoutSeconds: Double, health: Boolean, realValidation: Boolean, token: String): String {
@@ -31,46 +30,47 @@ object NativeScanBridge {
                 if (!sourceByConfig.containsKey(config)) sourceByConfig[config] = sourceResult.source
             }
         }
-
         val configs = parsed.configs.take(maxConfigs)
-        val checks = if (health) {
-            TcpHealthChecker(timeoutMs).checkAll(configs, maxConfigs)
-        } else {
-            configs.map { TcpHealthResult(it, EndpointParser.parse(it), true, null, "") }
-        }
-        val scored = NativeScoringEngine.score(checks)
-        val xrayResults = if (realValidation) runXrayValidation(context, scored) else emptyMap()
+        val checks = if (health) TcpHealthChecker(timeoutMs).checkAll(configs, maxConfigs) else configs.map { TcpHealthResult(it, EndpointParser.parse(it), true, null, "") }
+        val tcpScored = NativeScoringEngine.score(checks)
+        val xrayReport = if (realValidation) runXrayValidation(context, tcpScored) else XrayReport(emptyMap(), emptyMap(), if (isXrayBinaryAvailable(context)) "disabled" else "missing_binary")
+        val ranked = tcpScored.map { item -> RankedItem(item, xrayReport.results[item.config], scoreWithXray(item.score, xrayReport.results[item.config])) }
+            .sortedWith(compareByDescending<RankedItem> { it.finalScore }.thenBy { it.base.latencyMs ?: Long.MAX_VALUE })
 
         val configArray = JSONArray()
         val items = JSONArray()
-        for (config in configs) configArray.put(config)
-        for (item in scored) {
+        for (rankedItem in ranked) {
+            val item = rankedItem.base
+            configArray.put(item.config)
             val source = sourceByConfig[item.config]
             val sourceUrl = source?.url ?: ""
             val sourceLabel = source?.label ?: ""
-            val xray = xrayResults[item.config]
-            val finalScore = scoreWithXray(item.score, xray)
+            val xray = rankedItem.xray
+            val skipReason = xrayReport.skipped[item.config]
             items.put(JSONObject()
                 .put("config", item.config)
                 .put("protocol", item.protocol)
-                .put("grade", grade(finalScore))
-                .put("total", finalScore)
+                .put("grade", grade(rankedItem.finalScore))
+                .put("total", rankedItem.finalScore)
+                .put("tcp_score", item.score)
                 .put("latency_ms", xray?.latencyMs ?: item.latencyMs ?: JSONObject.NULL)
                 .put("source", sourceUrl)
                 .put("source_label", sourceLabel)
+                .put("xray_requested", realValidation)
                 .put("xray_checked", xray != null)
                 .put("xray_ok", xray?.validationOk ?: false)
                 .put("xray_confidence", xray?.confidenceScore ?: JSONObject.NULL)
                 .put("xray_confidence_level", xray?.confidenceLevel ?: "")
                 .put("xray_passed_probes", xray?.passedProbes ?: 0)
                 .put("xray_total_probes", xray?.totalProbes ?: 0)
-                .put("xray_error", xray?.error ?: ""))
+                .put("xray_error", xray?.error ?: "")
+                .put("xray_skip_reason", skipReason ?: ""))
         }
 
         val performance = JSONArray()
         for (sourceResult in parsed.sourceResults) {
             val sourceUrl = sourceResult.source.url
-            val xrayForSource = xrayResults.filter { sourceByConfig[it.key]?.url == sourceUrl }.values
+            val xrayForSource = xrayReport.results.filter { sourceByConfig[it.key]?.url == sourceUrl }.values
             performance.put(JSONObject()
                 .put("label", sourceResult.source.label)
                 .put("url", sourceUrl)
@@ -87,10 +87,13 @@ object NativeScanBridge {
             .put("stats", JSONObject()
                 .put("fetched", parsed.rawConfigCount)
                 .put("deduped", configs.size)
-                .put("healthy", scored.count { it.reachable })
-                .put("scored", scored.size)
-                .put("xray_checked", xrayResults.size)
-                .put("xray_ok", xrayResults.values.count { it.validationOk }))
+                .put("healthy", tcpScored.count { it.reachable })
+                .put("scored", ranked.size)
+                .put("xray_requested", realValidation)
+                .put("xray_status", xrayReport.status)
+                .put("xray_checked", xrayReport.results.size)
+                .put("xray_ok", xrayReport.results.values.count { it.validationOk })
+                .put("xray_skipped", xrayReport.skipped.size))
             .put("configs", configArray)
             .put("items", items)
             .put("failed_sources", failedSources(parsed))
@@ -98,35 +101,32 @@ object NativeScanBridge {
             .toString()
     }
 
-    private fun runXrayValidation(context: Context, scored: List<ScoredConfig>): Map<String, NativeRealValidationResult> {
+    private fun runXrayValidation(context: Context, scored: List<ScoredConfig>): XrayReport {
         val binary = File(context.applicationInfo.nativeLibraryDir ?: "", "libxray.so")
-        if (!binary.isFile) return emptyMap()
+        if (!binary.isFile) return XrayReport(emptyMap(), scored.associate { it.config to "xray_binary_missing" }, "missing_binary")
         val workDir = File(context.filesDir, "native-xray-validation")
         if (!workDir.exists()) workDir.mkdirs()
         val validator = NativeXrayValidator()
         val out = linkedMapOf<String, NativeRealValidationResult>()
+        val skipped = linkedMapOf<String, String>()
         val candidates = scored.filter { it.reachable }.take(XRAY_VALIDATION_LIMIT)
         for (item in candidates) {
-            val built = XrayConfigBuilder.build(item.config) ?: continue
-            val result = validator.validate(
-                config = item.config,
-                xrayBinaryPath = binary.absolutePath,
-                xrayConfigJson = built.xrayConfigJson,
-                workDir = workDir,
-                socksPort = built.socksPort,
-            )
-            out[item.config] = result
+            val built = XrayConfigBuilder.build(item.config)
+            if (built == null) {
+                skipped[item.config] = "xray_config_build_failed"
+                continue
+            }
+            out[item.config] = validator.validate(item.config, binary.absolutePath, built.xrayConfigJson, workDir, built.socksPort)
         }
-        return out
+        for (item in scored.filter { !it.reachable }.take(XRAY_VALIDATION_LIMIT)) skipped[item.config] = "tcp_unreachable"
+        return XrayReport(out, skipped, "active")
     }
+
+    private fun isXrayBinaryAvailable(context: Context): Boolean = File(context.applicationInfo.nativeLibraryDir ?: "", "libxray.so").isFile
 
     private fun scoreWithXray(baseScore: Double, xray: NativeRealValidationResult?): Double {
         if (xray == null) return baseScore
-        return if (xray.validationOk) {
-            maxOf(baseScore, 78.0 + xray.confidenceScore * 22.0).coerceIn(0.0, 100.0)
-        } else {
-            (baseScore * 0.35).coerceIn(0.0, 100.0)
-        }
+        return if (xray.validationOk) maxOf(baseScore, 78.0 + xray.confidenceScore * 22.0).coerceIn(0.0, 100.0) else (baseScore * 0.35).coerceIn(0.0, 100.0)
     }
 
     private fun grade(score: Double): String = when {
@@ -147,14 +147,11 @@ object NativeScanBridge {
     private fun failedSources(parsed: NativeFetchParseResult): JSONArray {
         val out = JSONArray()
         for (sourceResult in parsed.sourceResults) {
-            if (!sourceResult.ok) {
-                out.put(JSONObject()
-                    .put("url", sourceResult.source.url)
-                    .put("label", sourceResult.source.label)
-                    .put("message", sourceResult.fetchResult.error.ifBlank { "no configs extracted" })
-                    .put("status_code", sourceResult.fetchResult.statusCode))
-            }
+            if (!sourceResult.ok) out.put(JSONObject().put("url", sourceResult.source.url).put("label", sourceResult.source.label).put("message", sourceResult.fetchResult.error.ifBlank { "no configs extracted" }).put("status_code", sourceResult.fetchResult.statusCode))
         }
         return out
     }
+
+    private data class RankedItem(val base: ScoredConfig, val xray: NativeRealValidationResult?, val finalScore: Double)
+    private data class XrayReport(val results: Map<String, NativeRealValidationResult>, val skipped: Map<String, String>, val status: String)
 }
