@@ -14,8 +14,8 @@ object CandidateSelector {
         realValidation: Boolean,
     ): CandidateSelection {
         val desired = if (userLimit > 0) userLimit else 200
-        val candidateBudget = max(desired * 4, 500).coerceAtMost(1_200)
-        val xrayBudget = if (realValidation) max(40, desired * 2).coerceAtMost(120) else 0
+        val candidateBudget = fastCandidateBudget(desired, realValidation)
+        val xrayBudget = if (realValidation) max(24, desired / 2).coerceAtMost(80) else 0
         val attribution = buildAttribution(parsed)
         val perSource = parsed.sourceResults
             .filter { it.configs.isNotEmpty() }
@@ -42,8 +42,7 @@ object CandidateSelector {
         }
 
         if (selected.size < candidateBudget) {
-            val fallback = parsed.configs
-                .sortedByDescending { cheapScore(it) }
+            val fallback = parsed.configs.sortedByDescending { cheapScore(it) }
             for (config in fallback) {
                 if (seen.add(config)) selected += config
                 if (selected.size >= candidateBudget) break
@@ -59,6 +58,13 @@ object CandidateSelector {
             xrayBudget = xrayBudget,
             selectedCount = selected.size,
         )
+    }
+
+    private fun fastCandidateBudget(desired: Int, realValidation: Boolean): Int {
+        val multiplier = if (realValidation) 2 else 2
+        val floor = if (realValidation) 220 else 260
+        val ceiling = if (realValidation) 420 else 360
+        return max(floor, desired * multiplier).coerceAtMost(ceiling)
     }
 
     fun cheapScore(config: String): Int {
@@ -89,10 +95,10 @@ object CandidateSelector {
 
     private fun diversifyWithinSource(configs: List<String>, sourceUrl: String, desired: Int): List<String> {
         if (configs.size <= 3) return configs
-        val headCount = max(12, desired / 10).coerceAtMost(configs.size)
-        val tailCount = max(12, desired / 10).coerceAtMost(configs.size)
-        val topScoreCount = max(40, desired / 2).coerceAtMost(configs.size)
-        val randomCount = max(40, desired).coerceAtMost(configs.size)
+        val headCount = max(8, desired / 20).coerceAtMost(configs.size)
+        val tailCount = max(8, desired / 20).coerceAtMost(configs.size)
+        val topScoreCount = max(24, desired / 4).coerceAtMost(configs.size)
+        val randomCount = max(24, desired / 2).coerceAtMost(configs.size)
         val out = linkedSetOf<String>()
         out += configs.take(headCount)
         out += configs.takeLast(tailCount)
