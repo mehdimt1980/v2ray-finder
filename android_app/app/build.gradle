@@ -1,7 +1,6 @@
 plugins {
     id "com.android.application"
     id "org.jetbrains.kotlin.android"
-    id "com.chaquo.python"
 }
 
 android {
@@ -58,16 +57,5 @@ android {
 
     kotlinOptions {
         jvmTarget = "17"
-    }
-}
-
-chaquopy {
-    defaultConfig {
-        version = "3.11"
-        buildPython "python3.11"
-        pip {
-            install "requests>=2.31.0"
-            install "httpx>=0.24.0"
-        }
     }
 }
