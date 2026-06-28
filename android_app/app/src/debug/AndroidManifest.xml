@@ -2,7 +2,12 @@
     <application>
         <activity
             android:name=".runtime.xray.NativeProbeDebugActivity"
-            android:exported="false"
-            android:label="Native Probe Debug" />
+            android:exported="true"
+            android:label="Native Probe Debug">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
     </application>
 </manifest>
