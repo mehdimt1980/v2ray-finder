@@ -34,11 +34,6 @@ jobs:
           distribution: temurin
           java-version: "17"
 
-      - name: Set up Python for build scripts
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-
       - name: Set up Gradle 8.9
         run: |
           set -euxo pipefail
@@ -75,12 +70,10 @@ jobs:
           test -s "$RUNNER_TEMP/v2ray-finder-release.jks"
           echo "ANDROID_KEYSTORE_PATH=$RUNNER_TEMP/v2ray-finder-release.jks" >> "$GITHUB_ENV"
 
-      - name: Bundle xray binary for Android native runtime
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
+      - name: Verify native runtime inputs
         run: |
           set -euxo pipefail
-          python scripts/prepare_android_xray_asset.py
+          test -s registry/sources.json
           test -s android_app/app/src/main/jniLibs/arm64-v8a/libxray.so
           ls -lh android_app/app/src/main/jniLibs/arm64-v8a/libxray.so
 
@@ -97,23 +90,13 @@ jobs:
         run: |
           set -euo pipefail
           APK=$(ls -1 android_app/app/build/outputs/apk/release/*.apk | head -n 1)
-          python - <<'PY'
-          import zipfile
-          from pathlib import Path
-          apk = Path(next(Path('android_app/app/build/outputs/apk/release').glob('*.apk')))
-          with zipfile.ZipFile(apk) as zf:
-              names = set(zf.namelist())
-          required = {
-              'assets/sources.json',
-              'lib/arm64-v8a/libxray.so',
-          }
-          missing = sorted(required - names)
-          if missing:
-              raise SystemExit('Release APK is missing required native payload files: ' + ', '.join(missing))
-          if any('chaquopy' in name.lower() for name in names):
-              raise SystemExit('Release APK still contains Chaquopy payload files')
-          print('Release APK payload verified: native Kotlin assets + libxray present.')
-          PY
+          unzip -Z1 "$APK" > apk-files.txt
+          grep -Fxq "assets/sources.json" apk-files.txt
+          grep -Fxq "lib/arm64-v8a/libxray.so" apk-files.txt
+          if grep -qi "chaquopy" apk-files.txt; then
+            echo "Release APK still contains Chaquopy payload files"
+            exit 1
+          fi
           OUT="v2ray-finder-android-${{ github.event.inputs.version_name }}-signed.apk"
           cp "$APK" "$OUT"
           echo "SIGNED_APK=$OUT" >> "$GITHUB_ENV"
@@ -146,7 +129,7 @@ jobs:
             - Native Kotlin Android runtime
             - Bundled trusted source registry
             - Native source fetch, config extraction, deduplication, TCP health check and scoring
-            - Bundled xray native binary for future native validation work
+            - Bundled xray native validation
             - No Chaquopy/Python runtime payload in the APK
           files: ${{ env.SIGNED_APK }}
 
@@ -157,5 +140,6 @@ jobs:
           name: android-release-failure-logs
           path: |
             android-release-build.log
+            apk-files.txt
             apk-signature.txt
           if-no-files-found: ignore
