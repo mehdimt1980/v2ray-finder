@@ -12,7 +12,7 @@ import org.mehdimt.v2rayfinder.runtime.xray.XrayConfigBuilder
 import java.io.File
 
 object NativeScanBridge {
-    private const val XRAY_VALIDATION_LIMIT: Int = 50
+    private const val XRAY_VALIDATION_LIMIT: Int = 80
 
     @JvmStatic
     fun scan(context: Context, limit: Int, timeoutSeconds: Double, health: Boolean, token: String): String =
@@ -29,8 +29,15 @@ object NativeScanBridge {
         val checks = if (health) TcpHealthChecker(timeoutMs).checkAll(configs, maxConfigs) else configs.map { TcpHealthResult(it, EndpointParser.parse(it), true, null, "") }
         val tcpScored = NativeScoringEngine.score(checks)
         val xrayReport = if (realValidation) runXrayValidation(context, tcpScored) else XrayReport(emptyMap(), emptyMap(), if (isXrayBinaryAvailable(context)) "disabled" else "missing_binary")
-        val ranked = tcpScored.map { item -> RankedItem(item, xrayReport.results[item.config], scoreWithXray(item.score, xrayReport.results[item.config])) }
-            .sortedWith(compareByDescending<RankedItem> { it.finalScore }.thenBy { it.base.latencyMs ?: Long.MAX_VALUE })
+
+        val ranked = if (realValidation) {
+            tcpScored.mapNotNull { item ->
+                val xray = xrayReport.results[item.config]
+                if (xray?.validationOk == true) RankedItem(item, xray, scoreWithXray(item.score, xray)) else null
+            }
+        } else {
+            tcpScored.map { item -> RankedItem(item, null, item.score) }
+        }.sortedWith(compareByDescending<RankedItem> { it.finalScore }.thenBy { it.base.latencyMs ?: Long.MAX_VALUE })
 
         val configArray = JSONArray()
         val items = JSONArray()
@@ -86,6 +93,14 @@ object NativeScanBridge {
                 .put("trust", sourceResult.source.trust))
         }
 
+        val statusMessage = when {
+            !realValidation -> "tcp_mode"
+            xrayReport.status == "missing_binary" -> "xray_missing_binary"
+            xrayReport.results.isEmpty() -> "xray_no_candidates_validated"
+            ranked.isEmpty() -> "xray_checked_but_none_passed"
+            else -> "xray_strict_ok"
+        }
+
         return JSONObject()
             .put("stats", JSONObject()
                 .put("fetched", parsed.rawConfigCount)
@@ -94,8 +109,10 @@ object NativeScanBridge {
                 .put("scored", ranked.size)
                 .put("sources_checked", parsed.sourcesChecked)
                 .put("sources_ok", parsed.sourcesOk)
+                .put("real_validation_strict", realValidation)
                 .put("xray_requested", realValidation)
                 .put("xray_status", xrayReport.status)
+                .put("xray_status_message", statusMessage)
                 .put("xray_checked", xrayReport.results.size)
                 .put("xray_ok", xrayReport.results.values.count { it.validationOk })
                 .put("xray_skipped", xrayReport.skipped.size))
@@ -118,10 +135,7 @@ object NativeScanBridge {
     }
 
     private fun selectBalancedConfigs(parsed: NativeFetchParseResult, limit: Int): List<String> {
-        val perSource = parsed.sourceResults
-            .filter { it.configs.isNotEmpty() }
-            .map { it.configs.toMutableList() }
-            .toMutableList()
+        val perSource = parsed.sourceResults.filter { it.configs.isNotEmpty() }.map { it.configs.toMutableList() }.toMutableList()
         val selected = mutableListOf<String>()
         val seen = linkedSetOf<String>()
         while (selected.size < limit && perSource.any { it.isNotEmpty() }) {
@@ -161,7 +175,7 @@ object NativeScanBridge {
     }
 
     private fun isXrayBinaryAvailable(context: Context): Boolean = File(context.applicationInfo.nativeLibraryDir ?: "", "libxray.so").isFile
-    private fun scoreWithXray(baseScore: Double, xray: NativeRealValidationResult?): Double = if (xray == null) baseScore else if (xray.validationOk) maxOf(baseScore, 78.0 + xray.confidenceScore * 22.0).coerceIn(0.0, 100.0) else (baseScore * 0.35).coerceIn(0.0, 100.0)
+    private fun scoreWithXray(baseScore: Double, xray: NativeRealValidationResult?): Double = if (xray == null) baseScore else maxOf(baseScore, 78.0 + xray.confidenceScore * 22.0).coerceIn(0.0, 100.0)
     private fun grade(score: Double): String = when { score >= 90.0 -> "A+"; score >= 80.0 -> "A"; score >= 70.0 -> "B"; score >= 60.0 -> "C"; score >= 45.0 -> "D"; else -> "F" }
     private fun loadSources(context: Context): List<SourceRecord> { val registry = BundledSourceRegistry(context); val cached = NativeSourceRefreshBridge.cachedRegistryFile(context); return if (cached.isFile) registry.loadFromFile(cached) else registry.loadFromAssets("sources.json") }
     private fun failedSources(parsed: NativeFetchParseResult): JSONArray { val out = JSONArray(); for (sourceResult in parsed.sourceResults) if (!sourceResult.ok) out.put(JSONObject().put("url", sourceResult.source.url).put("label", sourceResult.source.label).put("message", sourceResult.fetchResult.error.ifBlank { "no configs extracted" }).put("status_code", sourceResult.fetchResult.statusCode)); return out }
