@@ -59,8 +59,10 @@ class NativeProbeDebugActivity : Activity() {
         output.text = "Running..."
         Thread {
             val result = NativeValidationDebugHook(this).runSingleConfig(config)
-            val saved = NativeProbeDebugResultStore(this).writeLatest(result)
-            runOnUiThread { output.text = result + "\n\nSaved to:\n" + saved.absolutePath }
+            val store = NativeProbeDebugResultStore(this)
+            val saved = store.writeLatest(result)
+            val text = result + "\n\nLatest:\n" + saved.absolutePath + "\n\nHistory dir:\n" + store.historyDir().absolutePath
+            runOnUiThread { output.text = text }
         }.start()
     }
 
