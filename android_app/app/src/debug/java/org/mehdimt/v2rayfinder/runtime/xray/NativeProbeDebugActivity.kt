@@ -9,14 +9,12 @@ import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
 
-/** Debug-build-only screen for manually checking one config with the native path. */
 class NativeProbeDebugActivity : Activity() {
     private lateinit var input: EditText
     private lateinit var output: TextView
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-
         input = EditText(this).apply {
             hint = "Paste one config URI"
             minLines = 4
@@ -34,7 +32,6 @@ class NativeProbeDebugActivity : Activity() {
             text = "Diagnostics"
             setOnClickListener { output.text = NativeValidationDebugHook(this@NativeProbeDebugActivity).diagnosticsJson() }
         }
-
         val layout = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(24, 24, 24, 24)
@@ -44,16 +41,13 @@ class NativeProbeDebugActivity : Activity() {
             addView(output, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
         }
         setContentView(ScrollView(this).apply { addView(layout) })
-
         readIntentExtras()
     }
 
     private fun readIntentExtras() {
         val config = intent?.getStringExtra(EXTRA_CONFIG)?.trim().orEmpty()
         if (config.isNotBlank()) input.setText(config)
-        if (config.isNotBlank() && intent?.getBooleanExtra(EXTRA_AUTO_RUN, false) == true) {
-            runProbe()
-        }
+        if (config.isNotBlank() && intent?.getBooleanExtra(EXTRA_AUTO_RUN, false) == true) runProbe()
     }
 
     private fun runProbe() {
@@ -65,7 +59,8 @@ class NativeProbeDebugActivity : Activity() {
         output.text = "Running..."
         Thread {
             val result = NativeValidationDebugHook(this).runSingleConfig(config)
-            runOnUiThread { output.text = result }
+            val saved = NativeProbeDebugResultStore(this).writeLatest(result)
+            runOnUiThread { output.text = result + "\n\nSaved to:\n" + saved.absolutePath }
         }.start()
     }
 
