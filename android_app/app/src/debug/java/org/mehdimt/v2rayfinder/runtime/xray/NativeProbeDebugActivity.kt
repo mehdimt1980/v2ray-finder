@@ -24,7 +24,7 @@ class NativeProbeDebugActivity : Activity() {
         }
         output = TextView(this).apply {
             text = "Native debug probe is idle."
-            textIsSelectable = true
+            setTextIsSelectable(true)
         }
         val runButton = Button(this).apply {
             text = "Run native probe"
