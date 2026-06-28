@@ -64,6 +64,8 @@ object NativeScanBridge {
                 sourceUrls.put(src.url)
             }
             val xray = rankedItem.xray
+            val validation = validationLabel(item, xray, realValidation, xrayReport.skipped[item.config])
+            val displaySourceLabel = listOfNotNull(primary?.label?.takeIf { it.isNotBlank() }, validation).joinToString(" | ")
             items.put(JSONObject()
                 .put("config", item.config)
                 .put("protocol", item.protocol)
@@ -75,10 +77,11 @@ object NativeScanBridge {
                 .put("tcp_score", item.score)
                 .put("latency_ms", xray?.latencyMs ?: item.latencyMs ?: JSONObject.NULL)
                 .put("source", primary?.url ?: "")
-                .put("source_label", primary?.label ?: "")
+                .put("source_label", displaySourceLabel)
                 .put("source_count", sourcesForConfig.size)
                 .put("source_labels", sourceLabels)
                 .put("source_urls", sourceUrls)
+                .put("validation_label", validation)
                 .put("xray_requested", realValidation)
                 .put("xray_checked", xray != null)
                 .put("xray_ok", xray?.validationOk ?: false)
@@ -152,6 +155,23 @@ object NativeScanBridge {
             .put("failed_sources", failedSources(parsed))
             .put("source_performance", performance)
             .toString()
+    }
+
+    private fun validationLabel(item: ScoredConfig, xray: NativeRealValidationResult?, realValidation: Boolean, skipReason: String?): String {
+        val tcp = if (item.reachable) {
+            "TCP: OK" + (item.latencyMs?.let { " ${it}ms" } ?: "")
+        } else {
+            "TCP: FAIL"
+        }
+        val xr = if (!realValidation) {
+            "Xray: off"
+        } else if (xray == null) {
+            "Xray: skipped" + (skipReason?.takeIf { it.isNotBlank() }?.let { " $it" } ?: "")
+        } else {
+            val status = if (xray.validationOk) "OK" else "FAIL"
+            "Xray: $status ${xray.passedProbes}/${xray.totalProbes} conf ${String.format(java.util.Locale.US, "%.2f", xray.confidenceScore)}"
+        }
+        return "$tcp | $xr"
     }
 
     private fun runXrayValidation(context: Context, scored: List<ScoredConfig>, budget: Int): XrayReport {
