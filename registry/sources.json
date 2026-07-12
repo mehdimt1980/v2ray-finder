@@ -1,18 +1,29 @@
 [
   {
-    "id": "https-raw-githubusercontent-com-nyeinkokoaung404-v2ray-configs-main-conf-8c5dfa92",
-    "label": "nyeinkokoaung404/V2ray-Configs — configs/proxy_configs_tested.txt",
-    "url": "https://raw.githubusercontent.com/nyeinkokoaung404/V2ray-Configs/main/configs/proxy_configs_tested.txt",
+    "id": "https-gh-proxy-org-https-raw-githubusercontent-com-cbusifabcap-daily-fre-7276e464",
+    "label": "Telegram public channel daily_free_vpn → gh-proxy.org/https://raw.githubusercontent.com/cbusifabcap/daily_free_vpn/ref...",
+    "url": "https://raw.githubusercontent.com/mehdimt1980/v2ray-source-hunter/main/registry/generated/telegram/https-gh-proxy-org-https-raw-githubusercontent-com-cbusifabcap-daily-fre-7276e464.txt",
     "source_type": "static_subscription",
     "trust": "medium",
     "status": "trusted",
     "enabled": true,
+    "region": "IR",
+    "recommended_regions": [
+      "IR"
+    ],
+    "app_priority": 100,
+    "mobile_profile": "iran_fast",
     "tags": [
-      "repository-tree",
-      "seed",
-      "github",
+      "telegram",
+      "discovered-link",
+      "auto",
+      "generated-feed",
+      "materialized",
       "hunter",
       "trusted",
+      "iran",
+      "mobile-optimized",
+      "iran_fast",
       "ss",
       "trojan",
       "vless",
@@ -24,9 +35,80 @@
       "vless",
       "vmess"
     ],
-    "notes": "Discovered by source-hunter from repository_tree; score=100.0; unique=559; tcp=60/60",
-    "added_at": "2026-06-30",
-    "last_reviewed_at": "2026-06-30"
+    "notes": "Discovered by source-hunter from telegram_discovered_link; score=100.0; priority=100; unique=1403; tcp=60/60; real=0/0; materialized from Telegram HTML",
+    "hunter_metrics": {
+      "score": 100.0,
+      "unique_items": 1403,
+      "duplicate_ratio": 0.0,
+      "tcp_ok_count": 60,
+      "tcp_sample_size": 60,
+      "tcp_success_rate": 1.0,
+      "real_check": {
+        "requested": true,
+        "available": false,
+        "checked": 0,
+        "ok": 0,
+        "success_rate": 0.0,
+        "note": "v2ray_finder.real_validation unavailable: No module named 'v2ray_finder'"
+      }
+    },
+    "added_at": "2026-07-12",
+    "last_reviewed_at": "2026-07-12",
+    "upstream_url": "https://gh-proxy.org/https://raw.githubusercontent.com/cbusifabcap/daily_free_vpn/refs/heads/main/sub/Clash.yml"
+  },
+  {
+    "id": "https-raw-githubusercontent-com-nyeinkokoaung404-v2ray-configs-main-conf-8c5dfa92",
+    "label": "nyeinkokoaung404/V2ray-Configs — configs/proxy_configs_tested.txt",
+    "url": "https://raw.githubusercontent.com/nyeinkokoaung404/V2ray-Configs/main/configs/proxy_configs_tested.txt",
+    "source_type": "static_subscription",
+    "trust": "medium",
+    "status": "trusted",
+    "enabled": true,
+    "region": "IR",
+    "recommended_regions": [
+      "IR"
+    ],
+    "app_priority": 100,
+    "mobile_profile": "iran_fast",
+    "tags": [
+      "repository-tree",
+      "seed",
+      "github",
+      "hunter",
+      "trusted",
+      "iran",
+      "mobile-optimized",
+      "iran_fast",
+      "ss",
+      "trojan",
+      "vless",
+      "vmess"
+    ],
+    "protocols": [
+      "ss",
+      "trojan",
+      "vless",
+      "vmess"
+    ],
+    "notes": "Discovered by source-hunter from repository_tree; score=98.5; priority=100; unique=486; tcp=59/60; real=0/0",
+    "hunter_metrics": {
+      "score": 98.5,
+      "unique_items": 486,
+      "duplicate_ratio": 0.0,
+      "tcp_ok_count": 59,
+      "tcp_sample_size": 60,
+      "tcp_success_rate": 0.9833,
+      "real_check": {
+        "requested": true,
+        "available": false,
+        "checked": 0,
+        "ok": 0,
+        "success_rate": 0.0,
+        "note": "v2ray_finder.real_validation unavailable: No module named 'v2ray_finder'"
+      }
+    },
+    "added_at": "2026-07-12",
+    "last_reviewed_at": "2026-07-12"
   },
   {
     "id": "https-raw-githubusercontent-com-thealiiakbarii-ai-vcc-main-configs-webso-ddb94894",
@@ -36,12 +118,21 @@
     "trust": "medium",
     "status": "trusted",
     "enabled": true,
+    "region": "IR",
+    "recommended_regions": [
+      "IR"
+    ],
+    "app_priority": 100,
+    "mobile_profile": "iran_fast",
     "tags": [
       "repository-tree",
       "auto",
       "github",
       "hunter",
       "trusted",
+      "iran",
+      "mobile-optimized",
+      "iran_fast",
       "trojan",
       "vless",
       "vmess"
@@ -51,65 +142,25 @@
       "vless",
       "vmess"
     ],
-    "notes": "Discovered by source-hunter from repository_tree; score=97.5; unique=591; tcp=60/60",
-    "added_at": "2026-06-30",
-    "last_reviewed_at": "2026-06-30"
-  },
-  {
-    "id": "https-raw-githubusercontent-com-thealiiakbarii-ai-vcc-main-configs-tls-t-0ddb251d",
-    "label": "thealiiakbarii-ai/VCC — configs/tls.txt",
-    "url": "https://raw.githubusercontent.com/thealiiakbarii-ai/VCC/main/configs/tls.txt",
-    "source_type": "static_subscription",
-    "trust": "medium",
-    "status": "trusted",
-    "enabled": true,
-    "tags": [
-      "repository-tree",
-      "auto",
-      "github",
-      "hunter",
-      "trusted",
-      "trojan",
-      "vless",
-      "vmess"
-    ],
-    "protocols": [
-      "trojan",
-      "vless",
-      "vmess"
-    ],
-    "notes": "Discovered by source-hunter from repository_tree; score=97.5; unique=583; tcp=60/60",
-    "added_at": "2026-06-30",
-    "last_reviewed_at": "2026-06-30"
-  },
-  {
-    "id": "https-raw-githubusercontent-com-solispirit-solvpn-main-all-configs-txt-f1112895",
-    "label": "SoliSpirit/SolVPN — all_configs.txt",
-    "url": "https://raw.githubusercontent.com/SoliSpirit/SolVPN/main/all_configs.txt",
-    "source_type": "static_subscription",
-    "trust": "medium",
-    "status": "trusted",
-    "enabled": true,
-    "tags": [
-      "repository-tree",
-      "auto",
-      "github",
-      "hunter",
-      "trusted",
-      "ss",
-      "trojan",
-      "vless",
-      "vmess"
-    ],
-    "protocols": [
-      "ss",
-      "trojan",
-      "vless",
-      "vmess"
-    ],
-    "notes": "Discovered by source-hunter from repository_tree; score=95.0; unique=567; tcp=54/60",
-    "added_at": "2026-06-30",
-    "last_reviewed_at": "2026-06-30"
+    "notes": "Discovered by source-hunter from repository_tree; score=97.5; priority=100; unique=1897; tcp=60/60; real=0/0",
+    "hunter_metrics": {
+      "score": 97.5,
+      "unique_items": 1897,
+      "duplicate_ratio": 0.0,
+      "tcp_ok_count": 60,
+      "tcp_sample_size": 60,
+      "tcp_success_rate": 1.0,
+      "real_check": {
+        "requested": true,
+        "available": false,
+        "checked": 0,
+        "ok": 0,
+        "success_rate": 0.0,
+        "note": "v2ray_finder.real_validation unavailable: No module named 'v2ray_finder'"
+      }
+    },
+    "added_at": "2026-07-12",
+    "last_reviewed_at": "2026-07-12"
   },
   {
     "id": "https-raw-githubusercontent-com-0xradikal-free-v2ray-configs-main-light--c4fc9d3a",
@@ -119,12 +170,21 @@
     "trust": "medium",
     "status": "trusted",
     "enabled": true,
+    "region": "IR",
+    "recommended_regions": [
+      "IR"
+    ],
+    "app_priority": 100,
+    "mobile_profile": "iran_fast",
     "tags": [
       "repository-tree",
       "auto",
       "github",
       "hunter",
       "trusted",
+      "iran",
+      "mobile-optimized",
+      "iran_fast",
       "ss",
       "trojan",
       "vless",
@@ -136,47 +196,49 @@
       "vless",
       "vmess"
     ],
-    "notes": "Discovered by source-hunter from repository_tree; score=93.2; unique=447; tcp=55/60",
-    "added_at": "2026-06-30",
-    "last_reviewed_at": "2026-06-30"
+    "notes": "Discovered by source-hunter from repository_tree; score=97.0; priority=100; unique=491; tcp=57/60; real=0/0",
+    "hunter_metrics": {
+      "score": 97.0,
+      "unique_items": 491,
+      "duplicate_ratio": 0.0,
+      "tcp_ok_count": 57,
+      "tcp_sample_size": 60,
+      "tcp_success_rate": 0.95,
+      "real_check": {
+        "requested": true,
+        "available": false,
+        "checked": 0,
+        "ok": 0,
+        "success_rate": 0.0,
+        "note": "v2ray_finder.real_validation unavailable: No module named 'v2ray_finder'"
+      }
+    },
+    "added_at": "2026-07-12",
+    "last_reviewed_at": "2026-07-12"
   },
   {
-    "id": "https-raw-githubusercontent-com-thealiiakbarii-ai-vcc-main-configs-vless-05f87d28",
-    "label": "thealiiakbarii-ai/VCC — configs/vless.txt",
-    "url": "https://raw.githubusercontent.com/thealiiakbarii-ai/VCC/main/configs/vless.txt",
+    "id": "https-raw-githubusercontent-com-0xradikal-free-v2ray-configs-main-light--338af1b1",
+    "label": "0xRadikal/Free-v2ray-Configs — light/configs_base64.txt",
+    "url": "https://raw.githubusercontent.com/0xRadikal/Free-v2ray-Configs/main/light/configs_base64.txt",
     "source_type": "static_subscription",
     "trust": "medium",
     "status": "trusted",
     "enabled": true,
+    "region": "IR",
+    "recommended_regions": [
+      "IR"
+    ],
+    "app_priority": 100,
+    "mobile_profile": "iran_fast",
     "tags": [
       "repository-tree",
       "auto",
       "github",
       "hunter",
       "trusted",
-      "vless"
-    ],
-    "protocols": [
-      "vless"
-    ],
-    "notes": "Discovered by source-hunter from repository_tree; score=92.5; unique=884; tcp=60/60",
-    "added_at": "2026-06-30",
-    "last_reviewed_at": "2026-06-30"
-  },
-  {
-    "id": "https-raw-githubusercontent-com-0xradikal-free-v2ray-configs-main-light--c978a30f",
-    "label": "0xRadikal/Free-v2ray-Configs — light/configs.txt",
-    "url": "https://raw.githubusercontent.com/0xRadikal/Free-v2ray-Configs/main/light/configs.txt",
-    "source_type": "static_subscription",
-    "trust": "medium",
-    "status": "trusted",
-    "enabled": true,
-    "tags": [
-      "repository-tree",
-      "auto",
-      "github",
-      "hunter",
-      "trusted",
+      "iran",
+      "mobile-optimized",
+      "iran_fast",
       "ss",
       "trojan",
       "vless",
@@ -188,18 +250,146 @@
       "vless",
       "vmess"
     ],
-    "notes": "Discovered by source-hunter from repository_tree; score=91.9; unique=438; tcp=54/60",
-    "added_at": "2026-06-30",
-    "last_reviewed_at": "2026-06-30"
+    "notes": "Discovered by source-hunter from repository_tree; score=96.9; priority=100; unique=488; tcp=57/60; real=0/0",
+    "hunter_metrics": {
+      "score": 96.9,
+      "unique_items": 488,
+      "duplicate_ratio": 0.0,
+      "tcp_ok_count": 57,
+      "tcp_sample_size": 60,
+      "tcp_success_rate": 0.95,
+      "real_check": {
+        "requested": true,
+        "available": false,
+        "checked": 0,
+        "ok": 0,
+        "success_rate": 0.0,
+        "note": "v2ray_finder.real_validation unavailable: No module named 'v2ray_finder'"
+      }
+    },
+    "added_at": "2026-07-12",
+    "last_reviewed_at": "2026-07-12"
   },
   {
-    "id": "https-raw-githubusercontent-com-hidashimora-free-vpn-anti-rkn-main-confi-f3d77176",
-    "label": "Hidashimora/free-vpn-anti-rkn — configs/15.2.txt",
-    "url": "https://raw.githubusercontent.com/Hidashimora/free-vpn-anti-rkn/main/configs/15.2.txt",
+    "id": "https-raw-githubusercontent-com-thealiiakbarii-ai-vcc-main-configs-tls-t-0ddb251d",
+    "label": "thealiiakbarii-ai/VCC — configs/tls.txt",
+    "url": "https://raw.githubusercontent.com/thealiiakbarii-ai/VCC/main/configs/tls.txt",
     "source_type": "static_subscription",
     "trust": "medium",
     "status": "trusted",
     "enabled": true,
+    "region": "IR",
+    "recommended_regions": [
+      "IR"
+    ],
+    "app_priority": 100,
+    "mobile_profile": "iran_fast",
+    "tags": [
+      "repository-tree",
+      "auto",
+      "github",
+      "hunter",
+      "trusted",
+      "iran",
+      "mobile-optimized",
+      "iran_fast",
+      "trojan",
+      "vless",
+      "vmess"
+    ],
+    "protocols": [
+      "trojan",
+      "vless",
+      "vmess"
+    ],
+    "notes": "Discovered by source-hunter from repository_tree; score=96.7; priority=100; unique=1881; tcp=59/60; real=0/0",
+    "hunter_metrics": {
+      "score": 96.7,
+      "unique_items": 1881,
+      "duplicate_ratio": 0.0,
+      "tcp_ok_count": 59,
+      "tcp_sample_size": 60,
+      "tcp_success_rate": 0.9833,
+      "real_check": {
+        "requested": true,
+        "available": false,
+        "checked": 0,
+        "ok": 0,
+        "success_rate": 0.0,
+        "note": "v2ray_finder.real_validation unavailable: No module named 'v2ray_finder'"
+      }
+    },
+    "added_at": "2026-07-12",
+    "last_reviewed_at": "2026-07-12"
+  },
+  {
+    "id": "https-raw-githubusercontent-com-solispirit-solvpn-main-all-configs-txt-f1112895",
+    "label": "SoliSpirit/SolVPN — all_configs.txt",
+    "url": "https://raw.githubusercontent.com/SoliSpirit/SolVPN/main/all_configs.txt",
+    "source_type": "static_subscription",
+    "trust": "medium",
+    "status": "trusted",
+    "enabled": true,
+    "region": "IR",
+    "recommended_regions": [
+      "IR"
+    ],
+    "app_priority": 100,
+    "mobile_profile": "iran_fast",
+    "tags": [
+      "repository-tree",
+      "auto",
+      "github",
+      "hunter",
+      "trusted",
+      "iran",
+      "mobile-optimized",
+      "iran_fast",
+      "ss",
+      "trojan",
+      "vless",
+      "vmess"
+    ],
+    "protocols": [
+      "ss",
+      "trojan",
+      "vless",
+      "vmess"
+    ],
+    "notes": "Discovered by source-hunter from repository_tree; score=95.0; priority=100; unique=685; tcp=54/60; real=0/0",
+    "hunter_metrics": {
+      "score": 95.0,
+      "unique_items": 685,
+      "duplicate_ratio": 0.0,
+      "tcp_ok_count": 54,
+      "tcp_sample_size": 60,
+      "tcp_success_rate": 0.9,
+      "real_check": {
+        "requested": true,
+        "available": false,
+        "checked": 0,
+        "ok": 0,
+        "success_rate": 0.0,
+        "note": "v2ray_finder.real_validation unavailable: No module named 'v2ray_finder'"
+      }
+    },
+    "added_at": "2026-07-12",
+    "last_reviewed_at": "2026-07-12"
+  },
+  {
+    "id": "https-raw-githubusercontent-com-argh94-v2rayautoconfig-main-configs-indo-25f644b4",
+    "label": "Argh94/V2RayAutoConfig — configs/Indonesia.txt",
+    "url": "https://raw.githubusercontent.com/Argh94/V2RayAutoConfig/main/configs/Indonesia.txt",
+    "source_type": "static_subscription",
+    "trust": "medium",
+    "status": "trusted",
+    "enabled": true,
+    "region": "IR",
+    "recommended_regions": [
+      "IR"
+    ],
+    "app_priority": 100,
+    "mobile_profile": "iran_fast",
     "tags": [
       "repository-tree",
       "auto",
@@ -207,6 +397,9 @@
       "english",
       "hunter",
       "trusted",
+      "iran",
+      "mobile-optimized",
+      "iran_fast",
       "ss",
       "trojan",
       "vless",
@@ -218,131 +411,25 @@
       "vless",
       "vmess"
     ],
-    "notes": "Discovered by source-hunter from repository_tree; score=91.8; unique=452; tcp=53/60",
-    "added_at": "2026-06-30",
-    "last_reviewed_at": "2026-06-30"
-  },
-  {
-    "id": "https-raw-githubusercontent-com-hidashimora-free-vpn-anti-rkn-main-confi-9464d811",
-    "label": "Hidashimora/free-vpn-anti-rkn — configs/14.2.txt",
-    "url": "https://raw.githubusercontent.com/Hidashimora/free-vpn-anti-rkn/main/configs/14.2.txt",
-    "source_type": "static_subscription",
-    "trust": "medium",
-    "status": "trusted",
-    "enabled": true,
-    "tags": [
-      "repository-tree",
-      "auto",
-      "github",
-      "english",
-      "hunter",
-      "trusted",
-      "ss",
-      "trojan",
-      "vless",
-      "vmess"
-    ],
-    "protocols": [
-      "ss",
-      "trojan",
-      "vless",
-      "vmess"
-    ],
-    "notes": "Discovered by source-hunter from repository_tree; score=89.2; unique=1750; tcp=47/60",
-    "added_at": "2026-06-30",
-    "last_reviewed_at": "2026-06-30"
-  },
-  {
-    "id": "https-raw-githubusercontent-com-0xradikal-free-v2ray-configs-main-all-co-0e194bf9",
-    "label": "0xRadikal/Free-v2ray-Configs — all/configs_base64.txt",
-    "url": "https://raw.githubusercontent.com/0xRadikal/Free-v2ray-Configs/main/all/configs_base64.txt",
-    "source_type": "static_subscription",
-    "trust": "medium",
-    "status": "trusted",
-    "enabled": true,
-    "tags": [
-      "repository-tree",
-      "auto",
-      "github",
-      "hunter",
-      "trusted",
-      "ss",
-      "ssr",
-      "trojan",
-      "vless",
-      "vmess"
-    ],
-    "protocols": [
-      "ss",
-      "ssr",
-      "trojan",
-      "vless",
-      "vmess"
-    ],
-    "notes": "Discovered by source-hunter from repository_tree; score=89.0; unique=3196; tcp=78/100",
-    "added_at": "2026-06-30",
-    "last_reviewed_at": "2026-06-30"
-  },
-  {
-    "id": "https-raw-githubusercontent-com-barry-far-v2ray-config-main-all-configs--fb1d5116",
-    "label": "barry-far/V2ray-Config — All_Configs_Sub.txt",
-    "url": "https://raw.githubusercontent.com/barry-far/V2ray-Config/main/All_Configs_Sub.txt",
-    "source_type": "static_subscription",
-    "trust": "medium",
-    "status": "trusted",
-    "enabled": true,
-    "tags": [
-      "repository-tree",
-      "auto",
-      "github",
-      "english",
-      "hunter",
-      "trusted",
-      "ss",
-      "ssr",
-      "trojan",
-      "vless",
-      "vmess"
-    ],
-    "protocols": [
-      "ss",
-      "ssr",
-      "trojan",
-      "vless",
-      "vmess"
-    ],
-    "notes": "Discovered by source-hunter from repository_tree; score=87.5; unique=5956; tcp=75/100",
-    "added_at": "2026-06-30",
-    "last_reviewed_at": "2026-06-30"
-  },
-  {
-    "id": "https-raw-githubusercontent-com-solispirit-v2ray-configs-main-all-config-698c9127",
-    "label": "SoliSpirit/v2ray-configs — all_configs.txt",
-    "url": "https://raw.githubusercontent.com/SoliSpirit/v2ray-configs/main/all_configs.txt",
-    "source_type": "static_subscription",
-    "trust": "medium",
-    "status": "trusted",
-    "enabled": true,
-    "tags": [
-      "repository-tree",
-      "auto",
-      "github",
-      "hunter",
-      "trusted",
-      "ss",
-      "trojan",
-      "vless",
-      "vmess"
-    ],
-    "protocols": [
-      "ss",
-      "trojan",
-      "vless",
-      "vmess"
-    ],
-    "notes": "Discovered by source-hunter from repository_tree; score=84.5; unique=8302; tcp=69/100",
-    "added_at": "2026-06-30",
-    "last_reviewed_at": "2026-06-30"
+    "notes": "Discovered by source-hunter from repository_tree; score=94.2; priority=100; unique=637; tcp=53/60; real=0/0",
+    "hunter_metrics": {
+      "score": 94.2,
+      "unique_items": 637,
+      "duplicate_ratio": 0.0,
+      "tcp_ok_count": 53,
+      "tcp_sample_size": 60,
+      "tcp_success_rate": 0.8833,
+      "real_check": {
+        "requested": true,
+        "available": false,
+        "checked": 0,
+        "ok": 0,
+        "success_rate": 0.0,
+        "note": "v2ray_finder.real_validation unavailable: No module named 'v2ray_finder'"
+      }
+    },
+    "added_at": "2026-07-12",
+    "last_reviewed_at": "2026-07-12"
   },
   {
     "id": "https-raw-githubusercontent-com-shayanthn-v2ray-tester-pro-main-subscrip-8a6da4de",
@@ -352,47 +439,107 @@
     "trust": "medium",
     "status": "trusted",
     "enabled": true,
+    "region": "IR",
+    "recommended_regions": [
+      "IR"
+    ],
+    "app_priority": 97,
+    "mobile_profile": "iran_fast",
     "tags": [
       "repository-tree",
       "auto",
       "github",
       "hunter",
       "trusted",
+      "iran",
+      "mobile-optimized",
+      "iran_fast",
       "ss",
+      "trojan",
       "vless",
       "vmess"
     ],
     "protocols": [
       "ss",
+      "trojan",
       "vless",
       "vmess"
     ],
-    "notes": "Discovered by source-hunter from repository_tree; score=82.5; unique=200; tcp=30/30",
-    "added_at": "2026-06-30",
-    "last_reviewed_at": "2026-06-30"
+    "notes": "Discovered by source-hunter from repository_tree; score=85.0; priority=97; unique=200; tcp=30/30; real=0/0",
+    "hunter_metrics": {
+      "score": 85.0,
+      "unique_items": 200,
+      "duplicate_ratio": 0.0,
+      "tcp_ok_count": 30,
+      "tcp_sample_size": 30,
+      "tcp_success_rate": 1.0,
+      "real_check": {
+        "requested": true,
+        "available": false,
+        "checked": 0,
+        "ok": 0,
+        "success_rate": 0.0,
+        "note": "v2ray_finder.real_validation unavailable: No module named 'v2ray_finder'"
+      }
+    },
+    "added_at": "2026-07-12",
+    "last_reviewed_at": "2026-07-12"
   },
   {
-    "id": "https-raw-githubusercontent-com-ebrasha-free-v2ray-public-list-main-mixe-1e28f714",
-    "label": "ebrasha/free-v2ray-public-list — mixed-protocol-chunks/EbraSha-Mixed-Config-243.txt",
-    "url": "https://raw.githubusercontent.com/ebrasha/free-v2ray-public-list/main/mixed-protocol-chunks/EbraSha-Mixed-Config-243.txt",
+    "id": "https-raw-githubusercontent-com-thealiiakbarii-ai-vcc-main-configs-all-t-f882b89e",
+    "label": "thealiiakbarii-ai/VCC — configs/all.txt",
+    "url": "https://raw.githubusercontent.com/thealiiakbarii-ai/VCC/main/configs/all.txt",
     "source_type": "static_subscription",
     "trust": "medium",
     "status": "trusted",
     "enabled": true,
+    "region": "IR",
+    "recommended_regions": [
+      "IR"
+    ],
+    "app_priority": 96,
+    "mobile_profile": "iran_fast",
     "tags": [
       "repository-tree",
       "auto",
       "github",
       "hunter",
       "trusted",
-      "vless"
+      "iran",
+      "mobile-optimized",
+      "iran_fast",
+      "ss",
+      "ssr",
+      "trojan",
+      "vless",
+      "vmess"
     ],
     "protocols": [
-      "vless"
+      "ss",
+      "ssr",
+      "trojan",
+      "vless",
+      "vmess"
     ],
-    "notes": "Discovered by source-hunter from repository_tree; score=82.5; unique=1015; tcp=48/60",
-    "added_at": "2026-06-30",
-    "last_reviewed_at": "2026-06-30"
+    "notes": "Discovered by source-hunter from repository_tree; score=89.5; priority=96; unique=4585; tcp=79/100; real=0/0",
+    "hunter_metrics": {
+      "score": 89.5,
+      "unique_items": 4585,
+      "duplicate_ratio": 0.0,
+      "tcp_ok_count": 79,
+      "tcp_sample_size": 100,
+      "tcp_success_rate": 0.79,
+      "real_check": {
+        "requested": true,
+        "available": false,
+        "checked": 0,
+        "ok": 0,
+        "success_rate": 0.0,
+        "note": "v2ray_finder.real_validation unavailable: No module named 'v2ray_finder'"
+      }
+    },
+    "added_at": "2026-07-12",
+    "last_reviewed_at": "2026-07-12"
   },
   {
     "id": "https-raw-githubusercontent-com-r3zarahimi-tg-v2ray-configs-every2h-main-ff344783",
@@ -402,12 +549,21 @@
     "trust": "medium",
     "status": "trusted",
     "enabled": true,
+    "region": "IR",
+    "recommended_regions": [
+      "IR"
+    ],
+    "app_priority": 96,
+    "mobile_profile": "iran_fast",
     "tags": [
       "repository-tree",
       "auto",
       "github",
       "hunter",
       "trusted",
+      "iran",
+      "mobile-optimized",
+      "iran_fast",
       "ss",
       "trojan",
       "vless",
@@ -419,24 +575,49 @@
       "vless",
       "vmess"
     ],
-    "notes": "Discovered by source-hunter from repository_tree; score=81.8; unique=269; tcp=26/30",
-    "added_at": "2026-06-30",
-    "last_reviewed_at": "2026-06-30"
+    "notes": "Discovered by source-hunter from repository_tree; score=83.6; priority=96; unique=272; tcp=27/30; real=0/0",
+    "hunter_metrics": {
+      "score": 83.6,
+      "unique_items": 272,
+      "duplicate_ratio": 0.0,
+      "tcp_ok_count": 27,
+      "tcp_sample_size": 30,
+      "tcp_success_rate": 0.9,
+      "real_check": {
+        "requested": true,
+        "available": false,
+        "checked": 0,
+        "ok": 0,
+        "success_rate": 0.0,
+        "note": "v2ray_finder.real_validation unavailable: No module named 'v2ray_finder'"
+      }
+    },
+    "added_at": "2026-07-12",
+    "last_reviewed_at": "2026-07-12"
   },
   {
-    "id": "https-raw-githubusercontent-com-r3zarahimi-tg-v2ray-configs-every2h-main-f69e2d80",
-    "label": "R3ZARAHIMI/tg-v2ray-configs-every2h — Config-jo.yaml",
-    "url": "https://raw.githubusercontent.com/R3ZARAHIMI/tg-v2ray-configs-every2h/main/Config-jo.yaml",
+    "id": "https-raw-githubusercontent-com-0xradikal-free-v2ray-configs-main-all-cl-3df6a1b8",
+    "label": "0xRadikal/Free-v2ray-Configs — all/clash.yaml",
+    "url": "https://raw.githubusercontent.com/0xRadikal/Free-v2ray-Configs/main/all/clash.yaml",
     "source_type": "static_subscription",
     "trust": "medium",
     "status": "trusted",
     "enabled": true,
+    "region": "IR",
+    "recommended_regions": [
+      "IR"
+    ],
+    "app_priority": 94,
+    "mobile_profile": "iran_fast",
     "tags": [
       "repository-tree",
       "auto",
       "github",
       "hunter",
       "trusted",
+      "iran",
+      "mobile-optimized",
+      "iran_fast",
       "ss",
       "trojan",
       "vless",
@@ -448,85 +629,25 @@
       "vless",
       "vmess"
     ],
-    "notes": "Discovered by source-hunter from repository_tree; score=81.4; unique=162; tcp=29/30",
-    "added_at": "2026-06-30",
-    "last_reviewed_at": "2026-06-30"
-  },
-  {
-    "id": "https-raw-githubusercontent-com-hidashimora-free-vpn-anti-rkn-main-confi-0435d3d7",
-    "label": "Hidashimora/free-vpn-anti-rkn — configs/6.2.txt",
-    "url": "https://raw.githubusercontent.com/Hidashimora/free-vpn-anti-rkn/main/configs/6.2.txt",
-    "source_type": "static_subscription",
-    "trust": "medium",
-    "status": "trusted",
-    "enabled": true,
-    "tags": [
-      "repository-tree",
-      "auto",
-      "github",
-      "english",
-      "hunter",
-      "trusted",
-      "ss",
-      "trojan",
-      "vless",
-      "vmess"
-    ],
-    "protocols": [
-      "ss",
-      "trojan",
-      "vless",
-      "vmess"
-    ],
-    "notes": "Discovered by source-hunter from repository_tree; score=81.0; unique=153; tcp=29/30",
-    "added_at": "2026-06-30",
-    "last_reviewed_at": "2026-06-30"
-  },
-  {
-    "id": "https-raw-githubusercontent-com-ebrasha-free-v2ray-public-list-main-mixe-b215d0ad",
-    "label": "ebrasha/free-v2ray-public-list — mixed-protocol-chunks/EbraSha-Mixed-Config-141.txt",
-    "url": "https://raw.githubusercontent.com/ebrasha/free-v2ray-public-list/main/mixed-protocol-chunks/EbraSha-Mixed-Config-141.txt",
-    "source_type": "static_subscription",
-    "trust": "medium",
-    "status": "trusted",
-    "enabled": true,
-    "tags": [
-      "repository-tree",
-      "auto",
-      "github",
-      "hunter",
-      "trusted",
-      "vless"
-    ],
-    "protocols": [
-      "vless"
-    ],
-    "notes": "Discovered by source-hunter from repository_tree; score=80.8; unique=948; tcp=46/60",
-    "added_at": "2026-06-30",
-    "last_reviewed_at": "2026-06-30"
-  },
-  {
-    "id": "https-raw-githubusercontent-com-ebrasha-free-v2ray-public-list-main-mixe-0e9512d7",
-    "label": "ebrasha/free-v2ray-public-list — mixed-protocol-chunks/EbraSha-Mixed-Config-284.txt",
-    "url": "https://raw.githubusercontent.com/ebrasha/free-v2ray-public-list/main/mixed-protocol-chunks/EbraSha-Mixed-Config-284.txt",
-    "source_type": "static_subscription",
-    "trust": "medium",
-    "status": "trusted",
-    "enabled": true,
-    "tags": [
-      "repository-tree",
-      "auto",
-      "github",
-      "hunter",
-      "trusted",
-      "vless"
-    ],
-    "protocols": [
-      "vless"
-    ],
-    "notes": "Discovered by source-hunter from repository_tree; score=78.3; unique=940; tcp=43/60",
-    "added_at": "2026-06-30",
-    "last_reviewed_at": "2026-06-30"
+    "notes": "Discovered by source-hunter from repository_tree; score=87.5; priority=94; unique=1500; tcp=45/60; real=0/0",
+    "hunter_metrics": {
+      "score": 87.5,
+      "unique_items": 1500,
+      "duplicate_ratio": 0.0,
+      "tcp_ok_count": 45,
+      "tcp_sample_size": 60,
+      "tcp_success_rate": 0.75,
+      "real_check": {
+        "requested": true,
+        "available": false,
+        "checked": 0,
+        "ok": 0,
+        "success_rate": 0.0,
+        "note": "v2ray_finder.real_validation unavailable: No module named 'v2ray_finder'"
+      }
+    },
+    "added_at": "2026-07-12",
+    "last_reviewed_at": "2026-07-12"
   },
   {
     "id": "https-raw-githubusercontent-com-r3zarahimi-tg-v2ray-configs-every2h-main-dcbec35c",
@@ -536,12 +657,21 @@
     "trust": "medium",
     "status": "trusted",
     "enabled": true,
+    "region": "IR",
+    "recommended_regions": [
+      "IR"
+    ],
+    "app_priority": 91,
+    "mobile_profile": "iran_fast",
     "tags": [
       "repository-tree",
       "auto",
       "github",
       "hunter",
       "trusted",
+      "iran",
+      "mobile-optimized",
+      "iran_fast",
       "ss",
       "trojan",
       "vless",
@@ -553,18 +683,94 @@
       "vless",
       "vmess"
     ],
-    "notes": "Discovered by source-hunter from repository_tree; score=78.1; unique=162; tcp=27/30",
-    "added_at": "2026-06-30",
-    "last_reviewed_at": "2026-06-30"
+    "notes": "Discovered by source-hunter from repository_tree; score=80.2; priority=91; unique=138; tcp=29/30; real=0/0",
+    "hunter_metrics": {
+      "score": 80.2,
+      "unique_items": 138,
+      "duplicate_ratio": 0.0,
+      "tcp_ok_count": 29,
+      "tcp_sample_size": 30,
+      "tcp_success_rate": 0.9667,
+      "real_check": {
+        "requested": true,
+        "available": false,
+        "checked": 0,
+        "ok": 0,
+        "success_rate": 0.0,
+        "note": "v2ray_finder.real_validation unavailable: No module named 'v2ray_finder'"
+      }
+    },
+    "added_at": "2026-07-12",
+    "last_reviewed_at": "2026-07-12"
   },
   {
-    "id": "https-raw-githubusercontent-com-elanski-proxy-preflight-main-sources-tg--3a4e19d0",
-    "label": "elanski/proxy-preflight — sources_tg/v2rayng_configsss.txt",
-    "url": "https://raw.githubusercontent.com/elanski/proxy-preflight/main/sources_tg/v2rayng_configsss.txt",
+    "id": "https-raw-githubusercontent-com-r3zarahimi-tg-v2ray-configs-every2h-main-f69e2d80",
+    "label": "R3ZARAHIMI/tg-v2ray-configs-every2h — Config-jo.yaml",
+    "url": "https://raw.githubusercontent.com/R3ZARAHIMI/tg-v2ray-configs-every2h/main/Config-jo.yaml",
     "source_type": "static_subscription",
-    "trust": "low",
+    "trust": "medium",
     "status": "trusted",
     "enabled": true,
+    "region": "IR",
+    "recommended_regions": [
+      "IR"
+    ],
+    "app_priority": 90,
+    "mobile_profile": "iran_fast",
+    "tags": [
+      "repository-tree",
+      "auto",
+      "github",
+      "hunter",
+      "trusted",
+      "iran",
+      "mobile-optimized",
+      "iran_fast",
+      "ss",
+      "trojan",
+      "vless",
+      "vmess"
+    ],
+    "protocols": [
+      "ss",
+      "trojan",
+      "vless",
+      "vmess"
+    ],
+    "notes": "Discovered by source-hunter from repository_tree; score=78.6; priority=90; unique=138; tcp=28/30; real=0/0",
+    "hunter_metrics": {
+      "score": 78.6,
+      "unique_items": 138,
+      "duplicate_ratio": 0.0,
+      "tcp_ok_count": 28,
+      "tcp_sample_size": 30,
+      "tcp_success_rate": 0.9333,
+      "real_check": {
+        "requested": true,
+        "available": false,
+        "checked": 0,
+        "ok": 0,
+        "success_rate": 0.0,
+        "note": "v2ray_finder.real_validation unavailable: No module named 'v2ray_finder'"
+      }
+    },
+    "added_at": "2026-07-12",
+    "last_reviewed_at": "2026-07-12"
+  },
+  {
+    "id": "https-raw-githubusercontent-com-hidashimora-free-vpn-anti-rkn-main-confi-de788669",
+    "label": "Hidashimora/free-vpn-anti-rkn — configs/17.2.txt",
+    "url": "https://raw.githubusercontent.com/Hidashimora/free-vpn-anti-rkn/main/configs/17.2.txt",
+    "source_type": "static_subscription",
+    "trust": "medium",
+    "status": "trusted",
+    "enabled": true,
+    "region": "IR",
+    "recommended_regions": [
+      "IR"
+    ],
+    "app_priority": 88,
+    "mobile_profile": "iran_fast",
     "tags": [
       "repository-tree",
       "auto",
@@ -572,6 +778,9 @@
       "english",
       "hunter",
       "trusted",
+      "iran",
+      "mobile-optimized",
+      "iran_fast",
       "ss",
       "trojan",
       "vless",
@@ -583,9 +792,540 @@
       "vless",
       "vmess"
     ],
-    "notes": "Discovered by source-hunter from repository_tree; score=74.5; unique=2474; tcp=49/100",
-    "added_at": "2026-06-30",
-    "last_reviewed_at": "2026-06-30"
+    "notes": "Discovered by source-hunter from repository_tree; score=82.5; priority=88; unique=613; tcp=39/60; real=0/0",
+    "hunter_metrics": {
+      "score": 82.5,
+      "unique_items": 613,
+      "duplicate_ratio": 0.0,
+      "tcp_ok_count": 39,
+      "tcp_sample_size": 60,
+      "tcp_success_rate": 0.65,
+      "real_check": {
+        "requested": true,
+        "available": false,
+        "checked": 0,
+        "ok": 0,
+        "success_rate": 0.0,
+        "note": "v2ray_finder.real_validation unavailable: No module named 'v2ray_finder'"
+      }
+    },
+    "added_at": "2026-07-12",
+    "last_reviewed_at": "2026-07-12"
+  },
+  {
+    "id": "https-raw-githubusercontent-com-solispirit-v2ray-configs-main-all-config-698c9127",
+    "label": "SoliSpirit/v2ray-configs — all_configs.txt",
+    "url": "https://raw.githubusercontent.com/SoliSpirit/v2ray-configs/main/all_configs.txt",
+    "source_type": "static_subscription",
+    "trust": "medium",
+    "status": "trusted",
+    "enabled": true,
+    "region": "IR",
+    "recommended_regions": [
+      "IR"
+    ],
+    "app_priority": 86,
+    "mobile_profile": "iran_fast",
+    "tags": [
+      "repository-tree",
+      "auto",
+      "github",
+      "hunter",
+      "trusted",
+      "iran",
+      "mobile-optimized",
+      "iran_fast",
+      "ss",
+      "trojan",
+      "vless",
+      "vmess"
+    ],
+    "protocols": [
+      "ss",
+      "trojan",
+      "vless",
+      "vmess"
+    ],
+    "notes": "Discovered by source-hunter from repository_tree; score=80.5; priority=86; unique=7947; tcp=61/100; real=0/0",
+    "hunter_metrics": {
+      "score": 80.5,
+      "unique_items": 7947,
+      "duplicate_ratio": 0.0,
+      "tcp_ok_count": 61,
+      "tcp_sample_size": 100,
+      "tcp_success_rate": 0.61,
+      "real_check": {
+        "requested": true,
+        "available": false,
+        "checked": 0,
+        "ok": 0,
+        "success_rate": 0.0,
+        "note": "v2ray_finder.real_validation unavailable: No module named 'v2ray_finder'"
+      }
+    },
+    "added_at": "2026-07-12",
+    "last_reviewed_at": "2026-07-12"
+  },
+  {
+    "id": "https-raw-githubusercontent-com-hidashimora-free-vpn-anti-rkn-main-confi-ceb90248",
+    "label": "Hidashimora/free-vpn-anti-rkn — configs/7.2.txt",
+    "url": "https://raw.githubusercontent.com/Hidashimora/free-vpn-anti-rkn/main/configs/7.2.txt",
+    "source_type": "static_subscription",
+    "trust": "medium",
+    "status": "trusted",
+    "enabled": true,
+    "region": "IR",
+    "recommended_regions": [
+      "IR"
+    ],
+    "app_priority": 83,
+    "mobile_profile": "iran_fast",
+    "tags": [
+      "repository-tree",
+      "auto",
+      "github",
+      "english",
+      "hunter",
+      "trusted",
+      "iran",
+      "mobile-optimized",
+      "iran_fast",
+      "trojan"
+    ],
+    "protocols": [
+      "trojan"
+    ],
+    "notes": "Discovered by source-hunter from repository_tree; score=83.5; priority=83; unique=469; tcp=51/60; real=0/0",
+    "hunter_metrics": {
+      "score": 83.5,
+      "unique_items": 469,
+      "duplicate_ratio": 0.0,
+      "tcp_ok_count": 51,
+      "tcp_sample_size": 60,
+      "tcp_success_rate": 0.85,
+      "real_check": {
+        "requested": true,
+        "available": false,
+        "checked": 0,
+        "ok": 0,
+        "success_rate": 0.0,
+        "note": "v2ray_finder.real_validation unavailable: No module named 'v2ray_finder'"
+      }
+    },
+    "added_at": "2026-07-12",
+    "last_reviewed_at": "2026-07-12"
+  },
+  {
+    "id": "https-raw-githubusercontent-com-hidashimora-free-vpn-anti-rkn-main-confi-1ed27f78",
+    "label": "Hidashimora/free-vpn-anti-rkn — configs/19.1.txt",
+    "url": "https://raw.githubusercontent.com/Hidashimora/free-vpn-anti-rkn/main/configs/19.1.txt",
+    "source_type": "static_subscription",
+    "trust": "medium",
+    "status": "trusted",
+    "enabled": true,
+    "region": "IR",
+    "recommended_regions": [
+      "IR"
+    ],
+    "app_priority": 83,
+    "mobile_profile": "iran_fast",
+    "tags": [
+      "repository-tree",
+      "auto",
+      "github",
+      "english",
+      "hunter",
+      "trusted",
+      "iran",
+      "mobile-optimized",
+      "iran_fast",
+      "ss",
+      "trojan",
+      "vless",
+      "vmess"
+    ],
+    "protocols": [
+      "ss",
+      "trojan",
+      "vless",
+      "vmess"
+    ],
+    "notes": "Discovered by source-hunter from repository_tree; score=78.3; priority=83; unique=517; tcp=34/60; real=0/0",
+    "hunter_metrics": {
+      "score": 78.3,
+      "unique_items": 517,
+      "duplicate_ratio": 0.0,
+      "tcp_ok_count": 34,
+      "tcp_sample_size": 60,
+      "tcp_success_rate": 0.5667,
+      "real_check": {
+        "requested": true,
+        "available": false,
+        "checked": 0,
+        "ok": 0,
+        "success_rate": 0.0,
+        "note": "v2ray_finder.real_validation unavailable: No module named 'v2ray_finder'"
+      }
+    },
+    "added_at": "2026-07-12",
+    "last_reviewed_at": "2026-07-12"
+  },
+  {
+    "id": "https-raw-githubusercontent-com-argh94-v2rayautoconfig-main-configs-shad-9ee9f16a",
+    "label": "Argh94/V2RayAutoConfig — configs/ShadowSocks.txt",
+    "url": "https://raw.githubusercontent.com/Argh94/V2RayAutoConfig/main/configs/ShadowSocks.txt",
+    "source_type": "static_subscription",
+    "trust": "medium",
+    "status": "trusted",
+    "enabled": true,
+    "region": "IR",
+    "recommended_regions": [
+      "IR"
+    ],
+    "app_priority": 80,
+    "mobile_profile": "iran_fast",
+    "tags": [
+      "repository-tree",
+      "auto",
+      "github",
+      "english",
+      "hunter",
+      "trusted",
+      "iran",
+      "mobile-optimized",
+      "iran_fast",
+      "ss",
+      "vless"
+    ],
+    "protocols": [
+      "ss",
+      "vless"
+    ],
+    "notes": "Discovered by source-hunter from repository_tree; score=79.5; priority=80; unique=64273; tcp=69/100; real=0/0",
+    "hunter_metrics": {
+      "score": 79.5,
+      "unique_items": 64273,
+      "duplicate_ratio": 0.0,
+      "tcp_ok_count": 69,
+      "tcp_sample_size": 100,
+      "tcp_success_rate": 0.69,
+      "real_check": {
+        "requested": true,
+        "available": false,
+        "checked": 0,
+        "ok": 0,
+        "success_rate": 0.0,
+        "note": "v2ray_finder.real_validation unavailable: No module named 'v2ray_finder'"
+      }
+    },
+    "added_at": "2026-07-12",
+    "last_reviewed_at": "2026-07-12"
+  },
+  {
+    "id": "https-raw-githubusercontent-com-ebrasha-free-v2ray-public-list-main-mixe-87ba2b14",
+    "label": "ebrasha/free-v2ray-public-list — mixed-protocol-chunks/EbraSha-Mixed-Config-082.txt",
+    "url": "https://raw.githubusercontent.com/ebrasha/free-v2ray-public-list/main/mixed-protocol-chunks/EbraSha-Mixed-Config-082.txt",
+    "source_type": "static_subscription",
+    "trust": "medium",
+    "status": "trusted",
+    "enabled": true,
+    "region": "IR",
+    "recommended_regions": [
+      "IR"
+    ],
+    "app_priority": 79,
+    "mobile_profile": "iran_fast",
+    "tags": [
+      "repository-tree",
+      "auto",
+      "github",
+      "hunter",
+      "trusted",
+      "iran",
+      "mobile-optimized",
+      "iran_fast",
+      "vless"
+    ],
+    "protocols": [
+      "vless"
+    ],
+    "notes": "Discovered by source-hunter from repository_tree; score=80.8; priority=79; unique=1033; tcp=46/60; real=0/0",
+    "hunter_metrics": {
+      "score": 80.8,
+      "unique_items": 1033,
+      "duplicate_ratio": 0.0,
+      "tcp_ok_count": 46,
+      "tcp_sample_size": 60,
+      "tcp_success_rate": 0.7667,
+      "real_check": {
+        "requested": true,
+        "available": false,
+        "checked": 0,
+        "ok": 0,
+        "success_rate": 0.0,
+        "note": "v2ray_finder.real_validation unavailable: No module named 'v2ray_finder'"
+      }
+    },
+    "added_at": "2026-07-12",
+    "last_reviewed_at": "2026-07-12"
+  },
+  {
+    "id": "https-raw-githubusercontent-com-ebrasha-free-v2ray-public-list-main-mixe-a362500d",
+    "label": "ebrasha/free-v2ray-public-list — mixed-protocol-chunks/EbraSha-Mixed-Config-026.txt",
+    "url": "https://raw.githubusercontent.com/ebrasha/free-v2ray-public-list/main/mixed-protocol-chunks/EbraSha-Mixed-Config-026.txt",
+    "source_type": "static_subscription",
+    "trust": "medium",
+    "status": "trusted",
+    "enabled": true,
+    "region": "IR",
+    "recommended_regions": [
+      "IR"
+    ],
+    "app_priority": 78,
+    "mobile_profile": "iran_fast",
+    "tags": [
+      "repository-tree",
+      "auto",
+      "github",
+      "hunter",
+      "trusted",
+      "iran",
+      "mobile-optimized",
+      "iran_fast",
+      "trojan"
+    ],
+    "protocols": [
+      "trojan"
+    ],
+    "notes": "Discovered by source-hunter from repository_tree; score=80.0; priority=78; unique=1000; tcp=45/60; real=0/0",
+    "hunter_metrics": {
+      "score": 80.0,
+      "unique_items": 1000,
+      "duplicate_ratio": 0.0,
+      "tcp_ok_count": 45,
+      "tcp_sample_size": 60,
+      "tcp_success_rate": 0.75,
+      "real_check": {
+        "requested": true,
+        "available": false,
+        "checked": 0,
+        "ok": 0,
+        "success_rate": 0.0,
+        "note": "v2ray_finder.real_validation unavailable: No module named 'v2ray_finder'"
+      }
+    },
+    "added_at": "2026-07-12",
+    "last_reviewed_at": "2026-07-12"
+  },
+  {
+    "id": "https-raw-githubusercontent-com-ebrasha-free-v2ray-public-list-main-mixe-e97ae906",
+    "label": "ebrasha/free-v2ray-public-list — mixed-protocol-chunks/EbraSha-Mixed-Config-072.txt",
+    "url": "https://raw.githubusercontent.com/ebrasha/free-v2ray-public-list/main/mixed-protocol-chunks/EbraSha-Mixed-Config-072.txt",
+    "source_type": "static_subscription",
+    "trust": "medium",
+    "status": "trusted",
+    "enabled": true,
+    "region": "IR",
+    "recommended_regions": [
+      "IR"
+    ],
+    "app_priority": 77,
+    "mobile_profile": "iran_fast",
+    "tags": [
+      "repository-tree",
+      "auto",
+      "github",
+      "hunter",
+      "trusted",
+      "iran",
+      "mobile-optimized",
+      "iran_fast",
+      "vless"
+    ],
+    "protocols": [
+      "vless"
+    ],
+    "notes": "Discovered by source-hunter from repository_tree; score=79.2; priority=77; unique=1021; tcp=44/60; real=0/0",
+    "hunter_metrics": {
+      "score": 79.2,
+      "unique_items": 1021,
+      "duplicate_ratio": 0.0,
+      "tcp_ok_count": 44,
+      "tcp_sample_size": 60,
+      "tcp_success_rate": 0.7333,
+      "real_check": {
+        "requested": true,
+        "available": false,
+        "checked": 0,
+        "ok": 0,
+        "success_rate": 0.0,
+        "note": "v2ray_finder.real_validation unavailable: No module named 'v2ray_finder'"
+      }
+    },
+    "added_at": "2026-07-12",
+    "last_reviewed_at": "2026-07-12"
+  },
+  {
+    "id": "https-raw-githubusercontent-com-firmfox-proxify-main-v2ray-configs-subsc-ee69f7bf",
+    "label": "Firmfox/Proxify — v2ray_configs/subscriptions/subscription-72.txt",
+    "url": "https://raw.githubusercontent.com/Firmfox/Proxify/main/v2ray_configs/subscriptions/subscription-72.txt",
+    "source_type": "static_subscription",
+    "trust": "medium",
+    "status": "trusted",
+    "enabled": true,
+    "region": "IR",
+    "recommended_regions": [
+      "IR"
+    ],
+    "app_priority": 76,
+    "mobile_profile": "iran_fast",
+    "tags": [
+      "repository-tree",
+      "auto",
+      "github",
+      "hunter",
+      "trusted",
+      "iran",
+      "mobile-optimized",
+      "iran_fast",
+      "ss",
+      "trojan",
+      "vless",
+      "vmess"
+    ],
+    "protocols": [
+      "ss",
+      "trojan",
+      "vless",
+      "vmess"
+    ],
+    "notes": "Discovered by source-hunter from repository_tree; score=66.7; priority=76; unique=100; tcp=22/30; real=0/0",
+    "hunter_metrics": {
+      "score": 66.7,
+      "unique_items": 100,
+      "duplicate_ratio": 0.0,
+      "tcp_ok_count": 22,
+      "tcp_sample_size": 30,
+      "tcp_success_rate": 0.7333,
+      "real_check": {
+        "requested": true,
+        "available": false,
+        "checked": 0,
+        "ok": 0,
+        "success_rate": 0.0,
+        "note": "v2ray_finder.real_validation unavailable: No module named 'v2ray_finder'"
+      }
+    },
+    "added_at": "2026-07-12",
+    "last_reviewed_at": "2026-07-12"
+  },
+  {
+    "id": "https-raw-githubusercontent-com-firmfox-proxify-main-v2ray-configs-subsc-f53f82dd",
+    "label": "Firmfox/Proxify — v2ray_configs/subscriptions/subscription-54.txt",
+    "url": "https://raw.githubusercontent.com/Firmfox/Proxify/main/v2ray_configs/subscriptions/subscription-54.txt",
+    "source_type": "static_subscription",
+    "trust": "medium",
+    "status": "trusted",
+    "enabled": true,
+    "region": "IR",
+    "recommended_regions": [
+      "IR"
+    ],
+    "app_priority": 76,
+    "mobile_profile": "iran_fast",
+    "tags": [
+      "repository-tree",
+      "auto",
+      "github",
+      "hunter",
+      "trusted",
+      "iran",
+      "mobile-optimized",
+      "iran_fast",
+      "ss",
+      "trojan",
+      "vless",
+      "vmess"
+    ],
+    "protocols": [
+      "ss",
+      "trojan",
+      "vless",
+      "vmess"
+    ],
+    "notes": "Discovered by source-hunter from repository_tree; score=66.6; priority=76; unique=99; tcp=22/30; real=0/0",
+    "hunter_metrics": {
+      "score": 66.6,
+      "unique_items": 99,
+      "duplicate_ratio": 0.0,
+      "tcp_ok_count": 22,
+      "tcp_sample_size": 30,
+      "tcp_success_rate": 0.7333,
+      "real_check": {
+        "requested": true,
+        "available": false,
+        "checked": 0,
+        "ok": 0,
+        "success_rate": 0.0,
+        "note": "v2ray_finder.real_validation unavailable: No module named 'v2ray_finder'"
+      }
+    },
+    "added_at": "2026-07-12",
+    "last_reviewed_at": "2026-07-12"
+  },
+  {
+    "id": "https-raw-githubusercontent-com-firmfox-proxify-main-v2ray-configs-subsc-c9629370",
+    "label": "Firmfox/Proxify — v2ray_configs/subscriptions/subscription-88.txt",
+    "url": "https://raw.githubusercontent.com/Firmfox/Proxify/main/v2ray_configs/subscriptions/subscription-88.txt",
+    "source_type": "static_subscription",
+    "trust": "medium",
+    "status": "trusted",
+    "enabled": true,
+    "region": "IR",
+    "recommended_regions": [
+      "IR"
+    ],
+    "app_priority": 76,
+    "mobile_profile": "iran_fast",
+    "tags": [
+      "repository-tree",
+      "auto",
+      "github",
+      "hunter",
+      "trusted",
+      "iran",
+      "mobile-optimized",
+      "iran_fast",
+      "ss",
+      "trojan",
+      "vless",
+      "vmess"
+    ],
+    "protocols": [
+      "ss",
+      "trojan",
+      "vless",
+      "vmess"
+    ],
+    "notes": "Discovered by source-hunter from repository_tree; score=66.6; priority=76; unique=99; tcp=22/30; real=0/0",
+    "hunter_metrics": {
+      "score": 66.6,
+      "unique_items": 99,
+      "duplicate_ratio": 0.0,
+      "tcp_ok_count": 22,
+      "tcp_sample_size": 30,
+      "tcp_success_rate": 0.7333,
+      "real_check": {
+        "requested": true,
+        "available": false,
+        "checked": 0,
+        "ok": 0,
+        "success_rate": 0.0,
+        "note": "v2ray_finder.real_validation unavailable: No module named 'v2ray_finder'"
+      }
+    },
+    "added_at": "2026-07-12",
+    "last_reviewed_at": "2026-07-12"
   },
   {
     "id": "https-raw-githubusercontent-com-alirewa-v2ray-configs-main-config-txt-68182c47",
@@ -595,12 +1335,21 @@
     "trust": "low",
     "status": "trusted",
     "enabled": true,
+    "region": "IR",
+    "recommended_regions": [
+      "IR"
+    ],
+    "app_priority": 75,
+    "mobile_profile": "iran_balanced",
     "tags": [
       "repository-tree",
       "auto",
       "github",
       "hunter",
       "trusted",
+      "iran",
+      "mobile-optimized",
+      "iran_balanced",
       "ss",
       "trojan",
       "vless",
@@ -612,9 +1361,25 @@
       "vless",
       "vmess"
     ],
-    "notes": "Discovered by source-hunter from repository_tree; score=68.5; unique=2000; tcp=37/100",
-    "added_at": "2026-06-30",
-    "last_reviewed_at": "2026-06-30"
+    "notes": "Discovered by source-hunter from repository_tree; score=71.0; priority=75; unique=2000; tcp=42/100; real=0/0",
+    "hunter_metrics": {
+      "score": 71.0,
+      "unique_items": 2000,
+      "duplicate_ratio": 0.0,
+      "tcp_ok_count": 42,
+      "tcp_sample_size": 100,
+      "tcp_success_rate": 0.42,
+      "real_check": {
+        "requested": true,
+        "available": false,
+        "checked": 0,
+        "ok": 0,
+        "success_rate": 0.0,
+        "note": "v2ray_finder.real_validation unavailable: No module named 'v2ray_finder'"
+      }
+    },
+    "added_at": "2026-07-12",
+    "last_reviewed_at": "2026-07-12"
   },
   {
     "id": "https-raw-githubusercontent-com-huangyurong123-p-configs-main-clash-prof-973c4ff1",
@@ -624,163 +1389,44 @@
     "trust": "medium",
     "status": "trusted",
     "enabled": true,
+    "region": "IR",
+    "recommended_regions": [
+      "IR"
+    ],
+    "app_priority": 68,
+    "mobile_profile": "iran_balanced",
     "tags": [
       "repository-tree",
       "auto",
       "github",
       "hunter",
       "trusted",
+      "iran",
+      "mobile-optimized",
+      "iran_balanced",
       "vless"
     ],
     "protocols": [
       "vless"
     ],
-    "notes": "Discovered by source-hunter from repository_tree; score=68.0; unique=44; tcp=29/30",
-    "added_at": "2026-06-30",
-    "last_reviewed_at": "2026-06-30"
-  },
-  {
-    "id": "https-raw-githubusercontent-com-firmfox-proxify-main-v2ray-configs-subsc-be9d28e3",
-    "label": "Firmfox/Proxify — v2ray_configs/subscriptions/subscription-6.txt",
-    "url": "https://raw.githubusercontent.com/Firmfox/Proxify/main/v2ray_configs/subscriptions/subscription-6.txt",
-    "source_type": "static_subscription",
-    "trust": "medium",
-    "status": "trusted",
-    "enabled": true,
-    "tags": [
-      "repository-tree",
-      "auto",
-      "github",
-      "hunter",
-      "trusted",
-      "ss",
-      "trojan",
-      "vless",
-      "vmess"
-    ],
-    "protocols": [
-      "ss",
-      "trojan",
-      "vless",
-      "vmess"
-    ],
-    "notes": "Discovered by source-hunter from repository_tree; score=66.6; unique=99; tcp=22/30",
-    "added_at": "2026-06-30",
-    "last_reviewed_at": "2026-06-30"
-  },
-  {
-    "id": "https-raw-githubusercontent-com-firmfox-proxify-main-v2ray-configs-subsc-822f626f",
-    "label": "Firmfox/Proxify — v2ray_configs/subscriptions/subscription-60.txt",
-    "url": "https://raw.githubusercontent.com/Firmfox/Proxify/main/v2ray_configs/subscriptions/subscription-60.txt",
-    "source_type": "static_subscription",
-    "trust": "medium",
-    "status": "trusted",
-    "enabled": true,
-    "tags": [
-      "repository-tree",
-      "auto",
-      "github",
-      "hunter",
-      "trusted",
-      "ss",
-      "trojan",
-      "vless",
-      "vmess"
-    ],
-    "protocols": [
-      "ss",
-      "trojan",
-      "vless",
-      "vmess"
-    ],
-    "notes": "Discovered by source-hunter from repository_tree; score=64.8; unique=97; tcp=21/30",
-    "added_at": "2026-06-30",
-    "last_reviewed_at": "2026-06-30"
-  },
-  {
-    "id": "https-raw-githubusercontent-com-firmfox-proxify-main-v2ray-configs-subsc-886c01e8",
-    "label": "Firmfox/Proxify — v2ray_configs/subscriptions/subscription-84.txt",
-    "url": "https://raw.githubusercontent.com/Firmfox/Proxify/main/v2ray_configs/subscriptions/subscription-84.txt",
-    "source_type": "static_subscription",
-    "trust": "medium",
-    "status": "trusted",
-    "enabled": true,
-    "tags": [
-      "repository-tree",
-      "auto",
-      "github",
-      "hunter",
-      "trusted",
-      "ss",
-      "trojan",
-      "vless",
-      "vmess"
-    ],
-    "protocols": [
-      "ss",
-      "trojan",
-      "vless",
-      "vmess"
-    ],
-    "notes": "Discovered by source-hunter from repository_tree; score=63.3; unique=99; tcp=20/30",
-    "added_at": "2026-06-30",
-    "last_reviewed_at": "2026-06-30"
-  },
-  {
-    "id": "https-raw-githubusercontent-com-elanski-proxy-preflight-main-sources-tg--d537d97c",
-    "label": "elanski/proxy-preflight — sources_tg/HomayounConfigs.txt",
-    "url": "https://raw.githubusercontent.com/elanski/proxy-preflight/main/sources_tg/HomayounConfigs.txt",
-    "source_type": "static_subscription",
-    "trust": "low",
-    "status": "trusted",
-    "enabled": true,
-    "tags": [
-      "repository-tree",
-      "auto",
-      "github",
-      "english",
-      "hunter",
-      "trusted",
-      "ss",
-      "vless",
-      "vmess"
-    ],
-    "protocols": [
-      "ss",
-      "vless",
-      "vmess"
-    ],
-    "notes": "Discovered by source-hunter from repository_tree; score=61.6; unique=366; tcp=25/60",
-    "added_at": "2026-06-30",
-    "last_reviewed_at": "2026-06-30"
-  },
-  {
-    "id": "https-raw-githubusercontent-com-whoahaow-rjsxrd-main-source-config-serve-aa7725ab",
-    "label": "whoahaow/rjsxrd — source/config/servers.txt",
-    "url": "https://raw.githubusercontent.com/whoahaow/rjsxrd/main/source/config/servers.txt",
-    "source_type": "static_subscription",
-    "trust": "medium",
-    "status": "trusted",
-    "enabled": true,
-    "tags": [
-      "repository-tree",
-      "auto",
-      "github",
-      "hunter",
-      "trusted",
-      "ss",
-      "trojan",
-      "vless",
-      "vmess"
-    ],
-    "protocols": [
-      "ss",
-      "trojan",
-      "vless",
-      "vmess"
-    ],
-    "notes": "Discovered by source-hunter from repository_tree; score=60.1; unique=68; tcp=19/30",
-    "added_at": "2026-06-30",
-    "last_reviewed_at": "2026-06-30"
+    "notes": "Discovered by source-hunter from repository_tree; score=65.9; priority=68; unique=35; tcp=28/30; real=0/0",
+    "hunter_metrics": {
+      "score": 65.9,
+      "unique_items": 35,
+      "duplicate_ratio": 0.0,
+      "tcp_ok_count": 28,
+      "tcp_sample_size": 30,
+      "tcp_success_rate": 0.9333,
+      "real_check": {
+        "requested": true,
+        "available": false,
+        "checked": 0,
+        "ok": 0,
+        "success_rate": 0.0,
+        "note": "v2ray_finder.real_validation unavailable: No module named 'v2ray_finder'"
+      }
+    },
+    "added_at": "2026-07-12",
+    "last_reviewed_at": "2026-07-12"
   }
 ]
