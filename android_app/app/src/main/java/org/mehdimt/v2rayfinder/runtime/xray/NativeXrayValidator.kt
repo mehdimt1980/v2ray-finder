@@ -59,7 +59,7 @@ class NativeXrayValidator(
             else -> 0.05
         }
         val confidence = (successRatio * 0.85 + latencyScore).coerceIn(0.0, 1.0)
-        val ok = passed >= 2 && confidence >= 0.50
+        val ok = passed >= 1 && confidence >= 0.40
         return NativeRealValidationResult(
             config = config,
             validationOk = ok,
@@ -82,10 +82,8 @@ class NativeXrayValidator(
 
     companion object {
         val DEFAULT_PROBES: List<ProbeEndpoint> = listOf(
-            ProbeEndpoint("google_204", "https://clients3.google.com/generate_204", 204, 204),
-            ProbeEndpoint("gstatic_204", "https://connectivitycheck.gstatic.com/generate_204", 204, 204),
-            ProbeEndpoint("google_www_204", "https://www.google.com/generate_204", 204, 204),
             ProbeEndpoint("cloudflare_trace", "https://one.one.one.one/cdn-cgi/trace", 200, 399),
+            ProbeEndpoint("google_204", "https://clients3.google.com/generate_204", 204, 204),
         )
     }
 }

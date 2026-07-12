@@ -50,6 +50,8 @@ object SourceRegistryParser {
             protocols = optStringList("protocols").map { it.lowercase() },
             notes = optString("notes", "").trim(),
             region = optString("region", "").trim(),
+            appPriority = optInt("app_priority", 0),
+            mobileProfile = optString("mobile_profile", "").trim(),
             addedAt = optString("added_at", "").trim(),
             lastReviewedAt = optString("last_reviewed_at", "").trim(),
             upstreamUrl = optString("upstream_url", "").trim(),

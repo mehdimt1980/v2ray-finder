@@ -8,8 +8,8 @@ import kotlin.math.roundToLong
 
 /** Runs lightweight HTTP probes through the local xray SOCKS proxy. */
 class HttpProbeRunner(
-    private val connectTimeoutMs: Int = 4_000,
-    private val readTimeoutMs: Int = 4_000,
+    private val connectTimeoutMs: Int = 2_500,
+    private val readTimeoutMs: Int = 2_500,
 ) {
     fun runProbe(endpoint: ProbeEndpoint, socksHost: String, socksPort: Int): ProbeResult {
         val proxy = Proxy(Proxy.Type.SOCKS, InetSocketAddress(socksHost, socksPort))

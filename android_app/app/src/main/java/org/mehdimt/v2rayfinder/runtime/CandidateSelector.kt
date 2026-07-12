@@ -15,7 +15,7 @@ object CandidateSelector {
     ): CandidateSelection {
         val desired = if (userLimit > 0) userLimit else 200
         val candidateBudget = fastCandidateBudget(desired, realValidation)
-        val xrayBudget = if (realValidation) max(24, desired / 2).coerceAtMost(80) else 0
+        val xrayBudget = if (realValidation) max(3, desired / 20).coerceAtMost(8) else 0
         val attribution = buildAttribution(parsed)
         val perSource = parsed.sourceResults
             .filter { it.configs.isNotEmpty() }
@@ -61,9 +61,9 @@ object CandidateSelector {
     }
 
     private fun fastCandidateBudget(desired: Int, realValidation: Boolean): Int {
-        val multiplier = if (realValidation) 2 else 2
-        val floor = if (realValidation) 220 else 260
-        val ceiling = if (realValidation) 420 else 360
+        val multiplier = if (realValidation) 1 else 2
+        val floor = if (realValidation) 80 else 160
+        val ceiling = if (realValidation) 160 else 260
         return max(floor, desired * multiplier).coerceAtMost(ceiling)
     }
 

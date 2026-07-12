@@ -19,6 +19,8 @@ data class SourceRecord(
     val protocols: List<String> = emptyList(),
     val notes: String = "",
     val region: String = "",
+    val appPriority: Int = 0,
+    val mobileProfile: String = "",
     val addedAt: String = "",
     val lastReviewedAt: String = "",
     val upstreamUrl: String = "",
