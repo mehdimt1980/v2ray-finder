@@ -15,7 +15,7 @@ object CandidateSelector {
     ): CandidateSelection {
         val desired = if (userLimit > 0) userLimit else 200
         val candidateBudget = fastCandidateBudget(desired, realValidation)
-        val xrayBudget = if (realValidation) max(3, desired / 20).coerceAtMost(8) else 0
+        val xrayBudget = if (realValidation) max(10, desired / 20).coerceAtMost(8) else 0
         val attribution = buildAttribution(parsed)
         val perSource = parsed.sourceResults
             .filter { it.configs.isNotEmpty() }
