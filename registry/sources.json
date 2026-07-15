@@ -1,8 +1,8 @@
 [
   {
-    "id": "https-raw-githubusercontent-com-huangyurong123-p-configs-main-splitted-b-12bc0150",
-    "label": "HuangYurong123/p-configs — Splitted-By-Protocol-Secure-Base64/vless.txt",
-    "url": "https://raw.githubusercontent.com/HuangYurong123/p-configs/main/Splitted-By-Protocol-Secure-Base64/vless.txt",
+    "id": "https-raw-githubusercontent-com-nyeinkokoaung404-v2ray-configs-main-conf-8c5dfa92",
+    "label": "nyeinkokoaung404/V2ray-Configs — configs/proxy_configs_tested.txt",
+    "url": "https://raw.githubusercontent.com/nyeinkokoaung404/V2ray-Configs/main/configs/proxy_configs_tested.txt",
     "source_type": "static_subscription",
     "trust": "high",
     "status": "trusted",
@@ -12,42 +12,48 @@
       "IR"
     ],
     "app_priority": 100,
-    "mobile_profile": "iran_balanced",
+    "mobile_profile": "iran_fast",
     "tags": [
       "repository-tree",
-      "auto",
+      "seed",
       "github",
       "hunter",
       "trusted",
       "iran",
       "mobile-optimized",
-      "iran_balanced",
-      "vless"
+      "iran_fast",
+      "ss",
+      "trojan",
+      "vless",
+      "vmess"
     ],
     "protocols": [
-      "vless"
+      "ss",
+      "trojan",
+      "vless",
+      "vmess"
     ],
-    "notes": "Discovered by source-hunter from repository_tree; score=84.7; priority=100; unique=43; tcp=30/30; real=30/30",
+    "notes": "Discovered by source-hunter from repository_tree; score=100.0; priority=100; unique=396; tcp=60/60; real=24/30",
     "hunter_metrics": {
-      "score": 84.7,
-      "unique_items": 43,
-      "duplicate_ratio": 0.0,
-      "tcp_ok_count": 30,
-      "tcp_sample_size": 30,
+      "score": 100.0,
+      "unique_items": 396,
+      "duplicate_ratio": 0.152,
+      "tcp_ok_count": 60,
+      "tcp_sample_size": 60,
       "tcp_success_rate": 1.0,
       "real_check": {
         "requested": true,
         "available": true,
         "checked": 30,
-        "ok": 30,
-        "success_rate": 1.0,
+        "ok": 24,
+        "success_rate": 0.8,
         "validation_location": "github_actions_eu",
-        "validated_config_count": 30,
+        "validated_config_count": 24,
         "note": "real validation completed via v2ray_finder.xray_connectivity"
       },
       "freshness": {
         "score_adjustment": 15.0,
-        "config_churn_rate": 0.9067,
+        "config_churn_rate": 0.4392,
         "history_available": true,
         "reasons": [
           "fresh config churn",
@@ -56,34 +62,124 @@
         ]
       },
       "history": {
-        "times_seen": 5,
+        "times_seen": 6,
         "failure_streak": 0,
-        "avg_tcp_success_rate": 0.96,
-        "avg_real_success_rate": 0.8266,
-        "last_config_churn_rate": 0.9067
+        "avg_tcp_success_rate": 0.9944,
+        "avg_real_success_rate": 0.75,
+        "last_config_churn_rate": 0.4392
       },
       "export_score": 100.0,
       "export_score_parts": {
-        "hunter_score": 25.41,
+        "hunter_score": 30.0,
         "tcp_success": 24.0,
-        "real_success": 22.0,
-        "historical_real": 6.6128,
-        "historical_tcp": 4.8,
-        "config_volume": 1.4333,
-        "protocol_diversity": 2.0,
+        "real_success": 17.6,
+        "historical_real": 6.0,
+        "historical_tcp": 4.972,
+        "config_volume": 10.0,
+        "protocol_diversity": 8.0,
         "freshness": 8.0,
-        "churn": 3.0,
-        "dedupe_quality": 5.0,
-        "normalized_duplicate_penalty": -0.0
+        "churn": 2.6352,
+        "dedupe_quality": 4.24,
+        "normalized_duplicate_penalty": -2.84
       }
     },
     "added_at": "2026-07-15",
     "last_reviewed_at": "2026-07-15"
   },
   {
-    "id": "https-raw-githubusercontent-com-nyeinkokoaung404-v2ray-configs-main-conf-8c5dfa92",
-    "label": "nyeinkokoaung404/V2ray-Configs — configs/proxy_configs_tested.txt",
-    "url": "https://raw.githubusercontent.com/nyeinkokoaung404/V2ray-Configs/main/configs/proxy_configs_tested.txt",
+    "id": "https-gh-proxy-org-https-raw-githubusercontent-com-cbusifabcap-daily-fre-9d0f3ccd",
+    "label": "Telegram public channel daily_free_vpn → gh-proxy.org/https://raw.githubusercontent.com/cbusifabcap/daily_free_vpn/ref...",
+    "url": "https://raw.githubusercontent.com/mehdimt1980/v2ray-source-hunter/main/registry/generated/telegram/https-gh-proxy-org-https-raw-githubusercontent-com-cbusifabcap-daily-fre-9d0f3ccd.txt",
+    "source_type": "static_subscription",
+    "trust": "high",
+    "status": "trusted",
+    "enabled": true,
+    "region": "IR",
+    "recommended_regions": [
+      "IR"
+    ],
+    "app_priority": 100,
+    "mobile_profile": "iran_fast",
+    "tags": [
+      "telegram",
+      "discovered-link",
+      "auto",
+      "generated-feed",
+      "materialized",
+      "hunter",
+      "trusted",
+      "iran",
+      "mobile-optimized",
+      "iran_fast",
+      "ss",
+      "trojan",
+      "vless",
+      "vmess"
+    ],
+    "protocols": [
+      "ss",
+      "trojan",
+      "vless",
+      "vmess"
+    ],
+    "notes": "Discovered by source-hunter from telegram_discovered_link; score=100.0; priority=100; unique=1579; tcp=59/60; real=22/30; materialized from Telegram HTML",
+    "hunter_metrics": {
+      "score": 100.0,
+      "unique_items": 1579,
+      "duplicate_ratio": 0.1915,
+      "tcp_ok_count": 59,
+      "tcp_sample_size": 60,
+      "tcp_success_rate": 0.9833,
+      "real_check": {
+        "requested": true,
+        "available": true,
+        "checked": 30,
+        "ok": 22,
+        "success_rate": 0.7333,
+        "validation_location": "github_actions_eu",
+        "validated_config_count": 22,
+        "note": "real validation completed via v2ray_finder.xray_connectivity"
+      },
+      "freshness": {
+        "score_adjustment": 15.0,
+        "config_churn_rate": 0.9995,
+        "history_available": true,
+        "reasons": [
+          "fresh config churn",
+          "strong historical real validation",
+          "strong historical TCP"
+        ]
+      },
+      "history": {
+        "times_seen": 6,
+        "failure_streak": 0,
+        "avg_tcp_success_rate": 0.9944,
+        "avg_real_success_rate": 0.7445,
+        "last_config_churn_rate": 0.9995
+      },
+      "export_score": 100.0,
+      "export_score_parts": {
+        "hunter_score": 30.0,
+        "tcp_success": 23.5992,
+        "real_success": 16.1326,
+        "historical_real": 5.956,
+        "historical_tcp": 4.972,
+        "config_volume": 10.0,
+        "protocol_diversity": 8.0,
+        "freshness": 8.0,
+        "churn": 3.0,
+        "dedupe_quality": 4.0425,
+        "normalized_duplicate_penalty": -4.0
+      }
+    },
+    "added_at": "2026-07-15",
+    "last_reviewed_at": "2026-07-15",
+    "upstream_url": "https://gh-proxy.org/https://raw.githubusercontent.com/cbusifabcap/daily_free_vpn/refs/heads/main/sub/ClashMeta.yml"
+  },
+  {
+    "id": "https-raw-githubusercontent-com-solispirit-solvpn-main-all-configs-txt-f1112895",
+    "label": "SoliSpirit/SolVPN — all_configs.txt",
+    "url": "https://raw.githubusercontent.com/SoliSpirit/SolVPN/main/all_configs.txt",
     "source_type": "static_subscription",
     "trust": "high",
     "status": "trusted",
@@ -114,54 +210,54 @@
       "vless",
       "vmess"
     ],
-    "notes": "Discovered by source-hunter from repository_tree; score=100.0; priority=100; unique=400; tcp=60/60; real=24/30",
+    "notes": "Discovered by source-hunter from repository_tree; score=100.0; priority=100; unique=726; tcp=51/60; real=21/30",
     "hunter_metrics": {
       "score": 100.0,
-      "unique_items": 400,
-      "duplicate_ratio": 0.1489,
-      "tcp_ok_count": 60,
+      "unique_items": 726,
+      "duplicate_ratio": 0.0787,
+      "tcp_ok_count": 51,
       "tcp_sample_size": 60,
-      "tcp_success_rate": 1.0,
+      "tcp_success_rate": 0.85,
       "real_check": {
         "requested": true,
         "available": true,
         "checked": 30,
-        "ok": 24,
-        "success_rate": 0.8,
+        "ok": 21,
+        "success_rate": 0.7,
         "validation_location": "github_actions_eu",
-        "validated_config_count": 24,
+        "validated_config_count": 21,
         "note": "real validation completed via v2ray_finder.xray_connectivity"
       },
       "freshness": {
-        "score_adjustment": 15.0,
-        "config_churn_rate": 0.3705,
+        "score_adjustment": 12.0,
+        "config_churn_rate": 0.0867,
         "history_available": true,
         "reasons": [
-          "fresh config churn",
+          "moderate config churn",
           "strong historical real validation",
           "strong historical TCP"
         ]
       },
       "history": {
-        "times_seen": 5,
+        "times_seen": 7,
         "failure_streak": 0,
-        "avg_tcp_success_rate": 0.9933,
-        "avg_real_success_rate": 0.74,
-        "last_config_churn_rate": 0.3705
+        "avg_tcp_success_rate": 0.8453,
+        "avg_real_success_rate": 0.6524,
+        "last_config_churn_rate": 0.0867
       },
       "export_score": 100.0,
       "export_score_parts": {
         "hunter_score": 30.0,
-        "tcp_success": 24.0,
-        "real_success": 17.6,
-        "historical_real": 5.92,
-        "historical_tcp": 4.9665,
+        "tcp_success": 20.4,
+        "real_success": 15.4,
+        "historical_real": 5.2192,
+        "historical_tcp": 4.2265,
         "config_volume": 10.0,
         "protocol_diversity": 8.0,
         "freshness": 8.0,
-        "churn": 2.223,
-        "dedupe_quality": 4.2555,
-        "normalized_duplicate_penalty": -2.8
+        "churn": 0.5202,
+        "dedupe_quality": 4.6065,
+        "normalized_duplicate_penalty": -2.48
       }
     },
     "added_at": "2026-07-15",
@@ -201,14 +297,270 @@
       "vless",
       "vmess"
     ],
-    "notes": "Discovered by source-hunter from repository_tree; score=100.0; priority=100; unique=610; tcp=58/60; real=24/30",
+    "notes": "Discovered by source-hunter from repository_tree; score=100.0; priority=100; unique=793; tcp=55/60; real=17/30",
     "hunter_metrics": {
       "score": 100.0,
-      "unique_items": 610,
-      "duplicate_ratio": 0.4883,
-      "tcp_ok_count": 58,
+      "unique_items": 793,
+      "duplicate_ratio": 0.5567,
+      "tcp_ok_count": 55,
       "tcp_sample_size": 60,
-      "tcp_success_rate": 0.9667,
+      "tcp_success_rate": 0.9167,
+      "real_check": {
+        "requested": true,
+        "available": true,
+        "checked": 30,
+        "ok": 17,
+        "success_rate": 0.5667,
+        "validation_location": "github_actions_eu",
+        "validated_config_count": 17,
+        "note": "real validation completed via v2ray_finder.xray_connectivity"
+      },
+      "freshness": {
+        "score_adjustment": 15.0,
+        "config_churn_rate": 0.5727,
+        "history_available": true,
+        "reasons": [
+          "fresh config churn",
+          "strong historical real validation",
+          "strong historical TCP"
+        ]
+      },
+      "history": {
+        "times_seen": 6,
+        "failure_streak": 0,
+        "avg_tcp_success_rate": 0.9611,
+        "avg_real_success_rate": 0.7611,
+        "last_config_churn_rate": 0.5727
+      },
+      "export_score": 100.0,
+      "export_score_parts": {
+        "hunter_score": 30.0,
+        "tcp_success": 22.0008,
+        "real_success": 12.4674,
+        "historical_real": 6.0888,
+        "historical_tcp": 4.8055,
+        "config_volume": 10.0,
+        "protocol_diversity": 8.0,
+        "freshness": 8.0,
+        "churn": 3.0,
+        "dedupe_quality": 2.2165,
+        "normalized_duplicate_penalty": -4.0
+      }
+    },
+    "added_at": "2026-07-15",
+    "last_reviewed_at": "2026-07-15"
+  },
+  {
+    "id": "https-raw-githubusercontent-com-shayanthn-v2ray-tester-pro-main-subscrip-b21f81cb",
+    "label": "Shayanthn/V2ray-Tester-Pro — subscriptions/subscription.txt",
+    "url": "https://raw.githubusercontent.com/Shayanthn/V2ray-Tester-Pro/main/subscriptions/subscription.txt",
+    "source_type": "static_subscription",
+    "trust": "high",
+    "status": "trusted",
+    "enabled": true,
+    "region": "IR",
+    "recommended_regions": [
+      "IR"
+    ],
+    "app_priority": 100,
+    "mobile_profile": "iran_fast",
+    "tags": [
+      "repository-tree",
+      "auto",
+      "github",
+      "hunter",
+      "trusted",
+      "iran",
+      "mobile-optimized",
+      "iran_fast",
+      "ss",
+      "trojan",
+      "vless",
+      "vmess"
+    ],
+    "protocols": [
+      "ss",
+      "trojan",
+      "vless",
+      "vmess"
+    ],
+    "notes": "Discovered by source-hunter from repository_tree; score=94.8; priority=100; unique=95; tcp=30/30; real=15/30",
+    "hunter_metrics": {
+      "score": 94.8,
+      "unique_items": 95,
+      "duplicate_ratio": 0.0,
+      "tcp_ok_count": 30,
+      "tcp_sample_size": 30,
+      "tcp_success_rate": 1.0,
+      "real_check": {
+        "requested": true,
+        "available": true,
+        "checked": 30,
+        "ok": 15,
+        "success_rate": 0.5,
+        "validation_location": "github_actions_eu",
+        "validated_config_count": 15,
+        "note": "real validation completed via v2ray_finder.xray_connectivity"
+      },
+      "freshness": {
+        "score_adjustment": 15.0,
+        "config_churn_rate": 0.7765,
+        "history_available": true,
+        "reasons": [
+          "fresh config churn",
+          "strong historical real validation",
+          "strong historical TCP"
+        ]
+      },
+      "history": {
+        "times_seen": 7,
+        "failure_streak": 0,
+        "avg_tcp_success_rate": 0.9857,
+        "avg_real_success_rate": 0.6524,
+        "last_config_churn_rate": 0.7765
+      },
+      "export_score": 100.0,
+      "export_score_parts": {
+        "hunter_score": 28.44,
+        "tcp_success": 24.0,
+        "real_success": 11.0,
+        "historical_real": 5.2192,
+        "historical_tcp": 4.9285,
+        "config_volume": 3.1667,
+        "protocol_diversity": 8.0,
+        "freshness": 8.0,
+        "churn": 3.0,
+        "dedupe_quality": 5.0,
+        "normalized_duplicate_penalty": -0.0
+      }
+    },
+    "added_at": "2026-07-15",
+    "last_reviewed_at": "2026-07-15"
+  },
+  {
+    "id": "https-raw-githubusercontent-com-0xradikal-free-v2ray-configs-main-light--c4fc9d3a",
+    "label": "0xRadikal/Free-v2ray-Configs — light/clash.yaml",
+    "url": "https://raw.githubusercontent.com/0xRadikal/Free-v2ray-Configs/main/light/clash.yaml",
+    "source_type": "static_subscription",
+    "trust": "medium",
+    "status": "trusted",
+    "enabled": true,
+    "region": "IR",
+    "recommended_regions": [
+      "IR"
+    ],
+    "app_priority": 100,
+    "mobile_profile": "iran_fast",
+    "tags": [
+      "repository-tree",
+      "auto",
+      "github",
+      "hunter",
+      "trusted",
+      "iran",
+      "mobile-optimized",
+      "iran_fast",
+      "ss",
+      "trojan",
+      "vless",
+      "vmess"
+    ],
+    "protocols": [
+      "ss",
+      "trojan",
+      "vless",
+      "vmess"
+    ],
+    "notes": "Discovered by source-hunter from repository_tree; score=100.0; priority=100; unique=523; tcp=54/60; real=14/30",
+    "hunter_metrics": {
+      "score": 100.0,
+      "unique_items": 523,
+      "duplicate_ratio": 0.1685,
+      "tcp_ok_count": 54,
+      "tcp_sample_size": 60,
+      "tcp_success_rate": 0.9,
+      "real_check": {
+        "requested": true,
+        "available": true,
+        "checked": 30,
+        "ok": 14,
+        "success_rate": 0.4667,
+        "validation_location": "github_actions_eu",
+        "validated_config_count": 14,
+        "note": "real validation completed via v2ray_finder.xray_connectivity"
+      },
+      "freshness": {
+        "score_adjustment": 15.0,
+        "config_churn_rate": 1.0,
+        "history_available": true,
+        "reasons": [
+          "fresh config churn",
+          "strong historical real validation",
+          "strong historical TCP"
+        ]
+      },
+      "history": {
+        "times_seen": 7,
+        "failure_streak": 0,
+        "avg_tcp_success_rate": 0.9381,
+        "avg_real_success_rate": 0.5143,
+        "last_config_churn_rate": 1.0
+      },
+      "export_score": 99.8298,
+      "export_score_parts": {
+        "hunter_score": 30.0,
+        "tcp_success": 21.6,
+        "real_success": 10.2674,
+        "historical_real": 4.1144,
+        "historical_tcp": 4.6905,
+        "config_volume": 10.0,
+        "protocol_diversity": 8.0,
+        "freshness": 8.0,
+        "churn": 3.0,
+        "dedupe_quality": 4.1575,
+        "normalized_duplicate_penalty": -4.0
+      }
+    },
+    "added_at": "2026-07-15",
+    "last_reviewed_at": "2026-07-15"
+  },
+  {
+    "id": "https-raw-githubusercontent-com-hidashimora-free-vpn-anti-rkn-main-confi-62a3eff2",
+    "label": "Hidashimora/free-vpn-anti-rkn — configs/23.2.txt",
+    "url": "https://raw.githubusercontent.com/Hidashimora/free-vpn-anti-rkn/main/configs/23.2.txt",
+    "source_type": "static_subscription",
+    "trust": "high",
+    "status": "trusted",
+    "enabled": true,
+    "region": "IR",
+    "recommended_regions": [
+      "IR"
+    ],
+    "app_priority": 99,
+    "mobile_profile": "iran_fast",
+    "tags": [
+      "repository-tree",
+      "auto",
+      "github",
+      "english",
+      "hunter",
+      "trusted",
+      "iran",
+      "mobile-optimized",
+      "iran_fast",
+      "vless"
+    ],
+    "protocols": [
+      "vless"
+    ],
+    "notes": "Discovered by source-hunter from repository_tree; score=86.0; priority=99; unique=270; tcp=30/30; real=24/30",
+    "hunter_metrics": {
+      "score": 86.0,
+      "unique_items": 270,
+      "duplicate_ratio": 0.1318,
+      "tcp_ok_count": 30,
+      "tcp_sample_size": 30,
+      "tcp_success_rate": 1.0,
       "real_check": {
         "requested": true,
         "available": true,
@@ -220,34 +572,286 @@
         "note": "real validation completed via v2ray_finder.xray_connectivity"
       },
       "freshness": {
-        "score_adjustment": 9.0,
-        "config_churn_rate": 0.0049,
+        "score_adjustment": 7.0,
+        "config_churn_rate": 0.9909,
         "history_available": true,
         "reasons": [
-          "small config churn",
-          "strong historical real validation",
+          "fresh config churn",
+          "weak historical real validation",
           "strong historical TCP"
         ]
       },
       "history": {
-        "times_seen": 5,
+        "times_seen": 2,
         "failure_streak": 0,
-        "avg_tcp_success_rate": 0.97,
-        "avg_real_success_rate": 0.8,
-        "last_config_churn_rate": 0.0049
+        "avg_tcp_success_rate": 0.9334,
+        "avg_real_success_rate": 0.45,
+        "last_config_churn_rate": 0.9909
       },
-      "export_score": 100.0,
+      "export_score": 99.368,
       "export_score_parts": {
-        "hunter_score": 30.0,
-        "tcp_success": 23.2008,
+        "hunter_score": 25.8,
+        "tcp_success": 24.0,
         "real_success": 17.6,
-        "historical_real": 6.4,
-        "historical_tcp": 4.85,
+        "historical_real": 3.6,
+        "historical_tcp": 4.667,
+        "config_volume": 9.0,
+        "protocol_diversity": 2.0,
+        "freshness": 7.0,
+        "churn": 3.0,
+        "dedupe_quality": 4.341,
+        "normalized_duplicate_penalty": -1.64
+      }
+    },
+    "added_at": "2026-07-15",
+    "last_reviewed_at": "2026-07-15"
+  },
+  {
+    "id": "https-raw-githubusercontent-com-r3zarahimi-tg-v2ray-configs-every2h-main-ff344783",
+    "label": "R3ZARAHIMI/tg-v2ray-configs-every2h — Original-Configs.txt",
+    "url": "https://raw.githubusercontent.com/R3ZARAHIMI/tg-v2ray-configs-every2h/main/Original-Configs.txt",
+    "source_type": "static_subscription",
+    "trust": "medium",
+    "status": "trusted",
+    "enabled": true,
+    "region": "IR",
+    "recommended_regions": [
+      "IR"
+    ],
+    "app_priority": 99,
+    "mobile_profile": "iran_fast",
+    "tags": [
+      "repository-tree",
+      "auto",
+      "github",
+      "hunter",
+      "trusted",
+      "iran",
+      "mobile-optimized",
+      "iran_fast",
+      "ss",
+      "trojan",
+      "vless",
+      "vmess"
+    ],
+    "protocols": [
+      "ss",
+      "trojan",
+      "vless",
+      "vmess"
+    ],
+    "notes": "Discovered by source-hunter from repository_tree; score=96.2; priority=99; unique=263; tcp=29/30; real=12/30",
+    "hunter_metrics": {
+      "score": 96.2,
+      "unique_items": 263,
+      "duplicate_ratio": 0.0836,
+      "tcp_ok_count": 29,
+      "tcp_sample_size": 30,
+      "tcp_success_rate": 0.9667,
+      "real_check": {
+        "requested": true,
+        "available": true,
+        "checked": 30,
+        "ok": 12,
+        "success_rate": 0.4,
+        "validation_location": "github_actions_eu",
+        "validated_config_count": 12,
+        "note": "real validation completed via v2ray_finder.xray_connectivity"
+      },
+      "freshness": {
+        "score_adjustment": 11.0,
+        "config_churn_rate": 0.6929,
+        "history_available": true,
+        "reasons": [
+          "fresh config churn",
+          "strong historical TCP"
+        ]
+      },
+      "history": {
+        "times_seen": 7,
+        "failure_streak": 0,
+        "avg_tcp_success_rate": 0.8905,
+        "avg_real_success_rate": 0.3048,
+        "last_config_churn_rate": 0.6929
+      },
+      "export_score": 99.1404,
+      "export_score_parts": {
+        "hunter_score": 28.86,
+        "tcp_success": 23.2008,
+        "real_success": 8.8,
+        "historical_real": 2.4384,
+        "historical_tcp": 4.4525,
+        "config_volume": 8.7667,
+        "protocol_diversity": 8.0,
+        "freshness": 8.0,
+        "churn": 3.0,
+        "dedupe_quality": 4.582,
+        "normalized_duplicate_penalty": -0.96
+      }
+    },
+    "added_at": "2026-07-15",
+    "last_reviewed_at": "2026-07-15"
+  },
+  {
+    "id": "https-raw-githubusercontent-com-0xradikal-free-v2ray-configs-main-protoc-ee50a613",
+    "label": "0xRadikal/Free-v2ray-Configs — protocols/trojan_base64.txt",
+    "url": "https://raw.githubusercontent.com/0xRadikal/Free-v2ray-Configs/main/protocols/trojan_base64.txt",
+    "source_type": "static_subscription",
+    "trust": "medium",
+    "status": "trusted",
+    "enabled": true,
+    "region": "IR",
+    "recommended_regions": [
+      "IR"
+    ],
+    "app_priority": 96,
+    "mobile_profile": "iran_fast",
+    "tags": [
+      "repository-tree",
+      "auto",
+      "github",
+      "hunter",
+      "trusted",
+      "iran",
+      "mobile-optimized",
+      "iran_fast",
+      "trojan"
+    ],
+    "protocols": [
+      "trojan"
+    ],
+    "notes": "Discovered by source-hunter from repository_tree; score=98.3; priority=96; unique=531; tcp=54/60; real=14/30",
+    "hunter_metrics": {
+      "score": 98.3,
+      "unique_items": 531,
+      "duplicate_ratio": 0.013,
+      "tcp_ok_count": 54,
+      "tcp_sample_size": 60,
+      "tcp_success_rate": 0.9,
+      "real_check": {
+        "requested": true,
+        "available": true,
+        "checked": 30,
+        "ok": 14,
+        "success_rate": 0.4667,
+        "validation_location": "github_actions_eu",
+        "validated_config_count": 14,
+        "note": "real validation completed via v2ray_finder.xray_connectivity"
+      },
+      "freshness": {
+        "score_adjustment": 11.0,
+        "config_churn_rate": 0.6242,
+        "history_available": true,
+        "reasons": [
+          "fresh config churn",
+          "strong historical TCP"
+        ]
+      },
+      "history": {
+        "times_seen": 7,
+        "failure_streak": 0,
+        "avg_tcp_success_rate": 0.8285,
+        "avg_real_success_rate": 0.3333,
+        "last_config_churn_rate": 0.6242
+      },
+      "export_score": 95.8213,
+      "export_score_parts": {
+        "hunter_score": 29.49,
+        "tcp_success": 21.6,
+        "real_success": 10.2674,
+        "historical_real": 2.6664,
+        "historical_tcp": 4.1425,
+        "config_volume": 10.0,
+        "protocol_diversity": 2.0,
+        "freshness": 8.0,
+        "churn": 3.0,
+        "dedupe_quality": 4.935,
+        "normalized_duplicate_penalty": -0.28
+      }
+    },
+    "added_at": "2026-07-15",
+    "last_reviewed_at": "2026-07-15"
+  },
+  {
+    "id": "https-raw-githubusercontent-com-0xradikal-free-v2ray-configs-main-all-cl-3df6a1b8",
+    "label": "0xRadikal/Free-v2ray-Configs — all/clash.yaml",
+    "url": "https://raw.githubusercontent.com/0xRadikal/Free-v2ray-Configs/main/all/clash.yaml",
+    "source_type": "static_subscription",
+    "trust": "medium",
+    "status": "trusted",
+    "enabled": true,
+    "region": "IR",
+    "recommended_regions": [
+      "IR"
+    ],
+    "app_priority": 94,
+    "mobile_profile": "iran_fast",
+    "tags": [
+      "repository-tree",
+      "auto",
+      "github",
+      "hunter",
+      "trusted",
+      "iran",
+      "mobile-optimized",
+      "iran_fast",
+      "ss",
+      "trojan",
+      "vless",
+      "vmess"
+    ],
+    "protocols": [
+      "ss",
+      "trojan",
+      "vless",
+      "vmess"
+    ],
+    "notes": "Discovered by source-hunter from repository_tree; score=97.2; priority=94; unique=1284; tcp=46/60; real=14/30",
+    "hunter_metrics": {
+      "score": 97.2,
+      "unique_items": 1284,
+      "duplicate_ratio": 0.144,
+      "tcp_ok_count": 46,
+      "tcp_sample_size": 60,
+      "tcp_success_rate": 0.7667,
+      "real_check": {
+        "requested": true,
+        "available": true,
+        "checked": 30,
+        "ok": 14,
+        "success_rate": 0.4667,
+        "validation_location": "github_actions_eu",
+        "validated_config_count": 14,
+        "note": "real validation completed via v2ray_finder.xray_connectivity"
+      },
+      "freshness": {
+        "score_adjustment": 11.0,
+        "config_churn_rate": 1.0,
+        "history_available": true,
+        "reasons": [
+          "fresh config churn",
+          "strong historical TCP"
+        ]
+      },
+      "history": {
+        "times_seen": 7,
+        "failure_streak": 0,
+        "avg_tcp_success_rate": 0.7262,
+        "avg_real_success_rate": 0.4382,
+        "last_config_churn_rate": 1.0
+      },
+      "export_score": 94.2448,
+      "export_score_parts": {
+        "hunter_score": 29.16,
+        "tcp_success": 18.4008,
+        "real_success": 10.2674,
+        "historical_real": 3.5056,
+        "historical_tcp": 3.631,
         "config_volume": 10.0,
         "protocol_diversity": 8.0,
         "freshness": 8.0,
-        "churn": 0.0294,
-        "dedupe_quality": 2.5585,
+        "churn": 3.0,
+        "dedupe_quality": 4.28,
         "normalized_duplicate_penalty": -4.0
       }
     },
@@ -255,9 +859,95 @@
     "last_reviewed_at": "2026-07-15"
   },
   {
-    "id": "https-raw-githubusercontent-com-hidashimora-free-vpn-anti-rkn-main-confi-13f98624",
-    "label": "Hidashimora/free-vpn-anti-rkn — configs/6.1.txt",
-    "url": "https://raw.githubusercontent.com/Hidashimora/free-vpn-anti-rkn/main/configs/6.1.txt",
+    "id": "https-raw-githubusercontent-com-0xradikal-free-v2ray-configs-main-heavy--21f2b92b",
+    "label": "0xRadikal/Free-v2ray-Configs — heavy/clash.yaml",
+    "url": "https://raw.githubusercontent.com/0xRadikal/Free-v2ray-Configs/main/heavy/clash.yaml",
+    "source_type": "static_subscription",
+    "trust": "medium",
+    "status": "trusted",
+    "enabled": true,
+    "region": "IR",
+    "recommended_regions": [
+      "IR"
+    ],
+    "app_priority": 92,
+    "mobile_profile": "iran_fast",
+    "tags": [
+      "repository-tree",
+      "auto",
+      "github",
+      "hunter",
+      "trusted",
+      "iran",
+      "mobile-optimized",
+      "iran_fast",
+      "ss",
+      "trojan",
+      "vless",
+      "vmess"
+    ],
+    "protocols": [
+      "ss",
+      "trojan",
+      "vless",
+      "vmess"
+    ],
+    "notes": "Discovered by source-hunter from repository_tree; score=95.6; priority=92; unique=1380; tcp=43/60; real=13/30",
+    "hunter_metrics": {
+      "score": 95.6,
+      "unique_items": 1380,
+      "duplicate_ratio": 0.08,
+      "tcp_ok_count": 43,
+      "tcp_sample_size": 60,
+      "tcp_success_rate": 0.7167,
+      "real_check": {
+        "requested": true,
+        "available": true,
+        "checked": 30,
+        "ok": 13,
+        "success_rate": 0.4333,
+        "validation_location": "github_actions_eu",
+        "validated_config_count": 13,
+        "note": "real validation completed via v2ray_finder.xray_connectivity"
+      },
+      "freshness": {
+        "score_adjustment": 11.0,
+        "config_churn_rate": 0.999,
+        "history_available": true,
+        "reasons": [
+          "fresh config churn",
+          "strong historical TCP"
+        ]
+      },
+      "history": {
+        "times_seen": 7,
+        "failure_streak": 0,
+        "avg_tcp_success_rate": 0.7096,
+        "avg_real_success_rate": 0.4476,
+        "last_config_churn_rate": 0.999
+      },
+      "export_score": 92.1422,
+      "export_score_parts": {
+        "hunter_score": 28.68,
+        "tcp_success": 17.2008,
+        "real_success": 9.5326,
+        "historical_real": 3.5808,
+        "historical_tcp": 3.548,
+        "config_volume": 10.0,
+        "protocol_diversity": 8.0,
+        "freshness": 8.0,
+        "churn": 3.0,
+        "dedupe_quality": 4.6,
+        "normalized_duplicate_penalty": -4.0
+      }
+    },
+    "added_at": "2026-07-15",
+    "last_reviewed_at": "2026-07-15"
+  },
+  {
+    "id": "https-raw-githubusercontent-com-shayanthn-v2ray-tester-pro-main-subscrip-8a6da4de",
+    "label": "Shayanthn/V2ray-Tester-Pro — subscriptions/clash.yaml",
+    "url": "https://raw.githubusercontent.com/Shayanthn/V2ray-Tester-Pro/main/subscriptions/clash.yaml",
     "source_type": "static_subscription",
     "trust": "high",
     "status": "trusted",
@@ -266,7 +956,264 @@
     "recommended_regions": [
       "IR"
     ],
-    "app_priority": 100,
+    "app_priority": 91,
+    "mobile_profile": "iran_fast",
+    "tags": [
+      "repository-tree",
+      "auto",
+      "github",
+      "hunter",
+      "trusted",
+      "iran",
+      "mobile-optimized",
+      "iran_fast",
+      "ss",
+      "trojan",
+      "vless",
+      "vmess"
+    ],
+    "protocols": [
+      "ss",
+      "trojan",
+      "vless",
+      "vmess"
+    ],
+    "notes": "Discovered by source-hunter from repository_tree; score=85.2; priority=91; unique=95; tcp=29/30; real=15/30",
+    "hunter_metrics": {
+      "score": 85.2,
+      "unique_items": 95,
+      "duplicate_ratio": 0.525,
+      "tcp_ok_count": 29,
+      "tcp_sample_size": 30,
+      "tcp_success_rate": 0.9667,
+      "real_check": {
+        "requested": true,
+        "available": true,
+        "checked": 30,
+        "ok": 15,
+        "success_rate": 0.5,
+        "validation_location": "github_actions_eu",
+        "validated_config_count": 15,
+        "note": "real validation completed via v2ray_finder.xray_connectivity"
+      },
+      "freshness": {
+        "score_adjustment": 15.0,
+        "config_churn_rate": 1.0,
+        "history_available": true,
+        "reasons": [
+          "fresh config churn",
+          "strong historical real validation",
+          "strong historical TCP"
+        ]
+      },
+      "history": {
+        "times_seen": 7,
+        "failure_streak": 0,
+        "avg_tcp_success_rate": 0.981,
+        "avg_real_success_rate": 0.6619,
+        "last_config_churn_rate": 1.0
+      },
+      "export_score": 90.5027,
+      "export_score_parts": {
+        "hunter_score": 25.56,
+        "tcp_success": 23.2008,
+        "real_success": 11.0,
+        "historical_real": 5.2952,
+        "historical_tcp": 4.905,
+        "config_volume": 3.1667,
+        "protocol_diversity": 8.0,
+        "freshness": 8.0,
+        "churn": 3.0,
+        "dedupe_quality": 2.375,
+        "normalized_duplicate_penalty": -4.0
+      }
+    },
+    "added_at": "2026-07-15",
+    "last_reviewed_at": "2026-07-15"
+  },
+  {
+    "id": "https-raw-githubusercontent-com-nima-monajjemy-v2ray-configs-main-config-ed0575fe",
+    "label": "Nima-Monajjemy/v2ray-configs — configs.txt",
+    "url": "https://raw.githubusercontent.com/Nima-Monajjemy/v2ray-configs/main/configs.txt",
+    "source_type": "static_subscription",
+    "trust": "high",
+    "status": "trusted",
+    "enabled": true,
+    "region": "IR",
+    "recommended_regions": [
+      "IR"
+    ],
+    "app_priority": 90,
+    "mobile_profile": "iran_fast",
+    "tags": [
+      "repository-tree",
+      "auto",
+      "github",
+      "english",
+      "hunter",
+      "trusted",
+      "iran",
+      "mobile-optimized",
+      "iran_fast",
+      "ss",
+      "vless",
+      "vmess"
+    ],
+    "protocols": [
+      "ss",
+      "vless",
+      "vmess"
+    ],
+    "notes": "Discovered by source-hunter from repository_tree; score=75.7; priority=90; unique=234; tcp=30/30; real=26/30",
+    "hunter_metrics": {
+      "score": 75.7,
+      "unique_items": 234,
+      "duplicate_ratio": 0.6321,
+      "tcp_ok_count": 30,
+      "tcp_sample_size": 30,
+      "tcp_success_rate": 1.0,
+      "real_check": {
+        "requested": true,
+        "available": true,
+        "checked": 30,
+        "ok": 26,
+        "success_rate": 0.8667,
+        "validation_location": "github_actions_eu",
+        "validated_config_count": 26,
+        "note": "real validation completed via v2ray_finder.xray_connectivity"
+      },
+      "freshness": {
+        "score_adjustment": 1.0,
+        "config_churn_rate": null,
+        "history_available": false,
+        "reasons": [
+          "new source"
+        ]
+      },
+      "history": {
+        "times_seen": 1,
+        "failure_streak": 0,
+        "avg_tcp_success_rate": 1.0,
+        "avg_real_success_rate": 0.8667,
+        "last_config_churn_rate": 1.0
+      },
+      "export_score": 90.3505,
+      "export_score_parts": {
+        "hunter_score": 22.71,
+        "tcp_success": 24.0,
+        "real_success": 19.0674,
+        "historical_real": 6.9336,
+        "historical_tcp": 5.0,
+        "config_volume": 7.8,
+        "protocol_diversity": 6.0,
+        "freshness": 1.0,
+        "churn": 0.0,
+        "dedupe_quality": 1.8395,
+        "normalized_duplicate_penalty": -4.0
+      }
+    },
+    "added_at": "2026-07-15",
+    "last_reviewed_at": "2026-07-15"
+  },
+  {
+    "id": "https-raw-githubusercontent-com-r3zarahimi-tg-v2ray-configs-every2h-main-f69e2d80",
+    "label": "R3ZARAHIMI/tg-v2ray-configs-every2h — Config-jo.yaml",
+    "url": "https://raw.githubusercontent.com/R3ZARAHIMI/tg-v2ray-configs-every2h/main/Config-jo.yaml",
+    "source_type": "static_subscription",
+    "trust": "medium",
+    "status": "trusted",
+    "enabled": true,
+    "region": "IR",
+    "recommended_regions": [
+      "IR"
+    ],
+    "app_priority": 90,
+    "mobile_profile": "iran_fast",
+    "tags": [
+      "repository-tree",
+      "auto",
+      "github",
+      "hunter",
+      "trusted",
+      "iran",
+      "mobile-optimized",
+      "iran_fast",
+      "ss",
+      "trojan",
+      "vless",
+      "vmess"
+    ],
+    "protocols": [
+      "ss",
+      "trojan",
+      "vless",
+      "vmess"
+    ],
+    "notes": "Discovered by source-hunter from repository_tree; score=83.6; priority=90; unique=145; tcp=25/30; real=12/30",
+    "hunter_metrics": {
+      "score": 83.6,
+      "unique_items": 145,
+      "duplicate_ratio": 0.0881,
+      "tcp_ok_count": 25,
+      "tcp_sample_size": 30,
+      "tcp_success_rate": 0.8333,
+      "real_check": {
+        "requested": true,
+        "available": true,
+        "checked": 30,
+        "ok": 12,
+        "success_rate": 0.4,
+        "validation_location": "github_actions_eu",
+        "validated_config_count": 12,
+        "note": "real validation completed via v2ray_finder.xray_connectivity"
+      },
+      "freshness": {
+        "score_adjustment": 11.0,
+        "config_churn_rate": 0.9783,
+        "history_available": true,
+        "reasons": [
+          "fresh config churn",
+          "strong historical TCP"
+        ]
+      },
+      "history": {
+        "times_seen": 7,
+        "failure_streak": 0,
+        "avg_tcp_success_rate": 0.8762,
+        "avg_real_success_rate": 0.4477,
+        "last_config_churn_rate": 0.9783
+      },
+      "export_score": 89.6746,
+      "export_score_parts": {
+        "hunter_score": 25.08,
+        "tcp_success": 19.9992,
+        "real_success": 8.8,
+        "historical_real": 3.5816,
+        "historical_tcp": 4.381,
+        "config_volume": 4.8333,
+        "protocol_diversity": 8.0,
+        "freshness": 8.0,
+        "churn": 3.0,
+        "dedupe_quality": 4.5595,
+        "normalized_duplicate_penalty": -0.56
+      }
+    },
+    "added_at": "2026-07-15",
+    "last_reviewed_at": "2026-07-15"
+  },
+  {
+    "id": "https-raw-githubusercontent-com-barry-far-v2ray-config-main-all-configs--eec66568",
+    "label": "barry-far/V2ray-Config — All_Configs_base64_Sub.txt",
+    "url": "https://raw.githubusercontent.com/barry-far/V2ray-Config/main/All_Configs_base64_Sub.txt",
+    "source_type": "static_subscription",
+    "trust": "medium",
+    "status": "trusted",
+    "enabled": true,
+    "region": "IR",
+    "recommended_regions": [
+      "IR"
+    ],
+    "app_priority": 89,
     "mobile_profile": "iran_fast",
     "tags": [
       "repository-tree",
@@ -289,240 +1236,62 @@
       "vless",
       "vmess"
     ],
-    "notes": "Discovered by source-hunter from repository_tree; score=88.0; priority=100; unique=131; tcp=25/30; real=24/30",
+    "notes": "Discovered by source-hunter from repository_tree; score=95.2; priority=89; unique=3507; tcp=80/100; real=10/30",
     "hunter_metrics": {
-      "score": 88.0,
-      "unique_items": 131,
-      "duplicate_ratio": 0.015,
-      "tcp_ok_count": 25,
-      "tcp_sample_size": 30,
-      "tcp_success_rate": 0.8333,
+      "score": 95.2,
+      "unique_items": 3507,
+      "duplicate_ratio": 0.3886,
+      "tcp_ok_count": 80,
+      "tcp_sample_size": 100,
+      "tcp_success_rate": 0.8,
       "real_check": {
         "requested": true,
         "available": true,
         "checked": 30,
-        "ok": 24,
-        "success_rate": 0.8,
+        "ok": 10,
+        "success_rate": 0.3333,
         "validation_location": "github_actions_eu",
-        "validated_config_count": 24,
+        "validated_config_count": 10,
         "note": "real validation completed via v2ray_finder.xray_connectivity"
       },
       "freshness": {
-        "score_adjustment": 15.0,
-        "config_churn_rate": 0.3228,
+        "score_adjustment": 11.0,
+        "config_churn_rate": 0.4604,
         "history_available": true,
         "reasons": [
           "fresh config churn",
-          "strong historical real validation",
-          "strong historical TCP"
-        ]
-      },
-      "history": {
-        "times_seen": 2,
-        "failure_streak": 0,
-        "avg_tcp_success_rate": 0.8833,
-        "avg_real_success_rate": 0.85,
-        "last_config_churn_rate": 0.3228
-      },
-      "export_score": 100.0,
-      "export_score_parts": {
-        "hunter_score": 26.4,
-        "tcp_success": 19.9992,
-        "real_success": 17.6,
-        "historical_real": 6.8,
-        "historical_tcp": 4.4165,
-        "config_volume": 4.3667,
-        "protocol_diversity": 8.0,
-        "freshness": 8.0,
-        "churn": 1.9368,
-        "dedupe_quality": 4.925,
-        "normalized_duplicate_penalty": -0.08
-      }
-    },
-    "added_at": "2026-07-15",
-    "last_reviewed_at": "2026-07-15"
-  },
-  {
-    "id": "https-raw-githubusercontent-com-solispirit-solvpn-main-all-configs-txt-f1112895",
-    "label": "SoliSpirit/SolVPN — all_configs.txt",
-    "url": "https://raw.githubusercontent.com/SoliSpirit/SolVPN/main/all_configs.txt",
-    "source_type": "static_subscription",
-    "trust": "high",
-    "status": "trusted",
-    "enabled": true,
-    "region": "IR",
-    "recommended_regions": [
-      "IR"
-    ],
-    "app_priority": 100,
-    "mobile_profile": "iran_fast",
-    "tags": [
-      "repository-tree",
-      "auto",
-      "github",
-      "hunter",
-      "trusted",
-      "iran",
-      "mobile-optimized",
-      "iran_fast",
-      "ss",
-      "trojan",
-      "vless",
-      "vmess"
-    ],
-    "protocols": [
-      "ss",
-      "trojan",
-      "vless",
-      "vmess"
-    ],
-    "notes": "Discovered by source-hunter from repository_tree; score=100.0; priority=100; unique=665; tcp=54/60; real=20/30",
-    "hunter_metrics": {
-      "score": 100.0,
-      "unique_items": 665,
-      "duplicate_ratio": 0.0802,
-      "tcp_ok_count": 54,
-      "tcp_sample_size": 60,
-      "tcp_success_rate": 0.9,
-      "real_check": {
-        "requested": true,
-        "available": true,
-        "checked": 30,
-        "ok": 20,
-        "success_rate": 0.6667,
-        "validation_location": "github_actions_eu",
-        "validated_config_count": 20,
-        "note": "real validation completed via v2ray_finder.xray_connectivity"
-      },
-      "freshness": {
-        "score_adjustment": 9.0,
-        "config_churn_rate": 0.0105,
-        "history_available": true,
-        "reasons": [
-          "small config churn",
-          "strong historical real validation",
           "strong historical TCP"
         ]
       },
       "history": {
         "times_seen": 6,
         "failure_streak": 0,
-        "avg_tcp_success_rate": 0.8445,
-        "avg_real_success_rate": 0.6445,
-        "last_config_churn_rate": 0.0105
+        "avg_tcp_success_rate": 0.7133,
+        "avg_real_success_rate": 0.3389,
+        "last_config_churn_rate": 0.4604
       },
-      "export_score": 100.0,
+      "export_score": 89.1897,
       "export_score_parts": {
-        "hunter_score": 30.0,
-        "tcp_success": 21.6,
-        "real_success": 14.6674,
-        "historical_real": 5.156,
-        "historical_tcp": 4.2225,
+        "hunter_score": 28.56,
+        "tcp_success": 19.2,
+        "real_success": 7.3326,
+        "historical_real": 2.7112,
+        "historical_tcp": 3.5665,
         "config_volume": 10.0,
         "protocol_diversity": 8.0,
         "freshness": 8.0,
-        "churn": 0.063,
-        "dedupe_quality": 4.599,
-        "normalized_duplicate_penalty": -2.32
-      }
-    },
-    "added_at": "2026-07-15",
-    "last_reviewed_at": "2026-07-15"
-  },
-  {
-    "id": "https-gh-proxy-org-https-raw-githubusercontent-com-cbusifabcap-daily-fre-9d0f3ccd",
-    "label": "Telegram public channel daily_free_vpn → gh-proxy.org/https://raw.githubusercontent.com/cbusifabcap/daily_free_vpn/ref...",
-    "url": "https://raw.githubusercontent.com/mehdimt1980/v2ray-source-hunter/main/registry/generated/telegram/https-gh-proxy-org-https-raw-githubusercontent-com-cbusifabcap-daily-fre-9d0f3ccd.txt",
-    "source_type": "static_subscription",
-    "trust": "high",
-    "status": "trusted",
-    "enabled": true,
-    "region": "IR",
-    "recommended_regions": [
-      "IR"
-    ],
-    "app_priority": 98,
-    "mobile_profile": "iran_fast",
-    "tags": [
-      "telegram",
-      "discovered-link",
-      "auto",
-      "generated-feed",
-      "materialized",
-      "hunter",
-      "trusted",
-      "iran",
-      "mobile-optimized",
-      "iran_fast",
-      "ss",
-      "trojan",
-      "vless",
-      "vmess"
-    ],
-    "protocols": [
-      "ss",
-      "trojan",
-      "vless",
-      "vmess"
-    ],
-    "notes": "Discovered by source-hunter from telegram_discovered_link; score=97.3; priority=98; unique=1899; tcp=60/60; real=22/30; materialized from Telegram HTML",
-    "hunter_metrics": {
-      "score": 97.3,
-      "unique_items": 1899,
-      "duplicate_ratio": 0.179,
-      "tcp_ok_count": 60,
-      "tcp_sample_size": 60,
-      "tcp_success_rate": 1.0,
-      "real_check": {
-        "requested": true,
-        "available": true,
-        "checked": 30,
-        "ok": 22,
-        "success_rate": 0.7333,
-        "validation_location": "github_actions_eu",
-        "validated_config_count": 22,
-        "note": "real validation completed via v2ray_finder.xray_connectivity"
-      },
-      "freshness": {
-        "score_adjustment": 0.0,
-        "config_churn_rate": 0.0,
-        "history_available": true,
-        "reasons": [
-          "stale unchanged configs",
-          "strong historical real validation",
-          "strong historical TCP"
-        ]
-      },
-      "history": {
-        "times_seen": 5,
-        "failure_streak": 0,
-        "avg_tcp_success_rate": 0.9966,
-        "avg_real_success_rate": 0.7467,
-        "last_config_churn_rate": 0.0
-      },
-      "export_score": 98.3842,
-      "export_score_parts": {
-        "hunter_score": 29.19,
-        "tcp_success": 24.0,
-        "real_success": 16.1326,
-        "historical_real": 5.9736,
-        "historical_tcp": 4.983,
-        "config_volume": 10.0,
-        "protocol_diversity": 8.0,
-        "freshness": 0.0,
-        "churn": 0.0,
-        "dedupe_quality": 4.105,
+        "churn": 2.7624,
+        "dedupe_quality": 3.057,
         "normalized_duplicate_penalty": -4.0
       }
     },
     "added_at": "2026-07-15",
-    "last_reviewed_at": "2026-07-15",
-    "upstream_url": "https://gh-proxy.org/https://raw.githubusercontent.com/cbusifabcap/daily_free_vpn/refs/heads/main/sub/ClashMeta.yml"
+    "last_reviewed_at": "2026-07-15"
   },
   {
-    "id": "https-raw-githubusercontent-com-r3zarahimi-tg-v2ray-configs-every2h-main-dcbec35c",
-    "label": "R3ZARAHIMI/tg-v2ray-configs-every2h — Config_jo.txt",
-    "url": "https://raw.githubusercontent.com/R3ZARAHIMI/tg-v2ray-configs-every2h/main/Config_jo.txt",
+    "id": "https-raw-githubusercontent-com-solispirit-v2ray-configs-main-subscripti-4be5f91a",
+    "label": "SoliSpirit/v2ray-configs — Subscriptions/Sub7.txt",
+    "url": "https://raw.githubusercontent.com/SoliSpirit/v2ray-configs/main/Subscriptions/Sub7.txt",
     "source_type": "static_subscription",
     "trust": "medium",
     "status": "trusted",
@@ -531,7 +1300,7 @@
     "recommended_regions": [
       "IR"
     ],
-    "app_priority": 98,
+    "app_priority": 88,
     "mobile_profile": "iran_fast",
     "tags": [
       "repository-tree",
@@ -553,182 +1322,14 @@
       "vless",
       "vmess"
     ],
-    "notes": "Discovered by source-hunter from repository_tree; score=94.3; priority=98; unique=146; tcp=29/30; real=14/30",
+    "notes": "Discovered by source-hunter from repository_tree; score=83.6; priority=88; unique=189; tcp=23/30; real=11/30",
     "hunter_metrics": {
-      "score": 94.3,
-      "unique_items": 146,
-      "duplicate_ratio": 0.0875,
-      "tcp_ok_count": 29,
-      "tcp_sample_size": 30,
-      "tcp_success_rate": 0.9667,
-      "real_check": {
-        "requested": true,
-        "available": true,
-        "checked": 30,
-        "ok": 14,
-        "success_rate": 0.4667,
-        "validation_location": "github_actions_eu",
-        "validated_config_count": 14,
-        "note": "real validation completed via v2ray_finder.xray_connectivity"
-      },
-      "freshness": {
-        "score_adjustment": 15.0,
-        "config_churn_rate": 0.56,
-        "history_available": true,
-        "reasons": [
-          "fresh config churn",
-          "strong historical real validation",
-          "strong historical TCP"
-        ]
-      },
-      "history": {
-        "times_seen": 6,
-        "failure_streak": 0,
-        "avg_tcp_success_rate": 0.8666,
-        "avg_real_success_rate": 0.5111,
-        "last_config_churn_rate": 0.56
-      },
-      "export_score": 98.0492,
-      "export_score_parts": {
-        "hunter_score": 28.29,
-        "tcp_success": 23.2008,
-        "real_success": 10.2674,
-        "historical_real": 4.0888,
-        "historical_tcp": 4.333,
-        "config_volume": 4.8667,
-        "protocol_diversity": 8.0,
-        "freshness": 8.0,
-        "churn": 3.0,
-        "dedupe_quality": 4.5625,
-        "normalized_duplicate_penalty": -0.56
-      }
-    },
-    "added_at": "2026-07-15",
-    "last_reviewed_at": "2026-07-15"
-  },
-  {
-    "id": "https-raw-githubusercontent-com-huangyurong123-p-configs-main-splitted-b-bb6fd8f6",
-    "label": "HuangYurong123/p-configs — Splitted-By-Protocol/vless.txt",
-    "url": "https://raw.githubusercontent.com/HuangYurong123/p-configs/main/Splitted-By-Protocol/vless.txt",
-    "source_type": "static_subscription",
-    "trust": "high",
-    "status": "trusted",
-    "enabled": true,
-    "region": "IR",
-    "recommended_regions": [
-      "IR"
-    ],
-    "app_priority": 98,
-    "mobile_profile": "iran_balanced",
-    "tags": [
-      "repository-tree",
-      "auto",
-      "github",
-      "hunter",
-      "trusted",
-      "iran",
-      "mobile-optimized",
-      "iran_balanced",
-      "vless"
-    ],
-    "protocols": [
-      "vless"
-    ],
-    "notes": "Discovered by source-hunter from repository_tree; score=84.3; priority=98; unique=70; tcp=29/30; real=25/30",
-    "hunter_metrics": {
-      "score": 84.3,
-      "unique_items": 70,
-      "duplicate_ratio": 0.0,
-      "tcp_ok_count": 29,
-      "tcp_sample_size": 30,
-      "tcp_success_rate": 0.9667,
-      "real_check": {
-        "requested": true,
-        "available": true,
-        "checked": 30,
-        "ok": 25,
-        "success_rate": 0.8333,
-        "validation_location": "github_actions_eu",
-        "validated_config_count": 25,
-        "note": "real validation completed via v2ray_finder.xray_connectivity"
-      },
-      "freshness": {
-        "score_adjustment": 15.0,
-        "config_churn_rate": 0.8994,
-        "history_available": true,
-        "reasons": [
-          "fresh config churn",
-          "strong historical real validation",
-          "strong historical TCP"
-        ]
-      },
-      "history": {
-        "times_seen": 6,
-        "failure_streak": 0,
-        "avg_tcp_success_rate": 0.9667,
-        "avg_real_success_rate": 0.7,
-        "last_config_churn_rate": 0.8994
-      },
-      "export_score": 97.5902,
-      "export_score_parts": {
-        "hunter_score": 25.29,
-        "tcp_success": 23.2008,
-        "real_success": 18.3326,
-        "historical_real": 5.6,
-        "historical_tcp": 4.8335,
-        "config_volume": 2.3333,
-        "protocol_diversity": 2.0,
-        "freshness": 8.0,
-        "churn": 3.0,
-        "dedupe_quality": 5.0,
-        "normalized_duplicate_penalty": -0.0
-      }
-    },
-    "added_at": "2026-07-15",
-    "last_reviewed_at": "2026-07-15"
-  },
-  {
-    "id": "https-raw-githubusercontent-com-solispirit-v2ray-configs-main-subscripti-c1255916",
-    "label": "SoliSpirit/v2ray-configs — Subscriptions/Sub6.txt",
-    "url": "https://raw.githubusercontent.com/SoliSpirit/v2ray-configs/main/Subscriptions/Sub6.txt",
-    "source_type": "static_subscription",
-    "trust": "medium",
-    "status": "trusted",
-    "enabled": true,
-    "region": "IR",
-    "recommended_regions": [
-      "IR"
-    ],
-    "app_priority": 97,
-    "mobile_profile": "iran_fast",
-    "tags": [
-      "repository-tree",
-      "auto",
-      "github",
-      "hunter",
-      "trusted",
-      "iran",
-      "mobile-optimized",
-      "iran_fast",
-      "ss",
-      "trojan",
-      "vless",
-      "vmess"
-    ],
-    "protocols": [
-      "ss",
-      "trojan",
-      "vless",
-      "vmess"
-    ],
-    "notes": "Discovered by source-hunter from repository_tree; score=95.1; priority=97; unique=189; tcp=30/30; real=11/30",
-    "hunter_metrics": {
-      "score": 95.1,
+      "score": 83.6,
       "unique_items": 189,
-      "duplicate_ratio": 0.0207,
-      "tcp_ok_count": 30,
+      "duplicate_ratio": 0.0156,
+      "tcp_ok_count": 23,
       "tcp_sample_size": 30,
-      "tcp_success_rate": 1.0,
+      "tcp_success_rate": 0.7667,
       "real_check": {
         "requested": true,
         "available": true,
@@ -752,203 +1353,31 @@
         "times_seen": 4,
         "failure_streak": 0,
         "avg_tcp_success_rate": 0.75,
-        "avg_real_success_rate": 0.3667,
+        "avg_real_success_rate": 0.325,
         "last_config_churn_rate": 1.0
       },
-      "export_score": 97.3175,
+      "export_score": 88.0002,
       "export_score_parts": {
-        "hunter_score": 28.53,
-        "tcp_success": 24.0,
+        "hunter_score": 25.08,
+        "tcp_success": 18.4008,
         "real_success": 8.0674,
-        "historical_real": 2.9336,
+        "historical_real": 2.6,
         "historical_tcp": 3.75,
         "config_volume": 6.3,
         "protocol_diversity": 8.0,
         "freshness": 8.0,
         "churn": 3.0,
-        "dedupe_quality": 4.8965,
-        "normalized_duplicate_penalty": -0.16
+        "dedupe_quality": 4.922,
+        "normalized_duplicate_penalty": -0.12
       }
     },
     "added_at": "2026-07-15",
     "last_reviewed_at": "2026-07-15"
   },
   {
-    "id": "https-raw-githubusercontent-com-r3zarahimi-tg-v2ray-configs-every2h-main-f69e2d80",
-    "label": "R3ZARAHIMI/tg-v2ray-configs-every2h — Config-jo.yaml",
-    "url": "https://raw.githubusercontent.com/R3ZARAHIMI/tg-v2ray-configs-every2h/main/Config-jo.yaml",
-    "source_type": "static_subscription",
-    "trust": "high",
-    "status": "trusted",
-    "enabled": true,
-    "region": "IR",
-    "recommended_regions": [
-      "IR"
-    ],
-    "app_priority": 97,
-    "mobile_profile": "iran_fast",
-    "tags": [
-      "repository-tree",
-      "auto",
-      "github",
-      "hunter",
-      "trusted",
-      "iran",
-      "mobile-optimized",
-      "iran_fast",
-      "ss",
-      "trojan",
-      "vless",
-      "vmess"
-    ],
-    "protocols": [
-      "ss",
-      "trojan",
-      "vless",
-      "vmess"
-    ],
-    "notes": "Discovered by source-hunter from repository_tree; score=89.2; priority=97; unique=138; tcp=29/30; real=16/30",
-    "hunter_metrics": {
-      "score": 89.2,
-      "unique_items": 138,
-      "duplicate_ratio": 0.1375,
-      "tcp_ok_count": 29,
-      "tcp_sample_size": 30,
-      "tcp_success_rate": 0.9667,
-      "real_check": {
-        "requested": true,
-        "available": true,
-        "checked": 30,
-        "ok": 16,
-        "success_rate": 0.5333,
-        "validation_location": "github_actions_eu",
-        "validated_config_count": 16,
-        "note": "real validation completed via v2ray_finder.xray_connectivity"
-      },
-      "freshness": {
-        "score_adjustment": 11.0,
-        "config_churn_rate": 0.9699,
-        "history_available": true,
-        "reasons": [
-          "fresh config churn",
-          "strong historical TCP"
-        ]
-      },
-      "history": {
-        "times_seen": 6,
-        "failure_streak": 0,
-        "avg_tcp_success_rate": 0.8834,
-        "avg_real_success_rate": 0.4556,
-        "last_config_churn_rate": 0.9699
-      },
-      "export_score": 96.7877,
-      "export_score_parts": {
-        "hunter_score": 26.76,
-        "tcp_success": 23.2008,
-        "real_success": 11.7326,
-        "historical_real": 3.6448,
-        "historical_tcp": 4.417,
-        "config_volume": 4.6,
-        "protocol_diversity": 8.0,
-        "freshness": 8.0,
-        "churn": 3.0,
-        "dedupe_quality": 4.3125,
-        "normalized_duplicate_penalty": -0.88
-      }
-    },
-    "added_at": "2026-07-15",
-    "last_reviewed_at": "2026-07-15"
-  },
-  {
-    "id": "https-raw-githubusercontent-com-r3zarahimi-tg-v2ray-configs-every2h-main-ff344783",
-    "label": "R3ZARAHIMI/tg-v2ray-configs-every2h — Original-Configs.txt",
-    "url": "https://raw.githubusercontent.com/R3ZARAHIMI/tg-v2ray-configs-every2h/main/Original-Configs.txt",
-    "source_type": "static_subscription",
-    "trust": "high",
-    "status": "trusted",
-    "enabled": true,
-    "region": "IR",
-    "recommended_regions": [
-      "IR"
-    ],
-    "app_priority": 95,
-    "mobile_profile": "iran_fast",
-    "tags": [
-      "repository-tree",
-      "auto",
-      "github",
-      "hunter",
-      "trusted",
-      "iran",
-      "mobile-optimized",
-      "iran_fast",
-      "ss",
-      "trojan",
-      "vless",
-      "vmess"
-    ],
-    "protocols": [
-      "ss",
-      "trojan",
-      "vless",
-      "vmess"
-    ],
-    "notes": "Discovered by source-hunter from repository_tree; score=88.5; priority=95; unique=252; tcp=25/30; real=16/30",
-    "hunter_metrics": {
-      "score": 88.5,
-      "unique_items": 252,
-      "duplicate_ratio": 0.1189,
-      "tcp_ok_count": 25,
-      "tcp_sample_size": 30,
-      "tcp_success_rate": 0.8333,
-      "real_check": {
-        "requested": true,
-        "available": true,
-        "checked": 30,
-        "ok": 16,
-        "success_rate": 0.5333,
-        "validation_location": "github_actions_eu",
-        "validated_config_count": 16,
-        "note": "real validation completed via v2ray_finder.xray_connectivity"
-      },
-      "freshness": {
-        "score_adjustment": 11.0,
-        "config_churn_rate": 0.5794,
-        "history_available": true,
-        "reasons": [
-          "fresh config churn",
-          "strong historical TCP"
-        ]
-      },
-      "history": {
-        "times_seen": 6,
-        "failure_streak": 0,
-        "avg_tcp_success_rate": 0.8778,
-        "avg_real_success_rate": 0.2889,
-        "last_config_churn_rate": 0.5794
-      },
-      "export_score": 95.4275,
-      "export_score_parts": {
-        "hunter_score": 26.55,
-        "tcp_success": 19.9992,
-        "real_success": 11.7326,
-        "historical_real": 2.3112,
-        "historical_tcp": 4.389,
-        "config_volume": 8.4,
-        "protocol_diversity": 8.0,
-        "freshness": 8.0,
-        "churn": 3.0,
-        "dedupe_quality": 4.4055,
-        "normalized_duplicate_penalty": -1.36
-      }
-    },
-    "added_at": "2026-07-15",
-    "last_reviewed_at": "2026-07-15"
-  },
-  {
-    "id": "https-raw-githubusercontent-com-hidashimora-free-vpn-anti-rkn-main-confi-54dbe462",
-    "label": "Hidashimora/free-vpn-anti-rkn — configs/1.2.txt",
-    "url": "https://raw.githubusercontent.com/Hidashimora/free-vpn-anti-rkn/main/configs/1.2.txt",
+    "id": "https-raw-githubusercontent-com-solispirit-v2ray-configs-main-protocols--6c0828c8",
+    "label": "SoliSpirit/v2ray-configs — Protocols/trojan.txt",
+    "url": "https://raw.githubusercontent.com/SoliSpirit/v2ray-configs/main/Protocols/trojan.txt",
     "source_type": "static_subscription",
     "trust": "medium",
     "status": "trusted",
@@ -957,7 +1386,173 @@
     "recommended_regions": [
       "IR"
     ],
-    "app_priority": 92,
+    "app_priority": 83,
+    "mobile_profile": "iran_fast",
+    "tags": [
+      "repository-tree",
+      "auto",
+      "github",
+      "hunter",
+      "trusted",
+      "iran",
+      "mobile-optimized",
+      "iran_fast",
+      "trojan"
+    ],
+    "protocols": [
+      "trojan"
+    ],
+    "notes": "Discovered by source-hunter from repository_tree; score=90.4; priority=83; unique=843; tcp=49/60; real=10/30",
+    "hunter_metrics": {
+      "score": 90.4,
+      "unique_items": 843,
+      "duplicate_ratio": 0.2644,
+      "tcp_ok_count": 49,
+      "tcp_sample_size": 60,
+      "tcp_success_rate": 0.8167,
+      "real_check": {
+        "requested": true,
+        "available": true,
+        "checked": 30,
+        "ok": 10,
+        "success_rate": 0.3333,
+        "validation_location": "github_actions_eu",
+        "validated_config_count": 10,
+        "note": "real validation completed via v2ray_finder.xray_connectivity"
+      },
+      "freshness": {
+        "score_adjustment": 11.0,
+        "config_churn_rate": 0.3845,
+        "history_available": true,
+        "reasons": [
+          "fresh config churn",
+          "strong historical TCP"
+        ]
+      },
+      "history": {
+        "times_seen": 6,
+        "failure_streak": 0,
+        "avg_tcp_success_rate": 0.7861,
+        "avg_real_success_rate": 0.3445,
+        "last_config_churn_rate": 0.3845
+      },
+      "export_score": 82.7249,
+      "export_score_parts": {
+        "hunter_score": 27.12,
+        "tcp_success": 19.6008,
+        "real_success": 7.3326,
+        "historical_real": 2.756,
+        "historical_tcp": 3.9305,
+        "config_volume": 10.0,
+        "protocol_diversity": 2.0,
+        "freshness": 8.0,
+        "churn": 2.307,
+        "dedupe_quality": 3.678,
+        "normalized_duplicate_penalty": -4.0
+      }
+    },
+    "added_at": "2026-07-15",
+    "last_reviewed_at": "2026-07-15"
+  },
+  {
+    "id": "https-raw-githubusercontent-com-firmfox-proxify-main-v2ray-configs-subsc-300408b9",
+    "label": "Firmfox/Proxify — v2ray_configs/subscriptions/subscription-66.txt",
+    "url": "https://raw.githubusercontent.com/Firmfox/Proxify/main/v2ray_configs/subscriptions/subscription-66.txt",
+    "source_type": "static_subscription",
+    "trust": "medium",
+    "status": "trusted",
+    "enabled": true,
+    "region": "IR",
+    "recommended_regions": [
+      "IR"
+    ],
+    "app_priority": 83,
+    "mobile_profile": "iran_fast",
+    "tags": [
+      "repository-tree",
+      "auto",
+      "github",
+      "hunter",
+      "trusted",
+      "iran",
+      "mobile-optimized",
+      "iran_fast",
+      "ss",
+      "trojan",
+      "vless",
+      "vmess"
+    ],
+    "protocols": [
+      "ss",
+      "trojan",
+      "vless",
+      "vmess"
+    ],
+    "notes": "Discovered by source-hunter from repository_tree; score=77.7; priority=83; unique=101; tcp=22/30; real=12/30",
+    "hunter_metrics": {
+      "score": 77.7,
+      "unique_items": 101,
+      "duplicate_ratio": 0.0,
+      "tcp_ok_count": 22,
+      "tcp_sample_size": 30,
+      "tcp_success_rate": 0.7333,
+      "real_check": {
+        "requested": true,
+        "available": true,
+        "checked": 30,
+        "ok": 12,
+        "success_rate": 0.4,
+        "validation_location": "github_actions_eu",
+        "validated_config_count": 12,
+        "note": "real validation completed via v2ray_finder.xray_connectivity"
+      },
+      "freshness": {
+        "score_adjustment": 11.0,
+        "config_churn_rate": 0.9793,
+        "history_available": true,
+        "reasons": [
+          "fresh config churn",
+          "strong historical TCP"
+        ]
+      },
+      "history": {
+        "times_seen": 2,
+        "failure_streak": 0,
+        "avg_tcp_success_rate": 0.6166,
+        "avg_real_success_rate": 0.3,
+        "last_config_churn_rate": 0.9793
+      },
+      "export_score": 82.5589,
+      "export_score_parts": {
+        "hunter_score": 23.31,
+        "tcp_success": 17.5992,
+        "real_success": 8.8,
+        "historical_real": 2.4,
+        "historical_tcp": 3.083,
+        "config_volume": 3.3667,
+        "protocol_diversity": 8.0,
+        "freshness": 8.0,
+        "churn": 3.0,
+        "dedupe_quality": 5.0,
+        "normalized_duplicate_penalty": -0.0
+      }
+    },
+    "added_at": "2026-07-15",
+    "last_reviewed_at": "2026-07-15"
+  },
+  {
+    "id": "https-raw-githubusercontent-com-hidashimora-free-vpn-anti-rkn-main-confi-1ed27f78",
+    "label": "Hidashimora/free-vpn-anti-rkn — configs/19.1.txt",
+    "url": "https://raw.githubusercontent.com/Hidashimora/free-vpn-anti-rkn/main/configs/19.1.txt",
+    "source_type": "static_subscription",
+    "trust": "medium",
+    "status": "trusted",
+    "enabled": true,
+    "region": "IR",
+    "recommended_regions": [
+      "IR"
+    ],
+    "app_priority": 82,
     "mobile_profile": "iran_fast",
     "tags": [
       "repository-tree",
@@ -980,14 +1575,100 @@
       "vless",
       "vmess"
     ],
-    "notes": "Discovered by source-hunter from repository_tree; score=100.0; priority=92; unique=7854; tcp=80/100; real=8/30",
+    "notes": "Discovered by source-hunter from repository_tree; score=88.9; priority=82; unique=413; tcp=43/60; real=6/30",
     "hunter_metrics": {
-      "score": 100.0,
-      "unique_items": 7854,
-      "duplicate_ratio": 0.1022,
-      "tcp_ok_count": 80,
+      "score": 88.9,
+      "unique_items": 413,
+      "duplicate_ratio": 0.2366,
+      "tcp_ok_count": 43,
+      "tcp_sample_size": 60,
+      "tcp_success_rate": 0.7167,
+      "real_check": {
+        "requested": true,
+        "available": true,
+        "checked": 30,
+        "ok": 6,
+        "success_rate": 0.2,
+        "validation_location": "github_actions_eu",
+        "validated_config_count": 6,
+        "note": "real validation completed via v2ray_finder.xray_connectivity"
+      },
+      "freshness": {
+        "score_adjustment": 11.0,
+        "config_churn_rate": 0.8295,
+        "history_available": true,
+        "reasons": [
+          "fresh config churn",
+          "strong historical TCP"
+        ]
+      },
+      "history": {
+        "times_seen": 4,
+        "failure_streak": 0,
+        "avg_tcp_success_rate": 0.6667,
+        "avg_real_success_rate": 0.2333,
+        "last_config_churn_rate": 0.8295
+      },
+      "export_score": 82.2877,
+      "export_score_parts": {
+        "hunter_score": 26.67,
+        "tcp_success": 17.2008,
+        "real_success": 4.4,
+        "historical_real": 1.8664,
+        "historical_tcp": 3.3335,
+        "config_volume": 10.0,
+        "protocol_diversity": 8.0,
+        "freshness": 8.0,
+        "churn": 3.0,
+        "dedupe_quality": 3.817,
+        "normalized_duplicate_penalty": -4.0
+      }
+    },
+    "added_at": "2026-07-15",
+    "last_reviewed_at": "2026-07-15"
+  },
+  {
+    "id": "https-raw-githubusercontent-com-solispirit-v2ray-configs-main-all-config-698c9127",
+    "label": "SoliSpirit/v2ray-configs — all_configs.txt",
+    "url": "https://raw.githubusercontent.com/SoliSpirit/v2ray-configs/main/all_configs.txt",
+    "source_type": "static_subscription",
+    "trust": "medium",
+    "status": "trusted",
+    "enabled": true,
+    "region": "IR",
+    "recommended_regions": [
+      "IR"
+    ],
+    "app_priority": 81,
+    "mobile_profile": "iran_fast",
+    "tags": [
+      "repository-tree",
+      "auto",
+      "github",
+      "hunter",
+      "trusted",
+      "iran",
+      "mobile-optimized",
+      "iran_fast",
+      "ss",
+      "trojan",
+      "vless",
+      "vmess"
+    ],
+    "protocols": [
+      "ss",
+      "trojan",
+      "vless",
+      "vmess"
+    ],
+    "notes": "Discovered by source-hunter from repository_tree; score=87.0; priority=81; unique=6539; tcp=68/100; real=8/30",
+    "hunter_metrics": {
+      "score": 87.0,
+      "unique_items": 6539,
+      "duplicate_ratio": 0.2688,
+      "tcp_ok_count": 68,
       "tcp_sample_size": 100,
-      "tcp_success_rate": 0.8,
+      "tcp_success_rate": 0.68,
       "real_check": {
         "requested": true,
         "available": true,
@@ -999,34 +1680,34 @@
         "note": "real validation completed via v2ray_finder.xray_connectivity"
       },
       "freshness": {
-        "score_adjustment": 15.0,
-        "config_churn_rate": 0.8102,
+        "score_adjustment": 7.0,
+        "config_churn_rate": 0.9401,
         "history_available": true,
         "reasons": [
           "fresh config churn",
-          "strong historical real validation",
+          "weak historical real validation",
           "strong historical TCP"
         ]
       },
       "history": {
-        "times_seen": 2,
+        "times_seen": 7,
         "failure_streak": 0,
-        "avg_tcp_success_rate": 0.775,
-        "avg_real_success_rate": 0.4833,
-        "last_config_churn_rate": 0.8102
+        "avg_tcp_success_rate": 0.6215,
+        "avg_real_success_rate": 0.1857,
+        "last_config_churn_rate": 0.9401
       },
-      "export_score": 92.2978,
+      "export_score": 80.5365,
       "export_score_parts": {
-        "hunter_score": 30.0,
-        "tcp_success": 19.2,
+        "hunter_score": 26.1,
+        "tcp_success": 16.32,
         "real_success": 5.8674,
-        "historical_real": 3.8664,
-        "historical_tcp": 3.875,
+        "historical_real": 1.4856,
+        "historical_tcp": 3.1075,
         "config_volume": 10.0,
         "protocol_diversity": 8.0,
-        "freshness": 8.0,
+        "freshness": 7.0,
         "churn": 3.0,
-        "dedupe_quality": 4.489,
+        "dedupe_quality": 3.656,
         "normalized_duplicate_penalty": -4.0
       }
     },
@@ -1034,9 +1715,9 @@
     "last_reviewed_at": "2026-07-15"
   },
   {
-    "id": "https-raw-githubusercontent-com-hidashimora-free-vpn-anti-rkn-main-confi-de788669",
-    "label": "Hidashimora/free-vpn-anti-rkn — configs/17.2.txt",
-    "url": "https://raw.githubusercontent.com/Hidashimora/free-vpn-anti-rkn/main/configs/17.2.txt",
+    "id": "https-raw-githubusercontent-com-firmfox-proxify-main-v2ray-configs-separ-92223ce1",
+    "label": "Firmfox/Proxify — v2ray_configs/separated_by_protocol/vless.txt",
+    "url": "https://raw.githubusercontent.com/Firmfox/Proxify/main/v2ray_configs/separated_by_protocol/vless.txt",
     "source_type": "static_subscription",
     "trust": "medium",
     "status": "trusted",
@@ -1045,50 +1726,43 @@
     "recommended_regions": [
       "IR"
     ],
-    "app_priority": 92,
+    "app_priority": 80,
     "mobile_profile": "iran_fast",
     "tags": [
       "repository-tree",
       "auto",
       "github",
-      "english",
       "hunter",
       "trusted",
       "iran",
       "mobile-optimized",
       "iran_fast",
-      "ss",
-      "trojan",
-      "vless",
-      "vmess"
+      "vless"
     ],
     "protocols": [
-      "ss",
-      "trojan",
-      "vless",
-      "vmess"
+      "vless"
     ],
-    "notes": "Discovered by source-hunter from repository_tree; score=95.9; priority=92; unique=771; tcp=44/60; real=14/30",
+    "notes": "Discovered by source-hunter from repository_tree; score=89.6; priority=80; unique=3457; tcp=80/100; real=7/30",
     "hunter_metrics": {
-      "score": 95.9,
-      "unique_items": 771,
-      "duplicate_ratio": 0.1158,
-      "tcp_ok_count": 44,
-      "tcp_sample_size": 60,
-      "tcp_success_rate": 0.7333,
+      "score": 89.6,
+      "unique_items": 3457,
+      "duplicate_ratio": 0.2612,
+      "tcp_ok_count": 80,
+      "tcp_sample_size": 100,
+      "tcp_success_rate": 0.8,
       "real_check": {
         "requested": true,
         "available": true,
         "checked": 30,
-        "ok": 14,
-        "success_rate": 0.4667,
+        "ok": 7,
+        "success_rate": 0.2333,
         "validation_location": "github_actions_eu",
-        "validated_config_count": 14,
+        "validated_config_count": 7,
         "note": "real validation completed via v2ray_finder.xray_connectivity"
       },
       "freshness": {
         "score_adjustment": 11.0,
-        "config_churn_rate": 0.5668,
+        "config_churn_rate": 0.861,
         "history_available": true,
         "reasons": [
           "fresh config churn",
@@ -1096,370 +1770,24 @@
         ]
       },
       "history": {
-        "times_seen": 3,
+        "times_seen": 7,
         "failure_streak": 0,
-        "avg_tcp_success_rate": 0.6278,
-        "avg_real_success_rate": 0.2889,
-        "last_config_churn_rate": 0.5668
+        "avg_tcp_success_rate": 0.7829,
+        "avg_real_success_rate": 0.2143,
+        "last_config_churn_rate": 0.861
       },
-      "export_score": 91.5078,
+      "export_score": 79.5355,
       "export_score_parts": {
-        "hunter_score": 28.77,
-        "tcp_success": 17.5992,
-        "real_success": 10.2674,
-        "historical_real": 2.3112,
-        "historical_tcp": 3.139,
+        "hunter_score": 26.88,
+        "tcp_success": 19.2,
+        "real_success": 5.1326,
+        "historical_real": 1.7144,
+        "historical_tcp": 3.9145,
         "config_volume": 10.0,
-        "protocol_diversity": 8.0,
+        "protocol_diversity": 2.0,
         "freshness": 8.0,
         "churn": 3.0,
-        "dedupe_quality": 4.421,
-        "normalized_duplicate_penalty": -4.0
-      }
-    },
-    "added_at": "2026-07-15",
-    "last_reviewed_at": "2026-07-15"
-  },
-  {
-    "id": "https-raw-githubusercontent-com-0xradikal-free-v2ray-configs-main-light--c4fc9d3a",
-    "label": "0xRadikal/Free-v2ray-Configs — light/clash.yaml",
-    "url": "https://raw.githubusercontent.com/0xRadikal/Free-v2ray-Configs/main/light/clash.yaml",
-    "source_type": "static_subscription",
-    "trust": "high",
-    "status": "trusted",
-    "enabled": true,
-    "region": "IR",
-    "recommended_regions": [
-      "IR"
-    ],
-    "app_priority": 90,
-    "mobile_profile": "iran_fast",
-    "tags": [
-      "repository-tree",
-      "auto",
-      "github",
-      "hunter",
-      "trusted",
-      "iran",
-      "mobile-optimized",
-      "iran_fast",
-      "ss",
-      "trojan",
-      "vless",
-      "vmess"
-    ],
-    "protocols": [
-      "ss",
-      "trojan",
-      "vless",
-      "vmess"
-    ],
-    "notes": "Discovered by source-hunter from repository_tree; score=96.0; priority=90; unique=504; tcp=58/60; real=15/30",
-    "hunter_metrics": {
-      "score": 96.0,
-      "unique_items": 504,
-      "duplicate_ratio": 0.1544,
-      "tcp_ok_count": 58,
-      "tcp_sample_size": 60,
-      "tcp_success_rate": 0.9667,
-      "real_check": {
-        "requested": true,
-        "available": true,
-        "checked": 30,
-        "ok": 15,
-        "success_rate": 0.5,
-        "validation_location": "github_actions_eu",
-        "validated_config_count": 15,
-        "note": "real validation completed via v2ray_finder.xray_connectivity"
-      },
-      "freshness": {
-        "score_adjustment": 0.0,
-        "config_churn_rate": 0.0,
-        "history_available": true,
-        "reasons": [
-          "stale unchanged configs",
-          "strong historical real validation",
-          "strong historical TCP"
-        ]
-      },
-      "history": {
-        "times_seen": 6,
-        "failure_streak": 0,
-        "avg_tcp_success_rate": 0.9444,
-        "avg_real_success_rate": 0.5222,
-        "last_config_churn_rate": 0.0
-      },
-      "export_score": 90.4484,
-      "export_score_parts": {
-        "hunter_score": 28.8,
-        "tcp_success": 23.2008,
-        "real_success": 11.0,
-        "historical_real": 4.1776,
-        "historical_tcp": 4.722,
-        "config_volume": 10.0,
-        "protocol_diversity": 8.0,
-        "freshness": 0.0,
-        "churn": 0.0,
-        "dedupe_quality": 4.228,
-        "normalized_duplicate_penalty": -3.68
-      }
-    },
-    "added_at": "2026-07-15",
-    "last_reviewed_at": "2026-07-15"
-  },
-  {
-    "id": "https-raw-githubusercontent-com-0xradikal-free-v2ray-configs-main-all-cl-3df6a1b8",
-    "label": "0xRadikal/Free-v2ray-Configs — all/clash.yaml",
-    "url": "https://raw.githubusercontent.com/0xRadikal/Free-v2ray-Configs/main/all/clash.yaml",
-    "source_type": "static_subscription",
-    "trust": "medium",
-    "status": "trusted",
-    "enabled": true,
-    "region": "IR",
-    "recommended_regions": [
-      "IR"
-    ],
-    "app_priority": 90,
-    "mobile_profile": "iran_fast",
-    "tags": [
-      "repository-tree",
-      "auto",
-      "github",
-      "hunter",
-      "trusted",
-      "iran",
-      "mobile-optimized",
-      "iran_fast",
-      "ss",
-      "trojan",
-      "vless",
-      "vmess"
-    ],
-    "protocols": [
-      "ss",
-      "trojan",
-      "vless",
-      "vmess"
-    ],
-    "notes": "Discovered by source-hunter from repository_tree; score=92.1; priority=90; unique=1278; tcp=40/60; real=14/30",
-    "hunter_metrics": {
-      "score": 92.1,
-      "unique_items": 1278,
-      "duplicate_ratio": 0.148,
-      "tcp_ok_count": 40,
-      "tcp_sample_size": 60,
-      "tcp_success_rate": 0.6667,
-      "real_check": {
-        "requested": true,
-        "available": true,
-        "checked": 30,
-        "ok": 14,
-        "success_rate": 0.4667,
-        "validation_location": "github_actions_eu",
-        "validated_config_count": 14,
-        "note": "real validation completed via v2ray_finder.xray_connectivity"
-      },
-      "freshness": {
-        "score_adjustment": 11.0,
-        "config_churn_rate": 0.4721,
-        "history_available": true,
-        "reasons": [
-          "fresh config churn",
-          "strong historical TCP"
-        ]
-      },
-      "history": {
-        "times_seen": 6,
-        "failure_streak": 0,
-        "avg_tcp_success_rate": 0.7195,
-        "avg_real_success_rate": 0.4334,
-        "last_config_churn_rate": 0.4721
-      },
-      "export_score": 90.0555,
-      "export_score_parts": {
-        "hunter_score": 27.63,
-        "tcp_success": 16.0008,
-        "real_success": 10.2674,
-        "historical_real": 3.4672,
-        "historical_tcp": 3.5975,
-        "config_volume": 10.0,
-        "protocol_diversity": 8.0,
-        "freshness": 8.0,
-        "churn": 2.8326,
-        "dedupe_quality": 4.26,
-        "normalized_duplicate_penalty": -4.0
-      }
-    },
-    "added_at": "2026-07-15",
-    "last_reviewed_at": "2026-07-15"
-  },
-  {
-    "id": "https-raw-githubusercontent-com-shayanthn-v2ray-tester-pro-main-subscrip-b21f81cb",
-    "label": "Shayanthn/V2ray-Tester-Pro — subscriptions/subscription.txt",
-    "url": "https://raw.githubusercontent.com/Shayanthn/V2ray-Tester-Pro/main/subscriptions/subscription.txt",
-    "source_type": "static_subscription",
-    "trust": "high",
-    "status": "trusted",
-    "enabled": true,
-    "region": "IR",
-    "recommended_regions": [
-      "IR"
-    ],
-    "app_priority": 89,
-    "mobile_profile": "iran_fast",
-    "tags": [
-      "repository-tree",
-      "auto",
-      "github",
-      "hunter",
-      "trusted",
-      "iran",
-      "mobile-optimized",
-      "iran_fast",
-      "ss",
-      "trojan",
-      "vless",
-      "vmess"
-    ],
-    "protocols": [
-      "ss",
-      "trojan",
-      "vless",
-      "vmess"
-    ],
-    "notes": "Discovered by source-hunter from repository_tree; score=79.0; priority=89; unique=113; tcp=29/30; real=21/30",
-    "hunter_metrics": {
-      "score": 79.0,
-      "unique_items": 113,
-      "duplicate_ratio": 0.0,
-      "tcp_ok_count": 29,
-      "tcp_sample_size": 30,
-      "tcp_success_rate": 0.9667,
-      "real_check": {
-        "requested": true,
-        "available": true,
-        "checked": 30,
-        "ok": 21,
-        "success_rate": 0.7,
-        "validation_location": "github_actions_eu",
-        "validated_config_count": 21,
-        "note": "real validation completed via v2ray_finder.xray_connectivity"
-      },
-      "freshness": {
-        "score_adjustment": 0.0,
-        "config_churn_rate": 0.0,
-        "history_available": true,
-        "reasons": [
-          "stale unchanged configs",
-          "strong historical real validation",
-          "strong historical TCP"
-        ]
-      },
-      "history": {
-        "times_seen": 6,
-        "failure_streak": 0,
-        "avg_tcp_success_rate": 0.9833,
-        "avg_real_success_rate": 0.6778,
-        "last_config_churn_rate": 0.0
-      },
-      "export_score": 89.4064,
-      "export_score_parts": {
-        "hunter_score": 23.7,
-        "tcp_success": 23.2008,
-        "real_success": 15.4,
-        "historical_real": 5.4224,
-        "historical_tcp": 4.9165,
-        "config_volume": 3.7667,
-        "protocol_diversity": 8.0,
-        "freshness": 0.0,
-        "churn": 0.0,
-        "dedupe_quality": 5.0,
-        "normalized_duplicate_penalty": -0.0
-      }
-    },
-    "added_at": "2026-07-15",
-    "last_reviewed_at": "2026-07-15"
-  },
-  {
-    "id": "https-raw-githubusercontent-com-0xradikal-free-v2ray-configs-main-heavy--21f2b92b",
-    "label": "0xRadikal/Free-v2ray-Configs — heavy/clash.yaml",
-    "url": "https://raw.githubusercontent.com/0xRadikal/Free-v2ray-Configs/main/heavy/clash.yaml",
-    "source_type": "static_subscription",
-    "trust": "medium",
-    "status": "trusted",
-    "enabled": true,
-    "region": "IR",
-    "recommended_regions": [
-      "IR"
-    ],
-    "app_priority": 89,
-    "mobile_profile": "iran_fast",
-    "tags": [
-      "repository-tree",
-      "auto",
-      "github",
-      "hunter",
-      "trusted",
-      "iran",
-      "mobile-optimized",
-      "iran_fast",
-      "ss",
-      "trojan",
-      "vless",
-      "vmess"
-    ],
-    "protocols": [
-      "ss",
-      "trojan",
-      "vless",
-      "vmess"
-    ],
-    "notes": "Discovered by source-hunter from repository_tree; score=93.1; priority=89; unique=1377; tcp=40/60; real=11/30",
-    "hunter_metrics": {
-      "score": 93.1,
-      "unique_items": 1377,
-      "duplicate_ratio": 0.082,
-      "tcp_ok_count": 40,
-      "tcp_sample_size": 60,
-      "tcp_success_rate": 0.6667,
-      "real_check": {
-        "requested": true,
-        "available": true,
-        "checked": 30,
-        "ok": 11,
-        "success_rate": 0.3667,
-        "validation_location": "github_actions_eu",
-        "validated_config_count": 11,
-        "note": "real validation completed via v2ray_finder.xray_connectivity"
-      },
-      "freshness": {
-        "score_adjustment": 11.0,
-        "config_churn_rate": 1.0,
-        "history_available": true,
-        "reasons": [
-          "fresh config churn",
-          "strong historical TCP"
-        ]
-      },
-      "history": {
-        "times_seen": 6,
-        "failure_streak": 0,
-        "avg_tcp_success_rate": 0.7084,
-        "avg_real_success_rate": 0.45,
-        "last_config_churn_rate": 1.0
-      },
-      "export_score": 88.7302,
-      "export_score_parts": {
-        "hunter_score": 27.93,
-        "tcp_success": 16.0008,
-        "real_success": 8.0674,
-        "historical_real": 3.6,
-        "historical_tcp": 3.542,
-        "config_volume": 10.0,
-        "protocol_diversity": 8.0,
-        "freshness": 8.0,
-        "churn": 3.0,
-        "dedupe_quality": 4.59,
+        "dedupe_quality": 3.694,
         "normalized_duplicate_penalty": -4.0
       }
     },
@@ -1478,7 +1806,7 @@
     "recommended_regions": [
       "IR"
     ],
-    "app_priority": 85,
+    "app_priority": 79,
     "mobile_profile": "iran_fast",
     "tags": [
       "repository-tree",
@@ -1494,27 +1822,27 @@
     "protocols": [
       "trojan"
     ],
-    "notes": "Discovered by source-hunter from repository_tree; score=91.6; priority=85; unique=674; tcp=51/60; real=11/30",
+    "notes": "Discovered by source-hunter from repository_tree; score=85.9; priority=79; unique=681; tcp=44/60; real=9/30",
     "hunter_metrics": {
-      "score": 91.6,
-      "unique_items": 674,
-      "duplicate_ratio": 0.2965,
-      "tcp_ok_count": 51,
+      "score": 85.9,
+      "unique_items": 681,
+      "duplicate_ratio": 0.2832,
+      "tcp_ok_count": 44,
       "tcp_sample_size": 60,
-      "tcp_success_rate": 0.85,
+      "tcp_success_rate": 0.7333,
       "real_check": {
         "requested": true,
         "available": true,
         "checked": 30,
-        "ok": 11,
-        "success_rate": 0.3667,
+        "ok": 9,
+        "success_rate": 0.3,
         "validation_location": "github_actions_eu",
-        "validated_config_count": 11,
+        "validated_config_count": 9,
         "note": "real validation completed via v2ray_finder.xray_connectivity"
       },
       "freshness": {
         "score_adjustment": 11.0,
-        "config_churn_rate": 0.4345,
+        "config_churn_rate": 0.4724,
         "history_available": true,
         "reasons": [
           "fresh config churn",
@@ -1522,24 +1850,24 @@
         ]
       },
       "history": {
-        "times_seen": 6,
+        "times_seen": 7,
         "failure_streak": 0,
-        "avg_tcp_success_rate": 0.8056,
-        "avg_real_success_rate": 0.35,
-        "last_config_churn_rate": 0.4345
+        "avg_tcp_success_rate": 0.7953,
+        "avg_real_success_rate": 0.3429,
+        "last_config_churn_rate": 0.4724
       },
-      "export_score": 84.8999,
+      "export_score": 79.1073,
       "export_score_parts": {
-        "hunter_score": 27.48,
-        "tcp_success": 20.4,
-        "real_success": 8.0674,
-        "historical_real": 2.8,
-        "historical_tcp": 4.028,
+        "hunter_score": 25.77,
+        "tcp_success": 17.5992,
+        "real_success": 6.6,
+        "historical_real": 2.7432,
+        "historical_tcp": 3.9765,
         "config_volume": 10.0,
         "protocol_diversity": 2.0,
         "freshness": 8.0,
-        "churn": 2.607,
-        "dedupe_quality": 3.5175,
+        "churn": 2.8344,
+        "dedupe_quality": 3.584,
         "normalized_duplicate_penalty": -4.0
       }
     },
@@ -1547,9 +1875,9 @@
     "last_reviewed_at": "2026-07-15"
   },
   {
-    "id": "https-raw-githubusercontent-com-kasesm-free-config-main-vless-raw-txt-6e12d3fe",
-    "label": "kasesm/Free-Config — vless_raw.txt",
-    "url": "https://raw.githubusercontent.com/kasesm/Free-Config/main/vless_raw.txt",
+    "id": "https-raw-githubusercontent-com-solispirit-v2ray-configs-main-subscripti-fc9d2985",
+    "label": "SoliSpirit/v2ray-configs — Subscriptions/Sub1.txt",
+    "url": "https://raw.githubusercontent.com/SoliSpirit/v2ray-configs/main/Subscriptions/Sub1.txt",
     "source_type": "static_subscription",
     "trust": "medium",
     "status": "trusted",
@@ -1558,7 +1886,7 @@
     "recommended_regions": [
       "IR"
     ],
-    "app_priority": 84,
+    "app_priority": 79,
     "mobile_profile": "iran_fast",
     "tags": [
       "repository-tree",
@@ -1569,99 +1897,25 @@
       "iran",
       "mobile-optimized",
       "iran_fast",
-      "vless"
+      "ss",
+      "trojan",
+      "vless",
+      "vmess"
     ],
     "protocols": [
-      "vless"
+      "ss",
+      "trojan",
+      "vless",
+      "vmess"
     ],
-    "notes": "Discovered by source-hunter from repository_tree; score=92.5; priority=84; unique=1729; tcp=53/60; real=11/30",
+    "notes": "Discovered by source-hunter from repository_tree; score=73.1; priority=79; unique=159; tcp=18/30; real=10/30",
     "hunter_metrics": {
-      "score": 92.5,
-      "unique_items": 1729,
-      "duplicate_ratio": 0.0793,
-      "tcp_ok_count": 53,
-      "tcp_sample_size": 60,
-      "tcp_success_rate": 0.8833,
-      "real_check": {
-        "requested": true,
-        "available": true,
-        "checked": 30,
-        "ok": 11,
-        "success_rate": 0.3667,
-        "validation_location": "github_actions_eu",
-        "validated_config_count": 11,
-        "note": "real validation completed via v2ray_finder.xray_connectivity"
-      },
-      "freshness": {
-        "score_adjustment": 7.0,
-        "config_churn_rate": 0.0676,
-        "history_available": true,
-        "reasons": [
-          "moderate config churn",
-          "strong historical TCP"
-        ]
-      },
-      "history": {
-        "times_seen": 4,
-        "failure_streak": 0,
-        "avg_tcp_success_rate": 0.8167,
-        "avg_real_success_rate": 0.3417,
-        "last_config_churn_rate": 0.0676
-      },
-      "export_score": 83.8428,
-      "export_score_parts": {
-        "hunter_score": 27.75,
-        "tcp_success": 21.1992,
-        "real_success": 8.0674,
-        "historical_real": 2.7336,
-        "historical_tcp": 4.0835,
-        "config_volume": 10.0,
-        "protocol_diversity": 2.0,
-        "freshness": 7.0,
-        "churn": 0.4056,
-        "dedupe_quality": 4.6035,
-        "normalized_duplicate_penalty": -4.0
-      }
-    },
-    "added_at": "2026-07-15",
-    "last_reviewed_at": "2026-07-15"
-  },
-  {
-    "id": "https-raw-githubusercontent-com-0xradikal-free-v2ray-configs-main-protoc-ee50a613",
-    "label": "0xRadikal/Free-v2ray-Configs — protocols/trojan_base64.txt",
-    "url": "https://raw.githubusercontent.com/0xRadikal/Free-v2ray-Configs/main/protocols/trojan_base64.txt",
-    "source_type": "static_subscription",
-    "trust": "medium",
-    "status": "trusted",
-    "enabled": true,
-    "region": "IR",
-    "recommended_regions": [
-      "IR"
-    ],
-    "app_priority": 83,
-    "mobile_profile": "iran_fast",
-    "tags": [
-      "repository-tree",
-      "auto",
-      "github",
-      "hunter",
-      "trusted",
-      "iran",
-      "mobile-optimized",
-      "iran_fast",
-      "trojan"
-    ],
-    "protocols": [
-      "trojan"
-    ],
-    "notes": "Discovered by source-hunter from repository_tree; score=90.4; priority=83; unique=527; tcp=53/60; real=10/30",
-    "hunter_metrics": {
-      "score": 90.4,
-      "unique_items": 527,
-      "duplicate_ratio": 0.015,
-      "tcp_ok_count": 53,
-      "tcp_sample_size": 60,
-      "tcp_success_rate": 0.8833,
+      "score": 73.1,
+      "unique_items": 159,
+      "duplicate_ratio": 0.0536,
+      "tcp_ok_count": 18,
+      "tcp_sample_size": 30,
+      "tcp_success_rate": 0.6,
       "real_check": {
         "requested": true,
         "available": true,
@@ -1670,172 +1924,6 @@
         "success_rate": 0.3333,
         "validation_location": "github_actions_eu",
         "validated_config_count": 10,
-        "note": "real validation completed via v2ray_finder.xray_connectivity"
-      },
-      "freshness": {
-        "score_adjustment": 4.0,
-        "config_churn_rate": 0.0377,
-        "history_available": true,
-        "reasons": [
-          "small config churn",
-          "strong historical TCP"
-        ]
-      },
-      "history": {
-        "times_seen": 6,
-        "failure_streak": 0,
-        "avg_tcp_success_rate": 0.8166,
-        "avg_real_success_rate": 0.3111,
-        "last_config_churn_rate": 0.0377
-      },
-      "export_score": 83.0548,
-      "export_score_parts": {
-        "hunter_score": 27.12,
-        "tcp_success": 21.1992,
-        "real_success": 7.3326,
-        "historical_real": 2.4888,
-        "historical_tcp": 4.083,
-        "config_volume": 10.0,
-        "protocol_diversity": 2.0,
-        "freshness": 4.0,
-        "churn": 0.2262,
-        "dedupe_quality": 4.925,
-        "normalized_duplicate_penalty": -0.32
-      }
-    },
-    "added_at": "2026-07-15",
-    "last_reviewed_at": "2026-07-15"
-  },
-  {
-    "id": "https-raw-githubusercontent-com-hidashimora-free-vpn-anti-rkn-main-confi-d7facf2f",
-    "label": "Hidashimora/free-vpn-anti-rkn — configs/34.txt",
-    "url": "https://raw.githubusercontent.com/Hidashimora/free-vpn-anti-rkn/main/configs/34.txt",
-    "source_type": "static_subscription",
-    "trust": "high",
-    "status": "trusted",
-    "enabled": true,
-    "region": "IR",
-    "recommended_regions": [
-      "IR"
-    ],
-    "app_priority": 83,
-    "mobile_profile": "iran_balanced",
-    "tags": [
-      "repository-tree",
-      "auto",
-      "github",
-      "english",
-      "hunter",
-      "trusted",
-      "iran",
-      "mobile-optimized",
-      "iran_balanced",
-      "vless"
-    ],
-    "protocols": [
-      "vless"
-    ],
-    "notes": "Discovered by source-hunter from repository_tree; score=68.3; priority=83; unique=50; tcp=30/30; real=25/30",
-    "hunter_metrics": {
-      "score": 68.3,
-      "unique_items": 50,
-      "duplicate_ratio": 0.1803,
-      "tcp_ok_count": 30,
-      "tcp_sample_size": 30,
-      "tcp_success_rate": 1.0,
-      "real_check": {
-        "requested": true,
-        "available": true,
-        "checked": 30,
-        "ok": 25,
-        "success_rate": 0.8333,
-        "validation_location": "github_actions_eu",
-        "validated_config_count": 25,
-        "note": "real validation completed via v2ray_finder.xray_connectivity"
-      },
-      "freshness": {
-        "score_adjustment": 1.0,
-        "config_churn_rate": null,
-        "history_available": false,
-        "reasons": [
-          "new source"
-        ]
-      },
-      "history": {
-        "times_seen": 1,
-        "failure_streak": 0,
-        "avg_tcp_success_rate": 1.0,
-        "avg_real_success_rate": 0.8333,
-        "last_config_churn_rate": 1.0
-      },
-      "export_score": 82.8142,
-      "export_score_parts": {
-        "hunter_score": 20.49,
-        "tcp_success": 24.0,
-        "real_success": 18.3326,
-        "historical_real": 6.6664,
-        "historical_tcp": 5.0,
-        "config_volume": 1.6667,
-        "protocol_diversity": 2.0,
-        "freshness": 1.0,
-        "churn": 0.0,
-        "dedupe_quality": 4.0985,
-        "normalized_duplicate_penalty": -0.44
-      }
-    },
-    "added_at": "2026-07-15",
-    "last_reviewed_at": "2026-07-15"
-  },
-  {
-    "id": "https-raw-githubusercontent-com-solispirit-v2ray-configs-main-subscripti-d8ecf7a6",
-    "label": "SoliSpirit/v2ray-configs — Subscriptions/Sub8.txt",
-    "url": "https://raw.githubusercontent.com/SoliSpirit/v2ray-configs/main/Subscriptions/Sub8.txt",
-    "source_type": "static_subscription",
-    "trust": "medium",
-    "status": "trusted",
-    "enabled": true,
-    "region": "IR",
-    "recommended_regions": [
-      "IR"
-    ],
-    "app_priority": 82,
-    "mobile_profile": "iran_fast",
-    "tags": [
-      "repository-tree",
-      "auto",
-      "github",
-      "hunter",
-      "trusted",
-      "iran",
-      "mobile-optimized",
-      "iran_fast",
-      "ss",
-      "trojan",
-      "vless",
-      "vmess"
-    ],
-    "protocols": [
-      "ss",
-      "trojan",
-      "vless",
-      "vmess"
-    ],
-    "notes": "Discovered by source-hunter from repository_tree; score=83.2; priority=82; unique=183; tcp=23/30; real=6/30",
-    "hunter_metrics": {
-      "score": 83.2,
-      "unique_items": 183,
-      "duplicate_ratio": 0.0161,
-      "tcp_ok_count": 23,
-      "tcp_sample_size": 30,
-      "tcp_success_rate": 0.7667,
-      "real_check": {
-        "requested": true,
-        "available": true,
-        "checked": 30,
-        "ok": 6,
-        "success_rate": 0.2,
-        "validation_location": "github_actions_eu",
-        "validated_config_count": 6,
         "note": "real validation completed via v2ray_finder.xray_connectivity"
       },
       "freshness": {
@@ -1850,32 +1938,32 @@
       "history": {
         "times_seen": 2,
         "failure_streak": 0,
-        "avg_tcp_success_rate": 0.65,
-        "avg_real_success_rate": 0.1,
+        "avg_tcp_success_rate": 0.7333,
+        "avg_real_success_rate": 0.3166,
         "last_config_churn_rate": 1.0
       },
-      "export_score": 81.7103,
+      "export_score": 78.5339,
       "export_score_parts": {
-        "hunter_score": 24.96,
-        "tcp_success": 18.4008,
-        "real_success": 4.4,
-        "historical_real": 0.8,
-        "historical_tcp": 3.25,
-        "config_volume": 6.1,
+        "hunter_score": 21.93,
+        "tcp_success": 14.4,
+        "real_success": 7.3326,
+        "historical_real": 2.5328,
+        "historical_tcp": 3.6665,
+        "config_volume": 5.3,
         "protocol_diversity": 8.0,
         "freshness": 8.0,
         "churn": 3.0,
-        "dedupe_quality": 4.9195,
-        "normalized_duplicate_penalty": -0.12
+        "dedupe_quality": 4.732,
+        "normalized_duplicate_penalty": -0.36
       }
     },
     "added_at": "2026-07-15",
     "last_reviewed_at": "2026-07-15"
   },
   {
-    "id": "https-raw-githubusercontent-com-solispirit-v2ray-configs-main-protocols--6c0828c8",
-    "label": "SoliSpirit/v2ray-configs — Protocols/trojan.txt",
-    "url": "https://raw.githubusercontent.com/SoliSpirit/v2ray-configs/main/Protocols/trojan.txt",
+    "id": "https-raw-githubusercontent-com-hidashimora-free-vpn-anti-rkn-main-confi-0e9f673e",
+    "label": "Hidashimora/free-vpn-anti-rkn — configs/27.txt",
+    "url": "https://raw.githubusercontent.com/Hidashimora/free-vpn-anti-rkn/main/configs/27.txt",
     "source_type": "static_subscription",
     "trust": "high",
     "status": "trusted",
@@ -1884,88 +1972,8 @@
     "recommended_regions": [
       "IR"
     ],
-    "app_priority": 81,
-    "mobile_profile": "iran_fast",
-    "tags": [
-      "repository-tree",
-      "auto",
-      "github",
-      "hunter",
-      "trusted",
-      "iran",
-      "mobile-optimized",
-      "iran_fast",
-      "trojan"
-    ],
-    "protocols": [
-      "trojan"
-    ],
-    "notes": "Discovered by source-hunter from repository_tree; score=83.3; priority=81; unique=884; tcp=45/60; real=15/30",
-    "hunter_metrics": {
-      "score": 83.3,
-      "unique_items": 884,
-      "duplicate_ratio": 0.2444,
-      "tcp_ok_count": 45,
-      "tcp_sample_size": 60,
-      "tcp_success_rate": 0.75,
-      "real_check": {
-        "requested": true,
-        "available": true,
-        "checked": 30,
-        "ok": 15,
-        "success_rate": 0.5,
-        "validation_location": "github_actions_eu",
-        "validated_config_count": 15,
-        "note": "real validation completed via v2ray_finder.xray_connectivity"
-      },
-      "freshness": {
-        "score_adjustment": 7.0,
-        "config_churn_rate": 0.2119,
-        "history_available": true,
-        "reasons": [
-          "moderate config churn",
-          "strong historical TCP"
-        ]
-      },
-      "history": {
-        "times_seen": 5,
-        "failure_streak": 0,
-        "avg_tcp_success_rate": 0.78,
-        "avg_real_success_rate": 0.3467,
-        "last_config_churn_rate": 0.2119
-      },
-      "export_score": 80.713,
-      "export_score_parts": {
-        "hunter_score": 24.99,
-        "tcp_success": 18.0,
-        "real_success": 11.0,
-        "historical_real": 2.7736,
-        "historical_tcp": 3.9,
-        "config_volume": 10.0,
-        "protocol_diversity": 2.0,
-        "freshness": 7.0,
-        "churn": 1.2714,
-        "dedupe_quality": 3.778,
-        "normalized_duplicate_penalty": -4.0
-      }
-    },
-    "added_at": "2026-07-15",
-    "last_reviewed_at": "2026-07-15"
-  },
-  {
-    "id": "https-raw-githubusercontent-com-barry-far-v2ray-config-main-all-configs--fb1d5116",
-    "label": "barry-far/V2ray-Config — All_Configs_Sub.txt",
-    "url": "https://raw.githubusercontent.com/barry-far/V2ray-Config/main/All_Configs_Sub.txt",
-    "source_type": "static_subscription",
-    "trust": "medium",
-    "status": "trusted",
-    "enabled": true,
-    "region": "IR",
-    "recommended_regions": [
-      "IR"
-    ],
-    "app_priority": 79,
-    "mobile_profile": "iran_fast",
+    "app_priority": 76,
+    "mobile_profile": "iran_fallback",
     "tags": [
       "repository-tree",
       "auto",
@@ -1975,207 +1983,30 @@
       "trusted",
       "iran",
       "mobile-optimized",
-      "iran_fast",
-      "ss",
+      "iran_fallback",
       "trojan",
-      "vless",
       "vmess"
     ],
     "protocols": [
-      "ss",
       "trojan",
-      "vless",
       "vmess"
     ],
-    "notes": "Discovered by source-hunter from repository_tree; score=86.8; priority=79; unique=3655; tcp=77/100; real=10/30",
+    "notes": "Discovered by source-hunter from repository_tree; score=64.3; priority=76; unique=25; tcp=25/25; real=17/25",
     "hunter_metrics": {
-      "score": 86.8,
-      "unique_items": 3655,
-      "duplicate_ratio": 0.3784,
-      "tcp_ok_count": 77,
-      "tcp_sample_size": 100,
-      "tcp_success_rate": 0.77,
-      "real_check": {
-        "requested": true,
-        "available": true,
-        "checked": 30,
-        "ok": 10,
-        "success_rate": 0.3333,
-        "validation_location": "github_actions_eu",
-        "validated_config_count": 10,
-        "note": "real validation completed via v2ray_finder.xray_connectivity"
-      },
-      "freshness": {
-        "score_adjustment": 4.0,
-        "config_churn_rate": 0.002,
-        "history_available": true,
-        "reasons": [
-          "small config churn",
-          "strong historical TCP"
-        ]
-      },
-      "history": {
-        "times_seen": 5,
-        "failure_streak": 0,
-        "avg_tcp_success_rate": 0.76,
-        "avg_real_success_rate": 0.34,
-        "last_config_churn_rate": 0.002
-      },
-      "export_score": 79.4926,
-      "export_score_parts": {
-        "hunter_score": 26.04,
-        "tcp_success": 18.48,
-        "real_success": 7.3326,
-        "historical_real": 2.72,
-        "historical_tcp": 3.8,
-        "config_volume": 10.0,
-        "protocol_diversity": 8.0,
-        "freshness": 4.0,
-        "churn": 0.012,
-        "dedupe_quality": 3.108,
-        "normalized_duplicate_penalty": -4.0
-      }
-    },
-    "added_at": "2026-07-15",
-    "last_reviewed_at": "2026-07-15"
-  },
-  {
-    "id": "https-raw-githubusercontent-com-shayanthn-v2ray-tester-pro-main-subscrip-8a6da4de",
-    "label": "Shayanthn/V2ray-Tester-Pro — subscriptions/clash.yaml",
-    "url": "https://raw.githubusercontent.com/Shayanthn/V2ray-Tester-Pro/main/subscriptions/clash.yaml",
-    "source_type": "static_subscription",
-    "trust": "high",
-    "status": "trusted",
-    "enabled": true,
-    "region": "IR",
-    "recommended_regions": [
-      "IR"
-    ],
-    "app_priority": 79,
-    "mobile_profile": "iran_fast",
-    "tags": [
-      "repository-tree",
-      "auto",
-      "github",
-      "hunter",
-      "trusted",
-      "iran",
-      "mobile-optimized",
-      "iran_fast",
-      "ss",
-      "trojan",
-      "vless",
-      "vmess"
-    ],
-    "protocols": [
-      "ss",
-      "trojan",
-      "vless",
-      "vmess"
-    ],
-    "notes": "Discovered by source-hunter from repository_tree; score=70.8; priority=79; unique=113; tcp=28/30; real=19/30",
-    "hunter_metrics": {
-      "score": 70.8,
-      "unique_items": 113,
-      "duplicate_ratio": 0.435,
-      "tcp_ok_count": 28,
-      "tcp_sample_size": 30,
-      "tcp_success_rate": 0.9333,
-      "real_check": {
-        "requested": true,
-        "available": true,
-        "checked": 30,
-        "ok": 19,
-        "success_rate": 0.6333,
-        "validation_location": "github_actions_eu",
-        "validated_config_count": 19,
-        "note": "real validation completed via v2ray_finder.xray_connectivity"
-      },
-      "freshness": {
-        "score_adjustment": 0.0,
-        "config_churn_rate": 0.0,
-        "history_available": true,
-        "reasons": [
-          "stale unchanged configs",
-          "strong historical real validation",
-          "strong historical TCP"
-        ]
-      },
-      "history": {
-        "times_seen": 6,
-        "failure_streak": 0,
-        "avg_tcp_success_rate": 0.9834,
-        "avg_real_success_rate": 0.6889,
-        "last_config_churn_rate": 0.0
-      },
-      "export_score": 79.1117,
-      "export_score_parts": {
-        "hunter_score": 21.24,
-        "tcp_success": 22.3992,
-        "real_success": 13.9326,
-        "historical_real": 5.5112,
-        "historical_tcp": 4.917,
-        "config_volume": 3.7667,
-        "protocol_diversity": 8.0,
-        "freshness": 0.0,
-        "churn": 0.0,
-        "dedupe_quality": 2.825,
-        "normalized_duplicate_penalty": -3.48
-      }
-    },
-    "added_at": "2026-07-15",
-    "last_reviewed_at": "2026-07-15"
-  },
-  {
-    "id": "https-raw-githubusercontent-com-solispirit-v2ray-configs-main-subscripti-22d8544b",
-    "label": "SoliSpirit/v2ray-configs — Subscriptions/Sub9.txt",
-    "url": "https://raw.githubusercontent.com/SoliSpirit/v2ray-configs/main/Subscriptions/Sub9.txt",
-    "source_type": "static_subscription",
-    "trust": "medium",
-    "status": "trusted",
-    "enabled": true,
-    "region": "IR",
-    "recommended_regions": [
-      "IR"
-    ],
-    "app_priority": 77,
-    "mobile_profile": "iran_fast",
-    "tags": [
-      "repository-tree",
-      "auto",
-      "github",
-      "hunter",
-      "trusted",
-      "iran",
-      "mobile-optimized",
-      "iran_fast",
-      "ss",
-      "trojan",
-      "vless",
-      "vmess"
-    ],
-    "protocols": [
-      "ss",
-      "trojan",
-      "vless",
-      "vmess"
-    ],
-    "notes": "Discovered by source-hunter from repository_tree; score=76.8; priority=77; unique=185; tcp=25/30; real=10/30",
-    "hunter_metrics": {
-      "score": 76.8,
-      "unique_items": 185,
-      "duplicate_ratio": 0.0107,
+      "score": 64.3,
+      "unique_items": 25,
+      "duplicate_ratio": 0.5283,
       "tcp_ok_count": 25,
-      "tcp_sample_size": 30,
-      "tcp_success_rate": 0.8333,
+      "tcp_sample_size": 25,
+      "tcp_success_rate": 1.0,
       "real_check": {
         "requested": true,
         "available": true,
-        "checked": 30,
-        "ok": 10,
-        "success_rate": 0.3333,
+        "checked": 25,
+        "ok": 17,
+        "success_rate": 0.68,
         "validation_location": "github_actions_eu",
-        "validated_config_count": 10,
+        "validated_config_count": 17,
         "note": "real validation completed via v2ray_finder.xray_connectivity"
       },
       "freshness": {
@@ -2189,32 +2020,32 @@
       "history": {
         "times_seen": 1,
         "failure_streak": 0,
-        "avg_tcp_success_rate": 0.8333,
-        "avg_real_success_rate": 0.3333,
+        "avg_tcp_success_rate": 1.0,
+        "avg_real_success_rate": 0.68,
         "last_config_churn_rate": 1.0
       },
-      "export_score": 77.2379,
+      "export_score": 75.7618,
       "export_score_parts": {
-        "hunter_score": 23.04,
-        "tcp_success": 19.9992,
-        "real_success": 7.3326,
-        "historical_real": 2.6664,
-        "historical_tcp": 4.1665,
-        "config_volume": 6.1667,
-        "protocol_diversity": 8.0,
+        "hunter_score": 19.29,
+        "tcp_success": 24.0,
+        "real_success": 14.96,
+        "historical_real": 5.44,
+        "historical_tcp": 5.0,
+        "config_volume": 0.8333,
+        "protocol_diversity": 4.0,
         "freshness": 1.0,
         "churn": 0.0,
-        "dedupe_quality": 4.9465,
-        "normalized_duplicate_penalty": -0.08
+        "dedupe_quality": 2.3585,
+        "normalized_duplicate_penalty": -1.12
       }
     },
     "added_at": "2026-07-15",
     "last_reviewed_at": "2026-07-15"
   },
   {
-    "id": "https-raw-githubusercontent-com-r3zarahimi-tg-v2ray-configs-every2h-main-d347190f",
-    "label": "R3ZARAHIMI/tg-v2ray-configs-every2h — Config_no_cf.txt",
-    "url": "https://raw.githubusercontent.com/R3ZARAHIMI/tg-v2ray-configs-every2h/main/Config_no_cf.txt",
+    "id": "https-raw-githubusercontent-com-hidashimora-free-vpn-anti-rkn-main-confi-c4064bd6",
+    "label": "Hidashimora/free-vpn-anti-rkn — configs/8.1.txt",
+    "url": "https://raw.githubusercontent.com/Hidashimora/free-vpn-anti-rkn/main/configs/8.1.txt",
     "source_type": "static_subscription",
     "trust": "medium",
     "status": "trusted",
@@ -2223,7 +2054,87 @@
     "recommended_regions": [
       "IR"
     ],
-    "app_priority": 73,
+    "app_priority": 75,
+    "mobile_profile": "iran_fast",
+    "tags": [
+      "repository-tree",
+      "auto",
+      "github",
+      "english",
+      "hunter",
+      "trusted",
+      "iran",
+      "mobile-optimized",
+      "iran_fast",
+      "vless"
+    ],
+    "protocols": [
+      "vless"
+    ],
+    "notes": "Discovered by source-hunter from repository_tree; score=73.5; priority=75; unique=244; tcp=26/30; real=12/30",
+    "hunter_metrics": {
+      "score": 73.5,
+      "unique_items": 244,
+      "duplicate_ratio": 0.0356,
+      "tcp_ok_count": 26,
+      "tcp_sample_size": 30,
+      "tcp_success_rate": 0.8667,
+      "real_check": {
+        "requested": true,
+        "available": true,
+        "checked": 30,
+        "ok": 12,
+        "success_rate": 0.4,
+        "validation_location": "github_actions_eu",
+        "validated_config_count": 12,
+        "note": "real validation completed via v2ray_finder.xray_connectivity"
+      },
+      "freshness": {
+        "score_adjustment": 1.0,
+        "config_churn_rate": null,
+        "history_available": false,
+        "reasons": [
+          "new source"
+        ]
+      },
+      "history": {
+        "times_seen": 1,
+        "failure_streak": 0,
+        "avg_tcp_success_rate": 0.8667,
+        "avg_real_success_rate": 0.4,
+        "last_config_churn_rate": 1.0
+      },
+      "export_score": 74.7796,
+      "export_score_parts": {
+        "hunter_score": 22.05,
+        "tcp_success": 20.8008,
+        "real_success": 8.8,
+        "historical_real": 3.2,
+        "historical_tcp": 4.3335,
+        "config_volume": 8.1333,
+        "protocol_diversity": 2.0,
+        "freshness": 1.0,
+        "churn": 0.0,
+        "dedupe_quality": 4.822,
+        "normalized_duplicate_penalty": -0.36
+      }
+    },
+    "added_at": "2026-07-15",
+    "last_reviewed_at": "2026-07-15"
+  },
+  {
+    "id": "https-raw-githubusercontent-com-firmfox-proxify-main-v2ray-configs-subsc-d1a1b908",
+    "label": "Firmfox/Proxify — v2ray_configs/subscriptions/subscription-56.txt",
+    "url": "https://raw.githubusercontent.com/Firmfox/Proxify/main/v2ray_configs/subscriptions/subscription-56.txt",
+    "source_type": "static_subscription",
+    "trust": "medium",
+    "status": "trusted",
+    "enabled": true,
+    "region": "IR",
+    "recommended_regions": [
+      "IR"
+    ],
+    "app_priority": 67,
     "mobile_profile": "iran_fast",
     "tags": [
       "repository-tree",
@@ -2236,60 +2147,61 @@
       "iran_fast",
       "ss",
       "trojan",
-      "vless"
+      "vless",
+      "vmess"
     ],
     "protocols": [
       "ss",
       "trojan",
-      "vless"
+      "vless",
+      "vmess"
     ],
-    "notes": "Discovered by source-hunter from repository_tree; score=71.9; priority=73; unique=181; tcp=20/30; real=7/30",
+    "notes": "Discovered by source-hunter from repository_tree; score=67.7; priority=67; unique=104; tcp=22/30; real=8/30",
     "hunter_metrics": {
-      "score": 71.9,
-      "unique_items": 181,
-      "duplicate_ratio": 0.0,
-      "tcp_ok_count": 20,
+      "score": 67.7,
+      "unique_items": 104,
+      "duplicate_ratio": 0.0095,
+      "tcp_ok_count": 22,
       "tcp_sample_size": 30,
-      "tcp_success_rate": 0.6667,
+      "tcp_success_rate": 0.7333,
       "real_check": {
         "requested": true,
         "available": true,
         "checked": 30,
-        "ok": 7,
-        "success_rate": 0.2333,
+        "ok": 8,
+        "success_rate": 0.2667,
         "validation_location": "github_actions_eu",
-        "validated_config_count": 7,
+        "validated_config_count": 8,
         "note": "real validation completed via v2ray_finder.xray_connectivity"
       },
       "freshness": {
-        "score_adjustment": 7.0,
-        "config_churn_rate": 0.0635,
-        "history_available": true,
+        "score_adjustment": 1.0,
+        "config_churn_rate": null,
+        "history_available": false,
         "reasons": [
-          "moderate config churn",
-          "strong historical TCP"
+          "new source"
         ]
       },
       "history": {
-        "times_seen": 6,
+        "times_seen": 1,
         "failure_streak": 0,
-        "avg_tcp_success_rate": 0.6722,
-        "avg_real_success_rate": 0.2778,
-        "last_config_churn_rate": 0.0635
+        "avg_tcp_success_rate": 0.7333,
+        "avg_real_success_rate": 0.2667,
+        "last_config_churn_rate": 1.0
       },
-      "export_score": 72.7011,
+      "export_score": 66.9559,
       "export_score_parts": {
-        "hunter_score": 21.57,
-        "tcp_success": 16.0008,
-        "real_success": 5.1326,
-        "historical_real": 2.2224,
-        "historical_tcp": 3.361,
-        "config_volume": 6.0333,
-        "protocol_diversity": 6.0,
-        "freshness": 7.0,
-        "churn": 0.381,
-        "dedupe_quality": 5.0,
-        "normalized_duplicate_penalty": -0.0
+        "hunter_score": 20.31,
+        "tcp_success": 17.5992,
+        "real_success": 5.8674,
+        "historical_real": 2.1336,
+        "historical_tcp": 3.6665,
+        "config_volume": 3.4667,
+        "protocol_diversity": 8.0,
+        "freshness": 1.0,
+        "churn": 0.0,
+        "dedupe_quality": 4.9525,
+        "normalized_duplicate_penalty": -0.04
       }
     },
     "added_at": "2026-07-15",
