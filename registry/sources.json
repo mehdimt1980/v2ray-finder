@@ -1,5 +1,116 @@
 [
   {
+    "id": "source-hunter-elite",
+    "label": "Source Hunter Elite (Xray-validated)",
+    "url": "https://raw.githubusercontent.com/mehdimt1980/v2ray-source-hunter/main/registry/best/elite.txt",
+    "source_type": "static_subscription",
+    "trust": "high",
+    "status": "trusted",
+    "enabled": true,
+    "region": "IR",
+    "recommended_regions": [
+      "IR"
+    ],
+    "app_priority": 1000,
+    "mobile_profile": "iran_fast",
+    "tags": [
+      "hunter",
+      "hunter-tier",
+      "elite",
+      "xray-validated",
+      "google-204",
+      "mobile-optimized",
+      "iran"
+    ],
+    "protocols": [
+      "ss",
+      "trojan",
+      "vless",
+      "vmess"
+    ],
+    "notes": "Fully proven Xray-validated configs. Published by v2ray-source-hunter.",
+    "hunter_metrics": {
+      "tier": "elite",
+      "feed_priority": 1000
+    },
+    "added_at": "2026-07-18",
+    "last_reviewed_at": "2026-07-18"
+  },
+  {
+    "id": "source-hunter-stable",
+    "label": "Source Hunter Stable (Xray-validated)",
+    "url": "https://raw.githubusercontent.com/mehdimt1980/v2ray-source-hunter/main/registry/best/stable.txt",
+    "source_type": "static_subscription",
+    "trust": "high",
+    "status": "trusted",
+    "enabled": true,
+    "region": "IR",
+    "recommended_regions": [
+      "IR"
+    ],
+    "app_priority": 950,
+    "mobile_profile": "iran_fast",
+    "tags": [
+      "hunter",
+      "hunter-tier",
+      "stable",
+      "xray-validated",
+      "google-204",
+      "mobile-optimized",
+      "iran"
+    ],
+    "protocols": [
+      "ss",
+      "trojan",
+      "vless",
+      "vmess"
+    ],
+    "notes": "Repeatedly validated Xray-passed configs. Published by v2ray-source-hunter.",
+    "hunter_metrics": {
+      "tier": "stable",
+      "feed_priority": 950
+    },
+    "added_at": "2026-07-18",
+    "last_reviewed_at": "2026-07-18"
+  },
+  {
+    "id": "source-hunter-fresh",
+    "label": "Source Hunter Fresh (Xray-validated)",
+    "url": "https://raw.githubusercontent.com/mehdimt1980/v2ray-source-hunter/main/registry/best/fresh.txt",
+    "source_type": "static_subscription",
+    "trust": "high",
+    "status": "trusted",
+    "enabled": true,
+    "region": "IR",
+    "recommended_regions": [
+      "IR"
+    ],
+    "app_priority": 900,
+    "mobile_profile": "iran_fast",
+    "tags": [
+      "hunter",
+      "hunter-tier",
+      "fresh",
+      "xray-validated",
+      "google-204",
+      "mobile-optimized",
+      "iran"
+    ],
+    "protocols": [
+      "ss",
+      "trojan",
+      "vless",
+      "vmess"
+    ],
+    "notes": "High-quality configs validated in the latest run. Published by v2ray-source-hunter.",
+    "hunter_metrics": {
+      "tier": "fresh",
+      "feed_priority": 900
+    },
+    "added_at": "2026-07-18",
+    "last_reviewed_at": "2026-07-18"
+  },
+  {
     "id": "https-raw-githubusercontent-com-shayanthn-v2ray-tester-pro-main-working--d110f20d",
     "label": "Shayanthn/V2ray-Tester-Pro — working_configs.json",
     "url": "https://raw.githubusercontent.com/Shayanthn/V2ray-Tester-Pro/main/working_configs.json",
