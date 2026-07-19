@@ -25,6 +25,12 @@ data class SourceRecord(
     val lastReviewedAt: String = "",
     val upstreamUrl: String = "",
 ) {
+    val hunterTier: String
+        get() = listOf("elite", "stable", "fresh")
+            .firstOrNull { it in tags.map(String::lowercase) }
+            ?.uppercase()
+            ?: ""
+
     val isActive: Boolean
         get() = enabled && status.lowercase() in ACTIVE_STATUSES
 

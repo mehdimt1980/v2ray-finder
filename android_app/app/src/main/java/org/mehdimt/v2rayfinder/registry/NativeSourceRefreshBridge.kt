@@ -10,6 +10,21 @@ object NativeSourceRefreshBridge {
     private const val REGISTRY_URL: String = "https://raw.githubusercontent.com/mehdimt1980/v2ray-finder/main/registry/sources.json"
     private const val CACHE_DIR: String = "source-registry"
     private const val CACHE_FILE: String = "sources.json"
+    private const val MAX_CACHE_AGE_MS: Long = 6L * 60L * 60L * 1000L
+
+    @JvmStatic
+    fun ensureFreshRegistry(context: Context, token: String = ""): String {
+        val cache = cachedRegistryFile(context)
+        val fresh = cache.isFile && System.currentTimeMillis() - cache.lastModified() <= MAX_CACHE_AGE_MS
+        val hasHunterTiers = try {
+            BundledSourceRegistry(context).loadFromFile(cache).map { it.hunterTier }.toSet()
+                .containsAll(setOf("ELITE", "STABLE", "FRESH"))
+        } catch (_: Exception) {
+            false
+        }
+        if (fresh && hasHunterTiers) return JSONObject().put("ok", true).put("message", "registry_cache_fresh").toString()
+        return refreshSourcesNow(context, token)
+    }
 
     @JvmStatic
     fun refreshSourcesNow(context: Context, token: String): String {

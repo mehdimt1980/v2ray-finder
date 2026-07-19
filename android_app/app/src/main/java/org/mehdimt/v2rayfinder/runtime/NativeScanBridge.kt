@@ -20,6 +20,7 @@ object NativeScanBridge {
     fun scan(context: Context, limit: Int, timeoutSeconds: Double, health: Boolean, realValidation: Boolean, token: String): String {
         val maxConfigs = if (limit > 0) limit else 200
         val timeoutMs = (timeoutSeconds.coerceAtLeast(1.0) * 1000.0).toInt()
+        val registryRefresh = NativeSourceRefreshBridge.ensureFreshRegistry(context, token)
         val sources = loadSources(context)
         val parsed = NativeFetchParseEngine(SourceFetcher(timeoutMs, timeoutMs)).run(sources, 50)
         val selection = CandidateSelector.select(parsed, maxConfigs, realValidation)
@@ -43,6 +44,7 @@ object NativeScanBridge {
             xrayReport.status == "missing_binary" -> "xray_missing_binary"
             xrayReport.results.isEmpty() -> "xray_no_candidates_validated"
             xrayReport.results.values.none { it.validationOk } -> "xray_checked_but_none_passed_tcp_results_shown"
+            xrayReport.skipped.isNotEmpty() -> "xray_partial_evidence"
             else -> "xray_strict_ok"
         }
 
@@ -61,7 +63,7 @@ object NativeScanBridge {
             }
             val xray = rankedItem.xray
             val validation = validationLabel(item, xray, realValidation, xrayReport.skipped[item.config])
-            val displaySourceLabel = listOfNotNull(primary?.label?.takeIf { it.isNotBlank() }, validation).joinToString(" | ")
+            val displaySourceLabel = listOfNotNull(primary?.let { displaySourceLabel(it) }, validation).joinToString(" | ")
             items.put(JSONObject()
                 .put("config", item.config)
                 .put("protocol", item.protocol)
@@ -74,6 +76,7 @@ object NativeScanBridge {
                 .put("latency_ms", xray?.latencyMs ?: item.latencyMs ?: JSONObject.NULL)
                 .put("source", primary?.url ?: "")
                 .put("source_label", displaySourceLabel)
+                .put("source_tier", primary?.hunterTier ?: "")
                 .put("source_count", sourcesForConfig.size)
                 .put("source_labels", sourceLabels)
                 .put("source_urls", sourceUrls)
@@ -125,6 +128,9 @@ object NativeScanBridge {
                 .put("selected_count", configs.count { cfg -> attribution[cfg].orEmpty().any { src -> src.url == sourceUrl } })
                 .put("xray_ok_count", xrayForSource.count { it.validationOk })
                 .put("xray_checked_count", xrayForSource.count())
+                .put("xray_skipped_count", xrayReport.skipped.keys.count { cfg -> attribution[cfg].orEmpty().any { src -> src.url == sourceUrl } })
+                .put("reason", if (sourceResult.fetchResult.ok && sourceResult.uniqueConfigCount == 0) "no_configs_extracted" else if (!sourceResult.fetchResult.ok) "fetch_failed" else "")
+                .put("hunter_tier", sourceResult.source.hunterTier)
                 .put("trust", sourceResult.source.trust))
         }
 
@@ -144,6 +150,7 @@ object NativeScanBridge {
                 .put("xray_budget", selection.xrayBudget)
                 .put("xray_status", xrayReport.status)
                 .put("xray_status_message", statusMessage)
+                .put("registry_refresh", registryRefresh)
                 .put("xray_checked", xrayReport.results.size)
                 .put("xray_ok", xrayReport.results.values.count { it.validationOk })
                 .put("xray_skipped", xrayReport.skipped.size))
@@ -163,7 +170,7 @@ object NativeScanBridge {
         val xr = if (!realValidation) {
             "Xray: off"
         } else if (xray == null) {
-            "Xray: skipped" + (skipReason?.takeIf { it.isNotBlank() }?.let { " $it" } ?: "")
+            "Xray: skipped" + (skipReason?.takeIf { it.isNotBlank() }?.let { " ($it)" } ?: "")
         } else {
             val status = if (xray.validationOk) "OK" else "FAIL"
             "Xray: $status ${xray.passedProbes}/${xray.totalProbes} conf ${String.format(java.util.Locale.US, "%.2f", xray.confidenceScore)}"
@@ -189,6 +196,10 @@ object NativeScanBridge {
             out[item.config] = validator.validate(item.config, binary.absolutePath, built.xrayConfigJson, workDir, built.socksPort)
         }
         for (item in scored.filter { !it.reachable }.take(if (budget > 0) budget else 80)) skipped[item.config] = "tcp_unreachable"
+        val processed = out.keys + skipped.keys
+        for (item in scored.filter { it.reachable }) {
+            if (item.config !in processed) skipped[item.config] = "mobile_budget_reached"
+        }
         return XrayReport(out, skipped, "active")
     }
 
@@ -215,6 +226,8 @@ object NativeScanBridge {
         if ("iran" in source.tags) score += 8
         return score
     }
+    private fun displaySourceLabel(source: SourceRecord): String =
+        if (source.hunterTier.isNotBlank()) "Hunter ${source.hunterTier}" else source.label
     private fun failedSources(parsed: NativeFetchParseResult): JSONArray { val out = JSONArray(); for (sourceResult in parsed.sourceResults) if (!sourceResult.ok) out.put(JSONObject().put("url", sourceResult.source.url).put("label", sourceResult.source.label).put("message", sourceResult.fetchResult.error.ifBlank { "no configs extracted" }).put("status_code", sourceResult.fetchResult.statusCode)); return out }
     private data class RankedItem(val base: ScoredConfig, val xray: NativeRealValidationResult?, val finalScore: Double)
     private data class XrayReport(val results: Map<String, NativeRealValidationResult>, val skipped: Map<String, String>, val status: String)

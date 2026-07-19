@@ -73,6 +73,13 @@ fetch sources concurrently
 
 The native scanner is optimized for mobile networks and slow connections. It avoids testing every raw config and instead builds a smaller, source-balanced candidate pool before network validation.
 
+Hunter integration:
+
+- The app refreshes the remote registry when its cache is older than six hours or does not contain the `Elite`, `Stable`, and `Fresh` Hunter tiers.
+- Hunter feeds are prioritized as `Elite`, then `Stable`, then `Fresh`; the last good cache remains available when refresh fails.
+- Real Xray validation checks up to 10 top reachable candidates on mobile. Remaining results display an explicit budget reason instead of an unexplained skip.
+- Result cards and source diagnostics identify Hunter tiers and report empty-source, fetch, TCP, and Xray-budget reasons.
+
 ## TCP and Xray validation
 
 Each result can show whether it passed TCP and whether it passed real xray validation.
