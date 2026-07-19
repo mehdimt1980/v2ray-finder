@@ -72,6 +72,27 @@ class TestCheckOneSuccess(unittest.TestCase):
     @patch("v2ray_finder.xray_connectivity.config_to_xray")
     @patch("v2ray_finder.xray_connectivity.XrayRunner")
     @patch("v2ray_finder.xray_connectivity._socks5_http_get")
+    def test_live_probe_runs_before_runner_stops(self, mock_probe, mock_runner_cls, mock_cfg):
+        mock_cfg.return_value = {"inbounds": []}
+        runner_inst = MagicMock()
+        mock_runner_cls.return_value = runner_inst
+        mock_probe.return_value = (True, 204, 55.0)
+        observed = {}
+
+        def live_probe(port):
+            observed["port"] = port
+            observed["stopped"] = runner_inst.stop.called
+            return {"checked": 4, "ok_count": 3, "success_rate": 0.75, "results": []}
+
+        result = check_one(VMESS_URI, local_port=19000, live_probe=live_probe)
+
+        self.assertEqual(observed, {"port": 19000, "stopped": False})
+        self.assertEqual(result.endpoint_probe["checked"], 4)
+        runner_inst.stop.assert_called_once()
+
+    @patch("v2ray_finder.xray_connectivity.config_to_xray")
+    @patch("v2ray_finder.xray_connectivity.XrayRunner")
+    @patch("v2ray_finder.xray_connectivity._socks5_http_get")
     def test_success_no_retry(self, mock_probe, mock_runner_cls, mock_cfg):
         mock_cfg.return_value = {"inbounds": []}
         runner_inst = MagicMock()

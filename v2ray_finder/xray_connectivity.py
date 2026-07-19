@@ -43,7 +43,7 @@ import socket
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from .probes import socks5_http_get as _socks5_http_get
 from .scoring_curves import latency_to_score_100 as _latency_to_score_100
@@ -95,6 +95,7 @@ class RealHealthResult:
     socks_port: Optional[int] = None
     check_methods: List[str] = field(default_factory=list)
     retried: bool = False
+    endpoint_probe: Optional[Dict[str, Any]] = None
 
     @property
     def quality_score(self) -> float:
@@ -458,6 +459,7 @@ class _LegacyResult:
     error: Optional[str] = None
     socks_port: Optional[int] = None
     retried: bool = False
+    endpoint_probe: Optional[Dict[str, Any]] = None
 
 
 def _try_start_xray(
@@ -497,6 +499,7 @@ def check_one(
     timeout: float = 10.0,
     binary_path: Optional[str] = None,
     auto_download: bool = True,
+    live_probe: Optional[Callable[[int], Dict[str, Any]]] = None,
 ) -> _LegacyResult:
     """Spin up xray for *uri*, probe Google 204, return result.
 
@@ -580,6 +583,18 @@ def check_one(
             timeout=timeout,
         )
         g204 = ok and status == 204
+        endpoint_probe = None
+        if ok and live_probe is not None:
+            try:
+                endpoint_probe = live_probe(local_port)
+            except Exception as exc:
+                endpoint_probe = {
+                    "results": [],
+                    "ok_count": 0,
+                    "checked": 0,
+                    "success_rate": 0.0,
+                    "note": f"live endpoint probe failed: {exc}",
+                }
         return _LegacyResult(
             config=uri,
             protocol=protocol,
@@ -588,6 +603,7 @@ def check_one(
             latency_ms=latency,
             socks_port=local_port,
             retried=retried,
+            endpoint_probe=endpoint_probe,
         )
     finally:
         runner.stop()
@@ -605,6 +621,7 @@ def check_real_connectivity_batch(
     timeout: float = 10.0,
     binary_path: Optional[str] = None,
     auto_download: bool = True,
+    live_probe: Optional[Callable[[int], Dict[str, Any]]] = None,
 ) -> List[RealHealthResult]:
     """Run real-connectivity checks on a list of URIs concurrently."""
     import threading
@@ -627,6 +644,7 @@ def check_real_connectivity_batch(
             timeout=timeout,
             binary_path=binary_path,
             auto_download=auto_download,
+            live_probe=live_probe,
         )
         return RealHealthResult(
             config=r.config,
@@ -637,6 +655,7 @@ def check_real_connectivity_batch(
             error=r.error,
             socks_port=r.socks_port,
             retried=r.retried,
+            endpoint_probe=r.endpoint_probe,
         )
 
     with ThreadPoolExecutor(max_workers=max_workers) as pool:
@@ -673,6 +692,7 @@ def real_health_to_dict(r: RealHealthResult) -> Dict:
         "google_204_ok": r.google_204_ok,
         "latency_ms": r.latency_ms,
         "error": r.error,
+        "endpoint_probe": r.endpoint_probe,
         "from_cache": r.from_cache,
         "xray_version": r.xray_version,
         "quality_score": r.quality_score,
